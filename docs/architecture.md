@@ -267,14 +267,16 @@ once per process; changing settings is not a hot-reload mechanism.
   image-only segments are not sent to a text model.
 - OCR is selective and opt-in. Tesseract/language data are needed on the host; the container includes
   English Tesseract. Cancellation can wait for an already-running blocking parser thread to finish.
-- No embeddings, exhaustive graph extraction, automatic cross-corpus relationship discovery,
-  autonomous compliance decisions, semantic merges or exception-management workflow.
+- Embedding retrieval and small-model verification are opt-in benchmark capabilities, not
+  exhaustive cross-corpus discovery. No autonomous compliance decisions, semantic merges
+  or exception-management workflow.
 - Source manifests can change upstream; original bytes/hashes are retained, but upstream URLs are not
   guaranteed immutable. ISO entries are metadata only; licensed text must be supplied locally.
 - Inspection results are bounded (200 concepts per query, up to 1,000 tasks for statistics). This MVP
   has no pagination UI or enterprise authorization. Keep interfaces local/private.
-- Benchmark-edition comparison, Microsoft Cloud Security Benchmark mappings/Azure Policy retrieval
-  and semantic reconciliation in `goal2.md` are not yet implemented.
+- Actual benchmark synchronization, structured ingestion, mappings/policy retrieval, native NIST
+  resolution and review-only comparisons are implemented. Structural proposals are not verified
+  semantic decisions; source gaps and unresolved references remain explicit.
 
 ## Evidence
 

@@ -247,6 +247,32 @@ def eval_run(
     )
 
 
+@eval_app.command("benchmarks")
+def eval_benchmarks(
+    dataset: Path = Path("tests") / "golden" / "benchmarks.json",
+    output: Path = Path("data") / "benchmark-evaluation.json",
+    configured: Annotated[
+        bool, typer.Option(help="Use the explicitly configured small model; may incur charges.")
+    ] = False,
+) -> None:
+    """Evaluate actual captured source excerpts; default is offline structural rules."""
+    from ekb.evaluation.benchmarks import evaluate_benchmarks
+
+    async def execute():
+        async with Runtime() as runtime:
+            if configured and runtime.verifier is None:
+                raise ValueError("Set EKB_RECONCILIATION_MODEL_ID for --configured evaluation")
+            return await evaluate_benchmarks(
+                dataset, output, runtime.verifier if configured else None
+            )
+
+    try:
+        report = asyncio.run(execute())
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
+    emit({"provider": report["provider"], "metrics": report["metrics"], "report": str(output)})
+
+
 @app.command()
 def tui(
     directory: Annotated[Path | None, typer.Option()] = None,

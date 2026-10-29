@@ -46,9 +46,9 @@ This is not a distributed graph-processing or autonomous-agent system.
 
 Model calls and database commits are at-least-once, not exactly-once billing. Artifacts and database
 commits are not one transaction. Inventory queries and per-result concept hydration grow with corpus
-size despite bounded processing concurrency. Enterprise authentication, automatic promotion,
-and semantic reconciliation are not implemented. Structured benchmark synchronization/ingestion,
-exact mapping records and parser-replay history are implemented. Generalized
+size despite bounded processing concurrency. Enterprise authentication and automatic promotion
+are not implemented. Evidence-bound, review-only benchmark reconciliation, structured synchronization,
+native identifier resolution, exact mapping records and parser-replay history are implemented. Generalized
 publication evidence, SemVer prereleases and scoped authority are supported independently.
 See `docs\codebase\CONCERNS.md`.
 

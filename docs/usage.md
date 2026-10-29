@@ -123,6 +123,12 @@ or labeled structural previews, with no paid calls or proposal writes. Use CLI `
 a comparison. Source publication, overview maturity and version/scoped enterprise authority are
 shown separately.
 
+Run `uv run ekb eval benchmarks` for offline extraction, reconciliation and lineage metrics on
+five attributed actual-source excerpts. Predictions and measured results are written to
+`data\benchmark-evaluation.json`. `--configured` explicitly enables the configured small model
+and may incur charges. The small dataset does not establish general model or embedding quality;
+see [the measured benchmark evaluation](benchmark-evaluation.md).
+
 Repeated sync uses conditional requests only after checking cached hashes, skips unchanged parsing,
 and replays changed parsers. Failed refreshes preserve earlier valid artifacts. Focused runs retain
 other cached editions/domains. Download, skipped-parse and replay counts describe separate stages.
@@ -137,7 +143,8 @@ and commits complete benchmark records with requirement candidates. Unchanged sc
 parser changes preserve earlier records without duplicating concepts or inventing semantic versions.
 An oversized semantic statement remains complete in its typed record and is listed in
 `unmaterialized_controls`, never silently truncated. Mappings retain unresolved targets until exact
-namespace/revision resolution. Comparison/reconciliation is still being implemented.
+namespace/revision resolution; comparison preserves published mappings separately from
+review-only semantic relationships.
 
 ### Additional downloadable parser-test corpus
 

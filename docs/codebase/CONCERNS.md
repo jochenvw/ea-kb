@@ -1,6 +1,6 @@
 # Codebase Concerns
 
-An implementation-limit/design-risk inventory through `9ea2a35`, not a penetration test or a claim
+An implementation-limit/design-risk inventory, updated for benchmark reconciliation, not a penetration test or a claim
 that every listed risk has produced a failure.
 
 ## 1) Top Risks (Prioritized)
@@ -11,7 +11,7 @@ that every listed risk has produced a failure.
 | High for policy use | Limited offline baseline; candidates are not approved policy | `RulesInference` | Incomplete/misclassified interpretations | Evaluate a model and retain review |
 | Medium | Model completion and checkpoint commit are separate | Pipeline `_execute` | Crash can repeat billable calls | Preserve idempotence; allow for at-least-once calls |
 | Medium | Separate artifact/database durability | Artifacts, pipeline `_process` | Orphans or incomplete restore | Retain/migrate both stores |
-| Medium | Benchmark reconciliation pending | `goal2.md`, benchmark domain/persistence | Extraction and history work; semantic comparison is pending | Retain unresolved references and review proposals |
+| Medium | Structural reconciliation remains heuristic | `services\reconciliation.py`, optional verifier | Similarity is not verified equivalence or backward compatibility | Review proposals; evaluate configured model quality before policy use |
 
 ## 2) Technical Debt
 

