@@ -43,8 +43,10 @@ from ekb.adapters.persistence.postgres.models import (
 from ekb.adapters.persistence.postgres.workflow import ResolutionStore, Workflow
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
+    Assertion,
     AuthorityEvent,
     ConceptDetail,
+    ConceptSource,
     ConceptVersion,
     InferenceResult,
     Occurrence,
@@ -283,15 +285,65 @@ class Knowledge:
         self.session = session
 
     async def search(
-        self, query: str = "", limit: int = 50, *, after: UUID | None = None
+        self,
+        query: str = "",
+        limit: int = 50,
+        *,
+        after: UUID | None = None,
+        source_id: UUID | None = None,
     ) -> list[ConceptDetail]:
-        statement = select(ConceptRow.id).join(VersionRow).distinct()
+        matches = select(VersionRow.concept_id, VersionRow.id)
         if query:
-            statement = statement.where(VersionRow.statement.icontains(query, autoescape=True))
+            matches = matches.where(
+                or_(
+                    VersionRow.statement.icontains(query, autoescape=True),
+                    VersionRow.assertion["text"].astext.icontains(query, autoescape=True),
+                )
+            )
+        if source_id is not None:
+            own = (
+                select(OccurrenceRow.concept_version_id)
+                .join(SegmentRow, OccurrenceRow.segment_id == SegmentRow.id)
+                .join(RevisionRow, SegmentRow.revision_id == RevisionRow.id)
+                .where(RevisionRow.source_id == source_id)
+            )
+            matches = matches.where(VersionRow.id.in_(own))
+        matched = matches.subquery()
+        statement = select(matched.c.concept_id).distinct()
         if after is not None:
-            statement = statement.where(ConceptRow.id > after)
-        ids = await self.session.scalars(statement.order_by(ConceptRow.id).limit(min(limit, 200)))
-        return [detail for concept_id in ids if (detail := await self.get(concept_id))]
+            statement = statement.where(matched.c.concept_id > after)
+        ids = list(
+            await self.session.scalars(
+                statement.order_by(matched.c.concept_id).limit(min(limit, 200))
+            )
+        )
+        matching_ids = set(
+            await self.session.scalars(select(matched.c.id).where(matched.c.concept_id.in_(ids)))
+        )
+        results = []
+        for concept_id in ids:
+            detail = await self.get(concept_id)
+            if detail:
+                version = next(v for v in reversed(detail.versions) if v.id in matching_ids)
+                results.append(detail.model_copy(update={"matching_version_id": version.id}))
+        return results
+
+    async def save_assertion(self, version_id: UUID, assertion: Assertion) -> None:
+        occurrence = await self.session.get(OccurrenceRow, assertion.occurrence_id)
+        if occurrence is None or occurrence.concept_version_id != version_id:
+            raise ValueError("An assertion requires evidence for the exact version")
+        source_id = await self.session.scalar(
+            select(RevisionRow.source_id)
+            .join(SegmentRow, SegmentRow.revision_id == RevisionRow.id)
+            .where(SegmentRow.id == occurrence.segment_id)
+        )
+        if source_id != assertion.source_id:
+            raise ValueError("An assertion must retain its exact source binding")
+        await self.session.execute(
+            update(VersionRow)
+            .where(VersionRow.id == version_id)
+            .values(assertion=assertion.model_dump(mode="json"))
+        )
 
     async def get(self, concept_id: UUID) -> ConceptDetail | None:
         if await self.session.get(ConceptRow, concept_id) is None:
@@ -299,9 +351,9 @@ class Knowledge:
         versions = await self.session.scalars(
             select(VersionRow)
             .where(VersionRow.concept_id == concept_id)
-            .order_by(VersionRow.payload["recorded_at"].astext)
+            .order_by(VersionRow.payload["recorded_at"].astext, VersionRow.id)
         )
-        version_list = [ConceptVersion.model_validate(row.payload) for row in versions]
+        version_list = [row.to_domain() for row in versions]
         version_ids = [v.id for v in version_list]
         occurrences = await self.session.scalars(
             select(OccurrenceRow).where(OccurrenceRow.concept_version_id.in_(version_ids))
@@ -315,12 +367,36 @@ class Knowledge:
             select(AuthorityRow).where(AuthorityRow.concept_version_id.in_(version_ids))
         )
         event_list = [AuthorityEvent.model_validate(row.payload) for row in events]
+        citations: dict[UUID, ConceptSource] = {}
+        source_rows = await self.session.execute(
+            select(SourceRow, OccurrenceRow.concept_version_id, func.count(OccurrenceRow.id))
+            .join(RevisionRow, RevisionRow.source_id == SourceRow.id)
+            .join(SegmentRow, SegmentRow.revision_id == RevisionRow.id)
+            .join(OccurrenceRow, OccurrenceRow.segment_id == SegmentRow.id)
+            .where(OccurrenceRow.concept_version_id.in_(version_ids))
+            .group_by(SourceRow.id, OccurrenceRow.concept_version_id)
+            .order_by(SourceRow.id, OccurrenceRow.concept_version_id)
+        )
+        for source_row, version_id, count in source_rows:
+            source = SourceRecord.model_validate(source_row.payload)
+            publisher = source.item.metadata.get("publisher")
+            if source_row.id not in citations:
+                citations[source_row.id] = ConceptSource(
+                    id=source_row.id,
+                    name=source.item.name,
+                    publisher=publisher if isinstance(publisher, str) else None,
+                    location=source.item.location,
+                    version_ids=[],
+                )
+            citations[source_row.id].version_ids.append(version_id)
+            citations[source_row.id].evidence_counts[version_id] = count
         return ConceptDetail(
             id=concept_id,
             versions=version_list,
             occurrences=[Occurrence.model_validate(row.payload) for row in occurrences],
             relationships=[Relationship.model_validate(row.payload) for row in relationships],
             authority_events=[event.model_dump(mode="json") for event in event_list],
+            sources=list(citations.values()),
             authority_states=project_authority(
                 event_list,
                 datetime.now(UTC).date(),
@@ -392,7 +468,7 @@ class Knowledge:
                         "semantic_version": None,
                         "statement": candidate.statement,
                         "predecessor_id": None,
-                        "payload": version.model_dump(mode="json"),
+                        "payload": version.model_dump(mode="json", exclude={"assertion"}),
                     },
                 )
                 await self._occurrence(version.id, segment, candidate.excerpt, result)
@@ -470,15 +546,44 @@ class Knowledge:
             .join(VersionRow, OccurrenceRow.concept_version_id == VersionRow.id)
             .where(VersionRow.concept_id == concept_id)
         )
-        return [
-            Provenance(
-                occurrence=Occurrence.model_validate(occ.payload),
-                segment=Segment.model_validate(seg.payload),
-                revision=SourceRevision.model_validate(rev.payload),
-                source=SourceRecord.model_validate(src.payload),
+        results = []
+        for occ, seg, rev, src in rows:
+            neighbors = list(
+                await self.session.scalars(
+                    select(SegmentRow)
+                    .where(
+                        SegmentRow.revision_id == seg.revision_id,
+                        SegmentRow.parser_fingerprint == seg.parser_fingerprint,
+                        SegmentRow.ordinal.in_((seg.ordinal - 1, seg.ordinal + 1)),
+                    )
+                    .order_by(SegmentRow.ordinal)
+                )
             )
-            for occ, seg, rev, src in rows
-        ]
+            results.append(
+                Provenance(
+                    occurrence=Occurrence.model_validate(occ.payload),
+                    segment=Segment.model_validate(seg.payload),
+                    revision=SourceRevision.model_validate(rev.payload),
+                    source=SourceRecord.model_validate(src.payload),
+                    context_before=next(
+                        (
+                            Segment.model_validate(row.payload)
+                            for row in neighbors
+                            if row.ordinal < seg.ordinal
+                        ),
+                        None,
+                    ),
+                    context_after=next(
+                        (
+                            Segment.model_validate(row.payload)
+                            for row in neighbors
+                            if row.ordinal > seg.ordinal
+                        ),
+                        None,
+                    ),
+                )
+            )
+        return results
 
     async def similar(self, concept_id: UUID, limit: int = 10) -> list[ConceptDetail]:
         concept = await self.get(concept_id)
@@ -534,7 +639,7 @@ class Knowledge:
                 semantic_version=str(version.version),
                 predecessor_id=version.predecessor_id,
                 statement=version.candidate.statement,
-                payload=version.model_dump(mode="json"),
+                payload=version.model_dump(mode="json", exclude={"assertion"}),
             )
         )
 

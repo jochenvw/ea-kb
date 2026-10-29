@@ -34,6 +34,7 @@ import {
 } from "@/components/workspace";
 import {
   date,
+  assertionText,
   externalUrl,
   label,
   semanticVersion,
@@ -331,6 +332,12 @@ export function SourcePage({ id }: { id: string }) {
                 <p className="callout">{data.source.error}</p>
               )}
               <Button variant="outline" size="sm" asChild>
+                <a href={`/knowledge?source_id=${id}`}>
+                  Filter knowledge by this source
+                  <ArrowUpRight />
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
                 <a href={`/data?table=sources&record=${id}`}>
                   Inspect stored source record
                   <ArrowUpRight />
@@ -351,7 +358,7 @@ export function SourcePage({ id }: { id: string }) {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="statement-column">
-                        Interpretation
+                        Assertion
                       </TableHead>
                       <TableHead>Kind</TableHead>
                       <TableHead>Version</TableHead>
@@ -365,9 +372,9 @@ export function SourcePage({ id }: { id: string }) {
                         <TableCell>
                           <a
                             className="statement-link"
-                            href={`/concepts/${item.concept_id}?version_id=${item.version.id}`}
+                            href={`/concepts/${item.concept_id}?version_id=${item.version.id}&source_id=${id}`}
                           >
-                            {item.version.candidate.statement}
+                            {assertionText(item.version, id)}
                           </a>
                         </TableCell>
                         <TableCell>

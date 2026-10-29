@@ -8,6 +8,7 @@
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit, aliases and issue lifecycle.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
 - Objectives and requirements remain candidates until an explicit authority decision.
+- `assertions.py` guards concise phrasing, qualifiers and source-bound replay fingerprints.
 
 Keep this layer deterministic and independent of persistence, transport, cloud and model SDKs.
 Do not infer missing scope, fabricate evidence or merge semantic similarity into identity.

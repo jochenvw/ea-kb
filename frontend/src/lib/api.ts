@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
-import type { SemanticVersion } from "@/types";
+import type { SemanticVersion, Version } from "@/types";
+
+export function assertionText(
+  version: Version | undefined,
+  sourceId?: string | null,
+) {
+  return (
+    (sourceId && version?.assertion?.source_id !== sourceId
+      ? null
+      : version?.assertion?.text) ??
+    version?.candidate.statement.replace(/\s+/g, " ").trim() ??
+    "No interpretation recorded"
+  );
+}
 
 export function useResource<T>(path: string | null) {
   const [revision, setRevision] = useState(0);

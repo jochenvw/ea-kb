@@ -24,31 +24,38 @@ import {
   Status,
   Technical,
   Empty,
+  Filter,
 } from "@/components/workspace";
 import {
   date,
+  assertionText,
   externalUrl,
   label,
   semanticVersion,
   useDebounced,
   useResource,
 } from "@/lib/api";
-import type { Concept, Provenance, Version } from "@/types";
+import type { Concept, Provenance, Source, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
 
 export function Knowledge() {
+  const [sourceId, setSourceId] = useState(
+    new URLSearchParams(location.search).get("source_id") ?? "",
+  );
+  const sources = useResource<Source[]>("/api/sources");
   const [query, setQuery] = useState(
     new URLSearchParams(location.search).get("q") ?? "",
   );
   const debounced = useDebounced(query);
+  const filterKey = `${sourceId}\0${debounced}`;
   const [pagination, setPagination] = useState<{
     query: string;
     cursors: (string | null)[];
-  }>({ query, cursors: [null] });
-  const cursors = pagination.query === debounced ? pagination.cursors : [null];
+  }>({ query: filterKey, cursors: [null] });
+  const cursors = pagination.query === filterKey ? pagination.cursors : [null];
   const cursor = cursors.at(-1);
   const resource = useResource<Concept[]>(
-    `/api/concepts?limit=50&q=${encodeURIComponent(debounced)}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
+    `/api/concepts?limit=50&q=${encodeURIComponent(debounced)}${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
   );
   const rows = resource.data ?? [];
   return (
@@ -60,20 +67,50 @@ export function Knowledge() {
       />
       <Panel
         title="Knowledge inventory"
-        description="Objective and requirement candidates, with exact source evidence."
+        description="Concise assertion candidates, linked to their original source passages."
       >
         <div className="toolbar">
           <SearchBox
             value={query}
-            onChange={setQuery}
+            onChange={(value) => {
+              setQuery(value);
+              const params = new URLSearchParams(location.search);
+              if (value) params.set("q", value);
+              else params.delete("q");
+              history.replaceState(null, "", `${location.pathname}?${params}`);
+            }}
             name="Search knowledge"
             placeholder="Search statements, e.g. logging or network security…"
           />
+          <Filter
+            name="Source document"
+            value={sourceId}
+            onChange={(value) => {
+              setSourceId(value);
+              const params = new URLSearchParams(location.search);
+              if (value) params.set("source_id", value);
+              else params.delete("source_id");
+              history.replaceState(null, "", `${location.pathname}?${params}`);
+            }}
+            options={[
+              ["", "All source documents"],
+              ...(sources.data ?? [])
+                .slice()
+                .sort((a, b) => a.item.name.localeCompare(b.item.name))
+                .map((source): [string, string] => [
+                  source.item.id,
+                  `${source.item.name} · ${String(source.item.metadata.publisher ?? "Unknown publisher")}`,
+                ]),
+            ]}
+          />
         </div>
+        <LoadState resource={sources}>
+          <span className="sr-only">Source document filters loaded</span>
+        </LoadState>
         <p className="table-note">
-          Search across the corpus and page through all matches, 50 at a time.
-          Matches may occur in retained versions; inspect version history when
-          needed.
+          One assertion per row. Source filters select evidenced versions, not
+          an unrelated latest interpretation. Browse 50 matches per page.
+          Rephrasing is a candidate summary, never a new policy obligation.
         </p>
         <LoadState
           resource={{
@@ -85,7 +122,8 @@ export function Knowledge() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="statement-column">Statement</TableHead>
+                <TableHead className="statement-column">Assertion</TableHead>
+                <TableHead>Source document</TableHead>
                 <TableHead>Kind</TableHead>
                 <TableHead>Publisher maturity</TableHead>
                 <TableHead>Evidence</TableHead>
@@ -96,22 +134,61 @@ export function Knowledge() {
             </TableHeader>
             <TableBody>
               {rows.map((concept) => {
-                const version = concept.versions.at(-1);
+                const version =
+                  concept.versions.find(
+                    (item) => item.id === concept.matching_version_id,
+                  ) ?? concept.versions.at(-1);
+                const documents = (concept.sources ?? []).filter(
+                  (source) =>
+                    (!sourceId || source.id === sourceId) &&
+                    version &&
+                    source.version_ids.includes(version.id),
+                );
+                const params = new URLSearchParams();
+                if (version) params.set("version_id", version.id);
+                if (sourceId) params.set("source_id", sourceId);
+                if (debounced) params.set("q", debounced);
+                const href = `/concepts/${concept.id}?${params}`;
                 return (
                   <TableRow key={concept.id}>
                     <TableCell>
-                      <a
-                        className="statement-link"
-                        href={`/concepts/${concept.id}`}
-                      >
-                        {version?.candidate.statement ??
-                          "No interpretation recorded"}
+                      <a className="statement-link" href={href}>
+                        {assertionText(version, sourceId)}
                       </a>
                       <span className="cell-caption">
                         {version
                           ? `${Math.round(version.candidate.confidence * 100)}% extraction confidence · ${label(version.candidate.modality)}`
                           : "Unknown"}
                       </span>
+                      {(!version?.assertion?.text ||
+                        (sourceId &&
+                          version.assertion.source_id !== sourceId)) && (
+                        <span className="cell-caption">
+                          {version?.assertion?.text === null &&
+                          (!sourceId ||
+                            version.assertion.source_id === sourceId)
+                            ? "Needs clarification · original wording"
+                            : "Original wording · rephrasing pending"}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {documents.length ? (
+                        documents.map((source) => (
+                          <a
+                            className="source-citation"
+                            key={source.id}
+                            href={`/sources/${source.id}`}
+                          >
+                            {source.name}
+                            <small>
+                              {source.publisher ?? "Unknown publisher"}
+                            </small>
+                          </a>
+                        ))
+                      ) : (
+                        <span className="muted">No linked source</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
@@ -128,12 +205,20 @@ export function Knowledge() {
                         Not enterprise approval
                       </span>
                     </TableCell>
-                    <TableCell>{concept.occurrences.length} passages</TableCell>
+                    <TableCell>
+                      {documents.reduce(
+                        (count, source) =>
+                          count +
+                          (source.evidence_counts?.[version?.id ?? ""] ?? 0),
+                        0,
+                      )}{" "}
+                      passages
+                    </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" asChild>
                         <a
-                          href={`/concepts/${concept.id}`}
-                          aria-label={`Inspect ${version?.candidate.statement ?? "concept"}`}
+                          href={href}
+                          aria-label={`Inspect ${assertionText(version, sourceId)}`}
                         >
                           <ArrowUpRight />
                         </a>
@@ -150,12 +235,12 @@ export function Knowledge() {
           count={rows.length}
           disabled={resource.loading || !!resource.error || query !== debounced}
           onPrevious={() =>
-            setPagination({ query: debounced, cursors: cursors.slice(0, -1) })
+            setPagination({ query: filterKey, cursors: cursors.slice(0, -1) })
           }
           onNext={() => {
             const last = rows.at(-1)?.id;
             if (last)
-              setPagination({ query: debounced, cursors: [...cursors, last] });
+              setPagination({ query: filterKey, cursors: [...cursors, last] });
           }}
         />
       </Panel>
@@ -177,18 +262,25 @@ export function ConceptPage({
     `/api/concepts/${encodeURIComponent(id)}/provenance`,
   );
   const requested = new URLSearchParams(location.search).get("version_id");
+  const sourceId = new URLSearchParams(location.search).get("source_id");
+  const back = new URLSearchParams(location.search);
+  back.delete("version_id");
+  const selected = requested
+    ? concept.data?.versions.find((item) => item.id === requested)
+    : concept.data?.versions.at(-1);
   const version =
-    concept.data?.versions.find((item) => item.id === requested) ??
-    concept.data?.versions.at(-1);
-  const evidence = requested
-    ? provenance.data?.filter(
-        (item) => item.occurrence.concept_version_id === requested,
-      )
-    : provenance.data;
+    selected && sourceId && selected.assertion?.source_id !== sourceId
+      ? { ...selected, assertion: null }
+      : selected;
+  const evidence = provenance.data?.filter(
+    (item) =>
+      (!requested || item.occurrence.concept_version_id === requested) &&
+      (!sourceId || item.source.item.id === sourceId),
+  );
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="back-link">
-        <a href="/knowledge">
+        <a href={`/knowledge${back.size ? `?${back}` : ""}`}>
           <ArrowLeft />
           Knowledge library
         </a>
@@ -199,13 +291,38 @@ export function ConceptPage({
         description="The candidate, its original passages and the decisions that govern its use."
       />
       <LoadState resource={concept}>
+        {concept.data && !version && (
+          <Empty
+            title="Requested version not found"
+            description="No unrelated interpretation has been substituted."
+          />
+        )}
         {concept.data && version && (
           <>
             <Panel
-              title={label(version.candidate.kind)}
-              description="Extracted interpretation; verify against the exact source."
+              title="Assertion"
+              description="Source-grounded assertion; verify against the original quote and context."
             >
-              <p className="concept-statement">{version.candidate.statement}</p>
+              <p className="concept-statement">{assertionText(version)}</p>
+              {!version.assertion?.text && (
+                <p className="table-note">
+                  {version.assertion?.uncertainty ??
+                    "Original wording shown; concise rephrasing has not run."}
+                </p>
+              )}
+              {version.assertion?.text && (
+                <details className="technical">
+                  <summary>Original extracted wording</summary>
+                  <p>{version.candidate.statement}</p>
+                  <p className="table-note">
+                    Assertion phrasing: {version.assertion.model_id} ·{" "}
+                    {version.assertion.prompt_version}. Not enterprise approval.
+                  </p>
+                </details>
+              )}
+              {version.assertion?.text && version.assertion.uncertainty && (
+                <p className="callout">{version.assertion.uncertainty}</p>
+              )}
               {requested && (
                 <p className="table-note">
                   Viewing source-linked version recorded{" "}
@@ -220,6 +337,9 @@ export function ConceptPage({
                 </a>
               </Button>
               <div className="tag-row">
+                <Badge variant="secondary">
+                  {label(version.candidate.kind)}
+                </Badge>
                 <Badge variant="secondary">
                   {label(version.candidate.modality)}
                 </Badge>
@@ -330,7 +450,7 @@ export function ConceptPage({
                         </Badge>
                         <span className="muted">{date(item.recorded_at)}</span>
                       </div>
-                      <p>{item.candidate.statement}</p>
+                      <p>{assertionText(item)}</p>
                       <Technical value={item} title="Version details" />
                     </div>
                   ))}
@@ -370,6 +490,14 @@ export function ConceptPage({
 }
 
 function Evidence({ item }: { item: Provenance }) {
+  const points = Array.from(item.segment.text ?? "");
+  const { start, end, excerpt } = item.occurrence;
+  const valid =
+    start >= 0 &&
+    end <= points.length &&
+    points.slice(start, end).join("") === excerpt;
+  const from = Math.max(0, start - 240);
+  const to = Math.min(points.length, end + 240);
   return (
     <article className="evidence">
       <div className="evidence-heading">
@@ -400,7 +528,63 @@ function Evidence({ item }: { item: Provenance }) {
           </Button>
         )}
       </div>
-      <blockquote>{item.occurrence.excerpt}</blockquote>
+      <p className="eyebrow">Original quote</p>
+      <blockquote>{excerpt}</blockquote>
+      {valid ? (
+        <div className="source-context">
+          <p className="eyebrow">Surrounding source context</p>
+          {item.context_before && (
+            <div>
+              <small>
+                Previous retained passage ·{" "}
+                {item.context_before.heading ?? "Source text"}
+              </small>
+              <p>
+                {Array.from(item.context_before.text).length > 320 ? "…" : ""}
+                {Array.from(item.context_before.text).slice(-320).join("")}
+              </p>
+            </div>
+          )}
+          <p>
+            {from > 0 ? "…" : ""}
+            {points.slice(from, start).join("")}
+            <mark>{excerpt}</mark>
+            {points.slice(end, to).join("")}
+            {to < points.length ? "…" : ""}
+          </p>
+          {item.context_after && (
+            <div>
+              <small>
+                Next retained passage ·{" "}
+                {item.context_after.heading ?? "Source text"}
+              </small>
+              <p>
+                {Array.from(item.context_after.text).slice(0, 320).join("")}
+                {Array.from(item.context_after.text).length > 320 ? "…" : ""}
+              </p>
+            </div>
+          )}
+          {start === 0 &&
+            end === points.length &&
+            !item.context_before &&
+            !item.context_after && (
+              <p className="table-note">
+                The quote spans the whole retained section; no additional nearby
+                text was retained.
+              </p>
+            )}
+          {(from > 0 || to < points.length) && (
+            <details className="technical">
+              <summary>Read full retained section</summary>
+              <p>{item.segment.text}</p>
+            </details>
+          )}
+        </div>
+      ) : (
+        <p className="table-note">
+          Surrounding context is unavailable for these evidence offsets.
+        </p>
+      )}
       <div className="tag-row">
         <Badge variant="outline">
           Revision maturity:{" "}
@@ -480,13 +664,13 @@ function ConceptLineage({ id }: { id: string }) {
 
 export function RelatedConcept({ id }: { id: string }) {
   const resource = useResource<Concept>(`/api/concepts/${id}`);
-  const candidate = resource.data?.versions.at(-1)?.candidate;
+  const version = resource.data?.versions.at(-1);
   return (
     <LoadState resource={resource}>
       <a className="related-concept" href={`/concepts/${id}`}>
         <FileText size={18} aria-hidden="true" />{" "}
         <span>
-          {candidate?.statement ?? "No interpretation recorded"}
+          {assertionText(version)}
           <small>Inspect exact evidence and scoped authority</small>
         </span>
         <ArrowUpRight size={16} />

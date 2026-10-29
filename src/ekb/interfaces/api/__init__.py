@@ -136,8 +136,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         q: str = "",
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         after: UUID | None = None,
+        source_id: UUID | None = None,
     ):
-        return await active(request).knowledge.search(q, limit, after=after)
+        return await active(request).knowledge.search(q, limit, after=after, source_id=source_id)
 
     @app.get("/api/concepts/{concept_id}", response_model=ConceptDetail)
     async def concept(request: Request, concept_id: UUID):

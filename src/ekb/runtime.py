@@ -5,6 +5,7 @@ from typing import Self
 
 from ekb.adapters.artifacts import AzureBlobArtifactStore, FilesystemArtifactStore
 from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference, RulesInference
+from ekb.adapters.inference.assertions import OpenAIAssertionWriter
 from ekb.adapters.inference.reconciliation import OpenAIEmbeddings, OpenAISemanticVerifier
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
@@ -22,6 +23,7 @@ from ekb.orchestration import PipelineOrchestrator, StageRegistry
 from ekb.pipeline import IngestionPipeline
 from ekb.ports import ArtifactStore, InferencePort, SourceConnector
 from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
+from ekb.services.assertions import AssertionService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
@@ -76,6 +78,14 @@ class Runtime:
         self._connectors: list[SourceConnector] = []
         self._connector_cache: dict[tuple[str, str], list[SourceConnector]] = {}
         self._benchmarks: MicrosoftLearnBenchmarkConnector | None = None
+        self._assertion_writer: OpenAIAssertionWriter | None = None
+
+    def assertions(self) -> AssertionService:
+        if self.settings.inference == "rules":
+            raise ValueError("Assertion rephrasing requires explicitly configured model inference")
+        if self._assertion_writer is None:
+            self._assertion_writer = OpenAIAssertionWriter(self.settings)
+        return AssertionService(self.database, self._assertion_writer)
 
     @property
     def resolver(self) -> KnowledgeResolver:
@@ -242,6 +252,8 @@ class Runtime:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        if self._assertion_writer:
+            await self._assertion_writer.close()
         for connector in self._connectors:
             if isinstance(connector, HTTPConnector):
                 await connector.close()

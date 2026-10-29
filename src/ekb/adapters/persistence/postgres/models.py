@@ -17,7 +17,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from ekb.domain.models import now
+from ekb.domain.assertions import checked_assertion
+from ekb.domain.models import Assertion, ConceptVersion, now
 
 
 class Base(DeclarativeBase):
@@ -79,6 +80,16 @@ class VersionRow(Base):
     predecessor_id: Mapped[UUID | None] = mapped_column(ForeignKey("concept_versions.id"))
     statement: Mapped[str] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    assertion: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    def to_domain(self) -> ConceptVersion:
+        version = ConceptVersion.model_validate(self.payload)
+        assertion = (
+            checked_assertion(version.candidate, Assertion.model_validate(self.assertion))
+            if self.assertion
+            else None
+        )
+        return version.model_copy(update={"assertion": assertion})
 
 
 class OccurrenceRow(Base):

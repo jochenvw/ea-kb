@@ -33,7 +33,7 @@ from ekb.domain.inspection import (
     TableInfo,
     TablePage,
 )
-from ekb.domain.models import ConceptVersion, SourceRecord
+from ekb.domain.models import SourceRecord
 from ekb.domain.resolution import Decision, Finding
 
 
@@ -149,7 +149,7 @@ class Inspection:
             items=[
                 SourceExtraction(
                     concept_id=row.concept_id,
-                    version=ConceptVersion.model_validate(row.payload),
+                    version=row.to_domain(),
                     evidence_count=count,
                 )
                 for row, count in rows[:limit]
@@ -303,11 +303,12 @@ class Inspection:
         nodes = [
             GraphNode(
                 id=version.concept_id,
-                label=version.statement,
-                kind=version.payload["candidate"]["kind"],
+                label=(version.assertion.text if version.assertion else None)
+                or version.candidate.statement,
+                kind=version.candidate.kind,
                 href=f"/concepts/{version.concept_id}",
             )
-            for version in versions
+            for version in (row.to_domain() for row in versions)
         ]
         sources = list(
             (

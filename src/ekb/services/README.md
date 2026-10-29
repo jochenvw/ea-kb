@@ -2,6 +2,8 @@
 
 - `knowledge.py` exposes concept, provenance, lineage, related-requirement and usage queries.
   Search forwards bounded UUID-cursor pages rather than loading the full corpus for the browser.
+- `assertions.py` phrases existing versions with bounded model workers and replay caching;
+  it never changes original candidates, occurrences, identities or authority.
 - `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.
 - `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.
   Preserve complete oversized statements in records rather than truncating their qualifiers.

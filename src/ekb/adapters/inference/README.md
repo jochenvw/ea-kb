@@ -2,6 +2,7 @@
 
 `__init__.py` implements `RulesInference`, `OpenAIInference` and optional `AgentFrameworkInference`.
 `reconciliation.py` adds explicitly configured small-model verification and bounded embeddings.
+`assertions.py` rephrases selected candidates as source-grounded single-sentence assertions.
 
 - Input is a persisted segment; output is typed extraction, provider identity and measured usage.
 - Rules are an explicitly limited offline baseline, not an automatic model-failure fallback.
@@ -9,6 +10,7 @@
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
 - Neither an embedding match nor a model answer merges concepts or promotes authority.
+- Assertion rewrites retain modality, numeric qualifiers and negation; unsupported phrasing stays unresolved.
 - Chat payloads support explicit completion-token fields and omitted temperature; config affects
   inference/verifier replay identity. Configure per-token prices for measured qualification cost.
 

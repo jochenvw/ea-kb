@@ -180,7 +180,17 @@ async function fixture(page: Page, governance = false) {
             recorded_at: timestamp,
             publication,
           },
-          segment: { id, heading: "Logging", location: { page: 4 } },
+          segment: {
+            id,
+            text: `Intro${excerpt} Additional context: retain evidence for audits.`,
+            heading: "Logging",
+            location: { page: 4 },
+          },
+          context_after: {
+            text: "Adjacent retained guidance explains audit review.",
+            heading: "Review",
+            location: { page: 4 },
+          },
           occurrence: {
             id,
             concept_version_id: id,
@@ -422,6 +432,13 @@ test("search, exact evidence and scoped authority remain distinct", async ({
   await page.getByRole("link", { name: statement, exact: true }).click();
   await expect(page.locator("blockquote")).toHaveText(excerpt);
   await expect(page.locator("blockquote em")).toHaveCount(0);
+  await expect(page.locator(".source-context")).toContainText(
+    "Additional context: retain evidence for audits.",
+  );
+  await expect(page.locator(".source-context mark")).toHaveText(excerpt);
+  await expect(page.locator(".source-context")).toContainText(
+    "Adjacent retained guidance explains audit review.",
+  );
   await expect(page.getByText("Exact segment offsets 5–")).toBeVisible();
   await page.getByRole("tab", { name: "Scope & governance" }).click();
   await expect(
@@ -433,6 +450,136 @@ test("search, exact evidence and scoped authority remain distinct", async ({
   await expect(
     page.getByText(/Effective period: 2020-01-01 to 2099-12-31/),
   ).toBeVisible();
+});
+
+test("source filtering keeps the evidenced assertion and resets pagination", async ({
+  page,
+}) => {
+  const phrase = "Teams must retain audit logs for investigations.";
+  const own = {
+    ...concept.versions[0],
+    assertion: {
+      text: phrase,
+      uncertainty: null,
+      model_id: "synthetic",
+      prompt_version: "v1",
+      occurrence_id: id,
+      source_id: sourceId,
+    },
+  };
+  const item = {
+    ...concept,
+    matching_version_id: id,
+    versions: [
+      own,
+      {
+        ...concept.versions[0],
+        id: relatedId,
+        candidate: {
+          ...concept.versions[0].candidate,
+          statement: "An unrelated latest version.",
+        },
+      },
+    ],
+    sources: [
+      {
+        id: sourceId,
+        name: source.item.name,
+        publisher: "Example publisher",
+        location: source.item.location,
+        version_ids: [id],
+        evidence_counts: { [id]: 1 },
+      },
+    ],
+  };
+  const requests: URL[] = [];
+  await page.route("**/api/concepts?**", (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    return route.fulfill({
+      json: Array.from({ length: 50 }, (_, index) => ({
+        ...item,
+        id: `${String(index + 1).padStart(8, "0")}-1111-4111-8111-111111111111`,
+      })),
+    });
+  });
+  await page.goto("/knowledge");
+  await expect(
+    page.getByRole("link", { name: phrase, exact: true }),
+  ).toHaveCount(50);
+  await expect(
+    page.getByText("An unrelated latest version.", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect
+    .poll(() => requests.at(-1)?.searchParams.has("after"))
+    .toBe(true);
+  await page
+    .getByRole("combobox", { name: "Source document" })
+    .selectOption(sourceId);
+  await expect
+    .poll(() => requests.at(-1)?.searchParams.get("source_id"))
+    .toBe(sourceId);
+  expect(requests.at(-1)?.searchParams.has("after")).toBe(false);
+  await expect(
+    page.getByText("Page 1 · 50 records on this page"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: phrase, exact: true }).first(),
+  ).toHaveAttribute(
+    "href",
+    new RegExp(`version_id=${id}&source_id=${sourceId}`),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("combobox", { name: "Source document" }),
+  ).toHaveValue(sourceId);
+  await page
+    .getByRole("combobox", { name: "Source document" })
+    .selectOption("");
+  await expect
+    .poll(() => requests.at(-1)?.searchParams.has("source_id"))
+    .toBe(false);
+});
+
+test("quote context respects Unicode offsets and renders untrusted markup as text", async ({
+  page,
+}) => {
+  await page.route(`**/api/concepts/${id}/provenance`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          source,
+          revision: {
+            id,
+            content_hash: "a".repeat(64),
+            recorded_at: timestamp,
+            publication,
+          },
+          segment: {
+            id,
+            text: `😀 ${excerpt} Subsequent source context.`,
+            heading: "Logging",
+            location: { page: 4 },
+          },
+          occurrence: {
+            id,
+            concept_version_id: id,
+            excerpt,
+            start: 2,
+            end: 2 + excerpt.length,
+            extraction_metadata: {},
+          },
+        },
+      ],
+    }),
+  );
+  await page.goto(`/concepts/${id}`);
+  await expect(page.locator(".source-context mark")).toHaveText(excerpt);
+  await expect(page.locator(".source-context")).toContainText(
+    "Subsequent source context.",
+  );
+  await expect(page.locator(".source-context em")).toHaveCount(0);
 });
 
 test("issue filters and evidence drill-down do not expose write controls", async ({

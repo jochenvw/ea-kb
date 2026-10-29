@@ -14,6 +14,7 @@ from ekb.domain.inspection import (
     TablePage,
 )
 from ekb.domain.models import (
+    Assertion,
     AuthorityEvent,
     Capabilities,
     ConceptDetail,
@@ -70,6 +71,12 @@ class InferencePort(Protocol):
     async def extract(self, segment: Segment) -> InferenceResult: ...
 
 
+class AssertionWriter(Protocol):
+    fingerprint: str
+
+    async def rewrite(self, version: ConceptVersion, evidence: Provenance) -> Assertion: ...
+
+
 class SemanticVerifier(Protocol):
     fingerprint: str
 
@@ -103,8 +110,14 @@ class SourceRepository(Protocol):
 class KnowledgeRepository(Protocol):
     async def counts(self) -> WorkspaceCounts: ...
     async def search(
-        self, query: str = "", limit: int = 50, *, after: UUID | None = None
+        self,
+        query: str = "",
+        limit: int = 50,
+        *,
+        after: UUID | None = None,
+        source_id: UUID | None = None,
     ) -> list[ConceptDetail]: ...
+    async def save_assertion(self, version_id: UUID, assertion: Assertion) -> None: ...
     async def get(self, concept_id: UUID) -> ConceptDetail | None: ...
     async def persist(self, segment: Segment, result: InferenceResult) -> list[UUID]: ...
     async def provenance(self, concept_id: UUID) -> list[Provenance]: ...

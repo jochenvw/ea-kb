@@ -138,13 +138,37 @@ def scans_list() -> None:
 
 @concepts_app.command("list")
 def concepts_list(
-    query: str = "", limit: Annotated[int, typer.Option(min=1, max=200)] = 50
+    query: str = "",
+    limit: Annotated[int, typer.Option(min=1, max=200)] = 50,
+    source_id: Annotated[UUID | None, typer.Option()] = None,
 ) -> None:
     async def execute():
         async with Runtime() as runtime:
-            return await runtime.knowledge.search(query, limit)
+            return await runtime.knowledge.search(query, limit, source_id=source_id)
 
     emit(asyncio.run(execute()))
+
+
+@concepts_app.command("phrase")
+def concepts_phrase(
+    source_id: Annotated[
+        UUID | None, typer.Option(help="Restrict to an exact source document.")
+    ] = None,
+    concurrency: Annotated[int, typer.Option(min=1, max=16)] = 4,
+) -> None:
+    """Cache source-grounded one-line assertions using the configured model; retain originals."""
+
+    async def execute():
+        async with Runtime() as runtime:
+            return await runtime.assertions().generate(source_id=source_id, concurrency=concurrency)
+
+    try:
+        report = asyncio.run(execute())
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
+    emit(report)
+    if report.failed:
+        raise typer.Exit(1)
 
 
 @concepts_app.command("show")

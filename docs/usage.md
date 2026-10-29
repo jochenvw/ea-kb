@@ -300,6 +300,34 @@ The [Bold Wikipedia preset](https://tweakcn.com/r/themes/cmlmpb3qp000004l5go47hz
 both palettes, compact corners, typography and shadows. Inter is self-hosted with the application;
 no font/CDN requests are needed. Semantic shadcn variables also drive the custom reference views.
 
+The knowledge table filters by **Source document**, including individual reports and framework
+editions. Each row names its source and opens the version actually evidenced there; filters persist
+in the URL and reset paging. Details show the **Original quote**, highlighted surrounding source
+context, section/page and revision metadata. Quotes and context are rendered as text, never HTML.
+When a quote spans its whole segment, adjacent retained passages provide context where available;
+their section headings are shown explicitly. Missing context is disclosed, never reconstructed.
+
+Assertions use one standalone sentence: **supported subject + action/outcome + necessary qualifiers**.
+Aim for 8–25 words; preserve intent, scope, negation, exceptions, numerical targets, units, deadlines
+and original must/should/goal language. Do not invent a subject or turn a publisher's aim into policy.
+If the evidence cannot support clear phrasing, the UI labels the original wording for clarification.
+Rephrasing is a derived candidate cache, not approval or a rewrite of original evidence.
+
+After ingestion, explicitly run the configured model to phrase existing versions:
+
+```powershell
+uv run ekb init
+$env:EKB_CONFIG_FILE=(Resolve-Path data\foundry-local.yaml).Path
+uv run ekb concepts phrase --concurrency 4
+# Optional: add --source-id <source UUID> to phrase only one document.
+```
+
+The command is resumable: unchanged model/prompt/input fingerprints reuse phrasing without model
+calls. It reports generated, unresolved, reused and failed versions; nonzero failures return exit 1.
+Already concise, standalone modal assertions retain their exact wording without a model call.
+Rules-only inference cannot semantically rephrase and is rejected rather than silently used.
+The nullable assertion cache records provider-reported usage; unpriced costs remain unknown.
+
 The web scan button uses the server-configured `EKB_SOURCE_DIRECTORY` and/or the public manifest.
 It does not accept arbitrary filesystem paths from a browser. Keep the web server local/private:
 enterprise authentication and network hardening are not part of this milestone.

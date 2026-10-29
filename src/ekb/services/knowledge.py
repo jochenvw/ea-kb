@@ -25,10 +25,15 @@ class KnowledgeService:
         self.uow = uow
 
     async def search(
-        self, query: str = "", limit: int = 50, *, after: UUID | None = None
+        self,
+        query: str = "",
+        limit: int = 50,
+        *,
+        after: UUID | None = None,
+        source_id: UUID | None = None,
     ) -> list[ConceptDetail]:
         async with self.uow() as uow:
-            return await uow.knowledge.search(query, limit, after=after)
+            return await uow.knowledge.search(query, limit, after=after, source_id=source_id)
 
     async def get(self, concept_id: UUID) -> ConceptDetail | None:
         async with self.uow() as uow:

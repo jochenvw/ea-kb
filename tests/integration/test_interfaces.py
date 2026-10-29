@@ -148,6 +148,30 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                 again = (await client.get(f"/api/sources/{source_id}")).json()
                 assert later.id not in {UUID(row["version"]["id"]) for row in again["items"]}
                 assert again["versions"] == own["versions"]
+                filtered = (await client.get(f"/api/concepts?source_id={source_id}")).json()
+                selected = next(row for row in filtered if row["id"] == item["concept_id"])
+                assert selected["matching_version_id"] != str(later.id)
+                assert str(original.id) in {
+                    version_id
+                    for citation in selected["sources"]
+                    if citation["id"] == source_id
+                    for version_id in citation["version_ids"]
+                }
+                assert (
+                    await client.get(f"/api/concepts?source_id={source_id}&q=A%20later")
+                ).json() == []
+                assert (await client.get("/api/concepts?source_id=invalid")).status_code == 422
+                assert (await client.get(f"/api/concepts?source_id={uuid4()}")).json() == []
+                first_filtered = (
+                    await client.get(f"/api/concepts?source_id={source_id}&limit=1")
+                ).json()
+                next_filtered = (
+                    await client.get(
+                        f"/api/concepts?source_id={source_id}&limit=1&after={first_filtered[-1]['id']}"
+                    )
+                ).json()
+                assert len(first_filtered + next_filtered) == 2
+                assert first_filtered[0]["id"] != next_filtered[0]["id"]
                 assert (await client.get(f"/sources/{source_id}")).status_code == 200
                 assert (await client.get(f"/api/sources/{uuid4()}")).status_code == 404
                 assert (await client.get(f"/sources/{uuid4()}")).status_code == 404

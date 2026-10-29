@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select, update
 
-from ekb.adapters.persistence.postgres.models import TaskRow
+from ekb.adapters.persistence.postgres.models import TaskRow, VersionRow
 from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     AuthorityEvent,
@@ -136,6 +136,97 @@ async def test_recursive_lineage_handles_cycles_and_reverse_edges(database):
         assert await uow.lineage.trace_origins(uuid4()) == []
         concept = await uow.knowledge.get(ids[0])
         assert concept and all(edge.status == "proposed" for edge in concept.relationships)
+
+
+async def test_assertions_are_replayable_projections_not_edits_to_originals(database):
+    from ekb.domain.assertions import assertion_fingerprint
+    from ekb.domain.models import Assertion
+    from ekb.services.assertions import AssertionService
+
+    segment = await seed(database)
+    following = segment.model_copy(
+        update={
+            "id": uuid4(),
+            "ordinal": 1,
+            "text": "Authentication prevents unauthenticated access.",
+        }
+    )
+    async with database() as uow:
+        await uow.sources.save_segments(segment.revision_id, [segment, following], "parser-v1")
+        ids = await uow.knowledge.persist(
+            segment,
+            InferenceResult(
+                extraction=Extraction(
+                    candidates=[
+                        Candidate(
+                            kind=ConceptKind.REQUIREMENT,
+                            statement="Users must authenticate.",
+                            excerpt="Users must authenticate.",
+                        )
+                    ]
+                ),
+                model_id="test",
+                prompt_version="v1",
+            ),
+        )
+        await uow.commit()
+        original = await uow.knowledge.get(ids[0])
+        original_revision = (await uow.resolution.snapshot()).revision
+    assert original
+
+    class Writer:
+        fingerprint = "test-phrasing-v1"
+        calls = 0
+
+        async def rewrite(self, version, evidence):
+            self.calls += 1
+            return Assertion(
+                text="Users must authenticate.",
+                uncertainty=None,
+                fingerprint=assertion_fingerprint(version, evidence, self.fingerprint),
+                occurrence_id=evidence.occurrence.id,
+                source_id=evidence.source.item.id,
+                model_id="test",
+                prompt_version="v1",
+            )
+
+    writer = Writer()
+    service = AssertionService(database, writer)
+    assert (await service.generate(concurrency=2)).generated == 1
+    assert (await service.generate(concurrency=2)).reused == 1
+    assert writer.calls == 1
+    async with database() as uow:
+        detail = await uow.knowledge.get(ids[0])
+        assert detail and detail.versions[0].assertion
+        assert detail.versions[0].candidate == original.versions[0].candidate
+        assert detail.occurrences == original.occurrences
+        assert detail.authority_events == []
+        evidence = (await uow.knowledge.provenance(ids[0]))[0]
+        assert evidence.context_after == following and evidence.context_before is None
+        assert (await uow.resolution.snapshot()).revision == original_revision
+        assertion = detail.versions[0].assertion
+        with pytest.raises(ValueError, match="exact version"):
+            await uow.knowledge.save_assertion(uuid4(), assertion)
+        with pytest.raises(ValueError, match="source binding"):
+            await uow.knowledge.save_assertion(
+                detail.versions[0].id, assertion.model_copy(update={"source_id": uuid4()})
+            )
+        await uow.session.execute(
+            update(VersionRow)
+            .where(VersionRow.id == detail.versions[0].id)
+            .values(
+                assertion=assertion.model_copy(update={"text": "It must authenticate."}).model_dump(
+                    mode="json"
+                )
+            )
+        )
+        await uow.commit()
+    async with database() as uow:
+        legacy = await uow.knowledge.get(ids[0])
+        assert legacy and legacy.versions[0].assertion
+        assert legacy.versions[0].assertion.text is None
+        assert legacy.versions[0].assertion.uncertainty
+        assert legacy.versions[0].candidate == original.versions[0].candidate
 
 
 async def test_explicit_version_and_authority_history(database):

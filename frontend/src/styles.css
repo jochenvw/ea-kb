@@ -614,6 +614,29 @@ main {
   min-width: 280px;
   width: 52%;
 }
+.source-citation {
+  display: block;
+  min-width: 180px;
+  max-width: 260px;
+  color: var(--cp-link);
+}
+.source-citation + .source-citation {
+  margin-top: 8px;
+}
+.source-citation small {
+  display: block;
+}
+.source-context {
+  border: 1px solid var(--cp-border);
+  padding: 16px;
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+.source-context mark {
+  background: var(--cp-highlight);
+  color: var(--cp-text);
+  font-weight: 600;
+}
 th {
   font-size: 11px;
   white-space: nowrap;

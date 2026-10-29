@@ -316,6 +316,31 @@ class Usage(Model):
     validation_failures: int = Field(default=0, ge=0)
 
 
+class AssertionDraft(Model):
+    text: str | None = Field(default=None, min_length=1, max_length=500)
+    uncertainty: str | None = None
+
+    @model_validator(mode="after")
+    def standalone_line(self) -> Self:
+        if self.text is not None and (
+            self.text != self.text.strip() or "\n" in self.text or "\r" in self.text
+        ):
+            raise ValueError("An assertion must be one trimmed line")
+        if self.text is None and not self.uncertainty:
+            raise ValueError("Unresolved assertions require an explanation")
+        return self
+
+
+class Assertion(AssertionDraft):
+    fingerprint: str
+    occurrence_id: UUID
+    source_id: UUID
+    model_id: str
+    prompt_version: str
+    usage: Usage = Field(default_factory=Usage)
+    recorded_at: datetime = Field(default_factory=now)
+
+
 class InferenceResult(Model):
     extraction: Extraction
     usage: Usage = Field(default_factory=Usage)
@@ -337,6 +362,7 @@ class ConceptVersion(Model):
         default=None, validation_alias=AliasChoices("semantic_version", "version")
     )
     candidate: Candidate
+    assertion: Assertion | None = None
     recorded_at: datetime = Field(default_factory=now)
     predecessor_id: UUID | None = None
     effective_from: date | None = None
@@ -374,6 +400,15 @@ class Relationship(Model):
     status: str = "proposed"
 
 
+class ConceptSource(Model):
+    id: UUID
+    name: str
+    publisher: str | None = None
+    location: str
+    version_ids: list[UUID]
+    evidence_counts: dict[UUID, int] = Field(default_factory=dict)
+
+
 class ConceptDetail(Model):
     id: UUID
     versions: list[ConceptVersion]
@@ -381,6 +416,8 @@ class ConceptDetail(Model):
     relationships: list[Relationship]
     authority_events: list[dict[str, Any]] = Field(default_factory=list)
     authority_states: list[AuthorityState] = Field(default_factory=list)
+    sources: list[ConceptSource] = Field(default_factory=list)
+    matching_version_id: UUID | None = None
 
 
 class Provenance(Model):
@@ -388,6 +425,8 @@ class Provenance(Model):
     segment: Segment
     revision: SourceRevision
     source: SourceRecord
+    context_before: Segment | None = None
+    context_after: Segment | None = None
 
 
 class ProcessingTask(Model):

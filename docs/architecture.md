@@ -244,6 +244,16 @@ transaction-time reconstruction, exception-approval backend or enterprise role s
 
 ## Interfaces and observability
 
+Concise assertions are derived presentation candidates, not replacements for extracted statements.
+`AssertionService` uses the replaceable `AssertionWriter` against an exact occurrence and its retained
+section. A nullable JSONB column on `concept_versions` caches text, uncertainty, source/occurrence
+bindings, model/prompt identity, input fingerprint and usage. Original version payloads, occurrence
+offsets, semantic identity and authority remain unchanged. Unsupported rephrasing stays unresolved.
+Workers and queues are bounded; unchanged inputs reuse cached phrasing. Browsing never invokes a model.
+Knowledge search combines text and exact-source constraints on the same version; responses identify
+that version and its source documents. Details retain exact quotes, their surrounding section and
+adjacent passages from the same revision/parser; section labels distinguish neighboring material.
+
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
 The web scan task is asynchronous and cancelable on shutdown; durable database checkpoints survive
 process loss. The separate worker periodically scans configured connectors using the same pipeline.

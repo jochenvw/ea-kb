@@ -5,6 +5,7 @@
 `review.tsx` separates the active backlog from the read-only ledger in `reference.tsx`.
 `reference.tsx` also provides bounded, linked table previews and safe operational log tails.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
+`knowledge.tsx` filters exact sources, links matching versions and highlights quotes in retained context.
 Use real API records, abort stale reads, disclose query limits and preserve unknown values.
 Publisher maturity, semantic versioning and scoped enterprise authority must stay distinct.
 Native review forms retain server-side Basic authentication, origin checks and immutable auditing.

@@ -43,6 +43,14 @@ export interface Version {
   };
   publication: Publication;
   recorded_at: string;
+  assertion?: {
+    text: string | null;
+    uncertainty: string | null;
+    model_id: string;
+    prompt_version: string;
+    occurrence_id: string;
+    source_id: string;
+  } | null;
 }
 
 export interface Concept {
@@ -64,9 +72,28 @@ export interface Concept {
     kind: string;
     status: string;
   }[];
+  matching_version_id?: string | null;
+  sources?: {
+    id: string;
+    name: string;
+    publisher: string | null;
+    location: string;
+    version_ids: string[];
+    evidence_counts?: Record<string, number>;
+  }[];
 }
 
 export interface Provenance {
+  context_before?: {
+    text: string;
+    heading: string | null;
+    location: Record<string, unknown>;
+  } | null;
+  context_after?: {
+    text: string;
+    heading: string | null;
+    location: Record<string, unknown>;
+  } | null;
   occurrence: {
     id: string;
     concept_version_id: string;
@@ -77,6 +104,7 @@ export interface Provenance {
   };
   segment: {
     id: string;
+    text: string;
     heading: string | null;
     location: Record<string, unknown>;
   };
