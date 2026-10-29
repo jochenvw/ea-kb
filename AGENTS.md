@@ -5,8 +5,8 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
 
 ## Work minimally
 
-- Read the affected implementation and tests before editing. Follow existing patterns; implement
-  the current request, not adjacent backlog or speculative future capabilities.
+- Read the nearest folder README, affected implementation and tests before editing. Follow existing
+  patterns; implement the current request, not adjacent backlog or speculative future capabilities.
 - Choose the smallest complete solution. Prefer the standard library and installed dependencies.
   Add a dependency, abstraction or configuration option only for a concrete requirement.
 - Keep functions and modules cohesive. Prefer composition and explicit calls over inheritance
@@ -14,6 +14,23 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
 - Share genuinely repeated behavior; do not generalize a single use case into a platform.
 - Keep changes surgical. Include necessary dependent call sites, tests and documentation; avoid
   unrelated refactoring. Comment reasons and non-obvious invariants, not obvious operations.
+
+## Keep folder guides current
+
+- Every meaningful version-controlled folder needs a short `README.md`, especially packages,
+  adapters, plugins, extensions, interfaces, scripts, configuration and deployment folders.
+  Add the guide when creating a folder; update it in the same change when responsibilities,
+  entry points, extension contracts or verification commands change.
+- Aim for 5-15 lines: purpose, key files/entry points, inputs/outputs or callers, important
+  boundaries, and the most useful test or parent-document reference. Give an agent a starting
+  point, not a second architecture manual or a generated file listing.
+- Keep detailed design in `docs\architecture.md`, plugin contracts in `docs\plugins.md`, and coding
+  rules here. Link to those sources instead of duplicating them in every guide.
+- Do not add guides to ignored runtime/generated output. Raw fixture-data subfolders are exempt:
+  document them in `tests\fixtures\README.md` so navigation text does not become ingestion input.
+- `tests\unit\test_folder_readmes.py` checks tracked and new non-ignored files in a Git checkout,
+  including future plugin/extension folders, and fails for missing or empty guides. Run it before
+  committing structural changes; the normal pytest suite also includes it.
 
 ## Write idiomatic, typed Python
 

@@ -4,6 +4,8 @@
 
 pytest 9.1.1, pytest-asyncio 1.4.0 and Hypothesis 6.170.5 are locked development dependencies.
 Tests use pytest assertions, fixtures, `monkeypatch` and injected clients. Async mode is automatic.
+The folder-guide policy test additionally requires Git and a source checkout; it does not use
+network access or cloud credentials.
 
 ```powershell
 uv run pytest -q tests\unit

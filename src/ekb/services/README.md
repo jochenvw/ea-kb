@@ -1,0 +1,9 @@
+# Shared application services
+
+- `knowledge.py` exposes concept, provenance, lineage, related-requirement and usage queries.
+- `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.
+- CLI, terminal, web and MCP presentation reuse these services.
+
+Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.
+Do not silently expand bounded inspection into whole-corpus analytics.
+See `tests\integration\test_interfaces.py` and `tests\unit\test_sources.py`.

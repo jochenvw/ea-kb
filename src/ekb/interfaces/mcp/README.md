@@ -1,0 +1,10 @@
+# Read-only Model Context Protocol server
+
+`create_server` in `__init__.py` builds the official FastMCP server with explicit tool schemas.
+
+- Tools: `search_concepts`, `get_concept`, `trace_provenance`, `find_related_requirements`.
+- Calls delegate to `KnowledgeService`; runtime resources belong to server lifespan.
+- Stdio stdout is protocol-only; application logs go to configured telemetry files.
+
+Do not add mutation or autonomous compliance decisions without an explicit requirement.
+Protocol verification uses the SDK's in-memory session in `tests\integration\test_interfaces.py`.

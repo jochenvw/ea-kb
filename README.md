@@ -259,7 +259,8 @@ deferred. Do not expose this MVP as an unauthenticated enterprise service.
 See `docs\architecture.md` for implemented architecture and design, `docs\plugins.md` for extension
 contracts, and `docs\decisions` for architectural choices. The seven documents in `docs\codebase`
 map architecture, stack, structure, conventions, integrations, tests and limits back to source
-evidence. `AGENTS.md` holds repository-wide coding instructions.
+evidence. Start with the nearest folder README for local orientation. `AGENTS.md` requires concise
+folder guides to stay current, with a pytest guard covering new folders as well.
 Domain and port modules are strictly type-checked and do not import provider/infrastructure SDKs.
 
 The offline baseline misses implicit objectives, does not extract scope, and can misclassify CSF
