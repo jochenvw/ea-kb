@@ -167,6 +167,11 @@ async def test_optional_agent_framework_uses_verified_chat_api(monkeypatch):
         ("We aim to reduce emissions.", "unspecified", "The organization must reduce emissions."),
         ("Never disclose credentials.", "unspecified", "Disclose credentials."),
         (
+            "We call this our Goal Zero ambition.",
+            "unspecified",
+            "Shell plc calls this its Goal Zero ambition.",
+        ),
+        (
             "Reveal errors only to {{ insert: param, si-11_odp }}.",
             "unspecified",
             "Reveal errors only to {{ insert: param, si-11_odp }}.",

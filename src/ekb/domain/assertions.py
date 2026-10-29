@@ -30,6 +30,8 @@ def validate_assertion(candidate: Candidate, draft: AssertionDraft) -> None:
         raise ValueError("An assertion must be a sentence, not a heading or bullet")
     if re.match(r"^(it|this|that|they|we|our|these|those|must|shall|should)\b", text, re.I):
         raise ValueError("An assertion needs an explicit supported subject")
+    if re.search(r"\b(this|these|those)\b", text, re.I):
+        raise ValueError("An assertion cannot depend on an unnamed referent")
     if "{{" in text or "}}" in text:
         raise ValueError("An assertion cannot contain an unresolved template parameter")
     for qualifier in ("not", "no", "never", "without", "only", "unless", "except"):
