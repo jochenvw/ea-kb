@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
@@ -20,7 +22,10 @@ from ekb.adapters.persistence.postgres.benchmarks import Benchmarks
 from ekb.adapters.persistence.postgres.issues import Issues
 from ekb.adapters.persistence.postgres.models import (
     AuthorityRow,
+    Base,
     ConceptRow,
+    FindingRow,
+    IssueRow,
     OccurrenceRow,
     ParseRow,
     PublicationRow,
@@ -32,6 +37,7 @@ from ekb.adapters.persistence.postgres.models import (
     SourceRow,
     TaskRow,
     VersionRow,
+    WorkflowLeaseRow,
 )
 from ekb.adapters.persistence.postgres.workflow import ResolutionStore, Workflow
 from ekb.domain.grounding import validate_evidence
@@ -50,6 +56,7 @@ from ekb.domain.models import (
     SourceRecord,
     SourceRevision,
     Usage,
+    WorkspaceCounts,
     fingerprint,
     now,
     stable_id,
@@ -245,6 +252,32 @@ class Sources:
 
 
 class Knowledge:
+    async def counts(self) -> WorkspaceCounts:
+        tables = {
+            "sources": SourceRow,
+            "revisions": RevisionRow,
+            "segments": SegmentRow,
+            "concepts": ConceptRow,
+            "versions": VersionRow,
+            "occurrences": OccurrenceRow,
+            "proposals": FindingRow,
+            "issues": IssueRow,
+        }
+        columns = [
+            select(func.count()).select_from(table).scalar_subquery().label(name)
+            for name, table in tables.items()
+        ]
+        columns.append(
+            select(func.count())
+            .select_from(IssueRow)
+            .where(IssueRow.status == "open")
+            .scalar_subquery()
+            .label("open_issues")
+        )
+        return WorkspaceCounts.model_validate(
+            (await self.session.execute(select(*columns))).mappings().one()
+        )
+
     def __init__(self, session: AsyncSession):
         self.session = session
 
@@ -716,6 +749,32 @@ class Postgres:
 
     def __call__(self) -> PostgresUnitOfWork:
         return PostgresUnitOfWork(self.sessions)
+
+    @asynccontextmanager
+    async def reset(self) -> AsyncIterator[None]:
+        """Clear only EKB tables, keeping migrations and unrelated application tables."""
+        async with self.engine.begin() as connection:
+            names = ", ".join(
+                connection.dialect.identifier_preparer.quote(table.name)
+                for table in Base.metadata.sorted_tables
+            )
+            await connection.execute(text(f"LOCK TABLE {names} IN ACCESS EXCLUSIVE MODE NOWAIT"))
+            active_lease = await connection.scalar(
+                select(WorkflowLeaseRow.name).where(WorkflowLeaseRow.expires_at > now()).limit(1)
+            )
+            active_scan = await connection.scalar(
+                select(RunRow.id).where(RunRow.payload["status"].astext == "running").limit(1)
+            )
+            active_task = await connection.scalar(
+                select(TaskRow.id)
+                .where(TaskRow.status == "running", TaskRow.lease_until > now())
+                .limit(1)
+            )
+            if active_lease or active_scan or active_task:
+                raise ValueError("Workspace has an active scan or lease; stop it before --fresh")
+            for table in reversed(Base.metadata.sorted_tables):
+                await connection.execute(table.delete())
+            yield
 
     async def close(self) -> None:
         await self.engine.dispose()

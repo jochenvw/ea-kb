@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -8,12 +9,16 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import typer
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
+from ekb.config import Settings
 from ekb.domain.execution import StageOptions
 from ekb.domain.issues import IssueStatus
 from ekb.domain.models import Scope
 from ekb.domain.resolution import Decision, ResolutionProfile
+from ekb.interfaces.cli.presentation import ScanConsole, locations
+from ekb.maintenance import reset_paths, reset_workspace
 from ekb.runtime import Runtime
 
 
@@ -39,29 +44,139 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
     @pipeline.command("run")
     def run(
         stages: Annotated[str | None, typer.Option()] = None,
-        directory: Annotated[Path | None, typer.Option()] = None,
+        directory: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+        manifest: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+        config: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+        fresh: Annotated[
+            bool, typer.Option(help="Erase EKB tables and owned local caches first.")
+        ] = False,
+        yes: Annotated[
+            bool, typer.Option("--yes", "-y", help="Confirm --fresh without prompting.")
+        ] = False,
+        json_output: Annotated[
+            bool, typer.Option("--json", help="Only emit the structured final report.")
+        ] = False,
+        output: Annotated[
+            Path | None, typer.Option("--output", help="Persist a JSON run report here.")
+        ] = None,
     ) -> None:
-        async def operation():
-            async with Runtime() as runtime:
-                configuration = runtime.settings.pipeline
-                if directory:
-                    options = configuration.stages.get("indexing", StageOptions())
-                    configuration = configuration.model_copy(
-                        update={
-                            "stages": {
-                                **configuration.stages,
-                                "indexing": options.model_copy(
-                                    update={"directory": str(directory.resolve())}
-                                ),
-                            },
-                        }
-                    )
-                return await runtime.orchestrator().run(
-                    tuple(s.strip() for s in stages.split(",")) if stages else None,
-                    configuration,
+        """Acquire sources, extract knowledge, then reconcile and detect issues."""
+        if fresh and stages:
+            raise typer.BadParameter("--fresh requires the full pipeline; omit --stages")
+        if fresh and json_output and not yes:
+            raise typer.BadParameter(
+                "--json --fresh requires --yes; no interactive prompt is emitted"
+            )
+        try:
+            settings = Settings(config_file=config) if config else Settings()
+        except ValidationError as error:
+            messages = "; ".join(detail["msg"] for detail in error.errors(include_input=False))
+            raise typer.BadParameter(messages) from None
+        configuration = settings.pipeline
+        options = configuration.stages.get("indexing", StageOptions())
+        if fresh and not options.enabled:
+            raise typer.BadParameter("--fresh requires enabled indexing")
+        directory = directory or (
+            Path(options.directory) if options.directory else settings.source_directory
+        )
+        manifest = manifest or (
+            Path(options.manifest) if options.manifest else None if directory else settings.manifest
+        )
+        options = options.model_copy(
+            update={
+                "directory": str(directory.resolve()) if directory else None,
+                "manifest": str(manifest.resolve()) if manifest else None,
+            }
+        )
+        configuration = configuration.model_copy(
+            update={"stages": {**configuration.stages, "indexing": options}}
+        )
+        console = ScanConsole(quiet=json_output)
+        protected = tuple(path for path in (settings.config_file, manifest, directory) if path)
+        try:
+            console.start(settings, manifest, directory)
+            if fresh:
+                paths = reset_paths(settings, protected)
+                console.line(
+                    "FRESH RESET: permanently erase all EKB knowledge, decisions and caches."
                 )
+                console.line(f"  Database: {locations(settings, Path('report.json'))['database']}")
+                for path in paths:
+                    console.line(f"  Cache: {path}")
+                console.line(
+                    "  Migration state, unrelated tables, source inputs, reports "
+                    "and logs are retained."
+                )
+                if not yes:
+                    typer.confirm("Erase this EKB workspace and start fresh?", abort=True)
+        except ValueError as error:
+            raise typer.BadParameter(str(error)) from None
+        except (SQLAlchemyError, OSError) as error:
+            raise typer.BadParameter(
+                f"Workspace unavailable ({type(error).__name__}); "
+                "stop active scans and check database/cache access."
+            ) from None
 
-        execute(operation)
+        async def operation():
+            async with Runtime(settings) as runtime:
+                if fresh:
+                    await reset_workspace(settings, runtime.database, protected)
+                    console.line("Reset complete.\n")
+                async with runtime.database() as uow:
+                    before = await uow.knowledge.counts()
+                orchestrator = runtime.orchestrator(progress=console, staged=True)
+                failure = None
+                try:
+                    status = await orchestrator.run(
+                        tuple(s.strip() for s in stages.split(",")) if stages else None,
+                        configuration,
+                    )
+                except Exception as error:
+                    failure = type(error).__name__
+                    status = await orchestrator.status(console.run_id) if console.run_id else None
+                async with runtime.database() as uow:
+                    after = await uow.knowledge.counts()
+                report_path = (
+                    output
+                    or settings.data_dir / "reports" / f"pipeline-{console.run_id or 'failed'}.json"
+                )
+                links = locations(settings, report_path)
+                result = status.model_dump(mode="json") if status else {}
+                result.update(
+                    {
+                        "passed": failure is None and bool(status and status.run.status == "done"),
+                        "error": failure,
+                        "fresh": fresh,
+                        "scan": console.report.model_dump(mode="json") if console.report else None,
+                        "before": before.model_dump(),
+                        "after": after.model_dump(),
+                        "links": links,
+                    }
+                )
+                await asyncio.to_thread(report_path.parent.mkdir, parents=True, exist_ok=True)
+                await asyncio.to_thread(
+                    report_path.write_text, json.dumps(result, indent=2) + "\n", encoding="utf-8"
+                )
+                console.finish("done" if result["passed"] else "failed", before, after, links)
+                if failure:
+                    console.line(
+                        f"Failure: {failure}. Inspect the report and persisted pipeline status."
+                    )
+                return result
+
+        try:
+            result = asyncio.run(operation())
+        except ValueError as error:
+            raise typer.BadParameter(str(error)) from None
+        except (SQLAlchemyError, OSError) as error:
+            raise typer.BadParameter(
+                f"Workspace unavailable ({type(error).__name__}); "
+                "stop active scans and check database/cache access."
+            ) from None
+        if json_output:
+            emit(result)
+        if not result["passed"]:
+            raise typer.Exit(1)
 
     @pipeline.command("status")
     def status(run_id: Annotated[UUID | None, typer.Argument()] = None) -> None:

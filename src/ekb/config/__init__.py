@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr = SecretStr("postgresql+asyncpg://ekb:ekb@localhost:5432/ekb")
+    config_file: Path = Path("config/local.yaml")
     data_dir: Path = Path("data")
     inference: Literal["rules", "openai", "agent-framework"] = "rules"
     model_endpoint: str = "http://localhost:5272/v1"
@@ -58,6 +59,21 @@ class Settings(BaseSettings):
     pipeline: PipelineConfiguration = Field(default_factory=PipelineConfiguration)
     governance_token: SecretStr = SecretStr("")
 
+    @model_validator(mode="after")
+    def valid_model_endpoint(self) -> Self:
+        models_enabled = (
+            self.inference != "rules" or self.reconciliation_model_id or self.embedding_model_id
+        )
+        if (
+            models_enabled
+            and self.model_managed_identity
+            and not self.model_endpoint.startswith("https://")
+        ):
+            raise ValueError(
+                "Set EKB_MODEL_ENDPOINT to the HTTPS Foundry OpenAI /openai/v1 endpoint"
+            )
+        return self
+
     @classmethod
     def settings_customise_sources(
         cls,
@@ -67,7 +83,9 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        profile = os.environ.get("EKB_CONFIG_FILE", "config/local.yaml")
+        profile = init_settings().get(
+            "config_file", os.environ.get("EKB_CONFIG_FILE", "config/local.yaml")
+        )
         return (
             init_settings,
             env_settings,

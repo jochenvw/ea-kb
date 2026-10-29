@@ -5,6 +5,7 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
+from ekb.domain.benchmarks import BenchmarkSyncReport
 from ekb.domain.execution import (
     ArtifactReference,
     CheckOptions,
@@ -13,7 +14,7 @@ from ekb.domain.execution import (
     StageOptions,
 )
 from ekb.domain.issues import Issue, IssueDetail, IssueStatus
-from ekb.domain.models import Model, Scope, Usage
+from ekb.domain.models import Model, ScanReport, Scope, SourceItem, Usage
 from ekb.domain.resolution import (
     Decision,
     Deviation,
@@ -38,6 +39,13 @@ class CheckResult(Model):
     model_calls: int = 0
     embedding_calls: int = 0
     usage: Usage = Usage()
+
+
+class PipelineProgress(Protocol):
+    def source(self, item: SourceItem, status: str) -> None: ...
+    def phase(self, phase: str, report: ScanReport) -> None: ...
+    def execution(self, execution: Execution) -> None: ...
+    def synchronized(self, report: BenchmarkSyncReport) -> None: ...
 
 
 class KnowledgeCheck(Protocol):

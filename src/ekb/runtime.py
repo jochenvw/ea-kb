@@ -21,7 +21,7 @@ from ekb.observability import configure, flush
 from ekb.orchestration import PipelineOrchestrator, StageRegistry
 from ekb.pipeline import IngestionPipeline
 from ekb.ports import ArtifactStore, InferencePort, SourceConnector
-from ekb.ports.workflow import CheckContext, CheckResult
+from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
@@ -89,17 +89,48 @@ class Runtime:
     def issues(self) -> IssueService:
         return IssueService(self.database)
 
-    def orchestrator(self, registry: StageRegistry | None = None) -> PipelineOrchestrator:
+    def orchestrator(
+        self,
+        registry: StageRegistry | None = None,
+        *,
+        progress: PipelineProgress | None = None,
+        staged: bool = False,
+    ) -> PipelineOrchestrator:
         if registry is None:
             registry = StageRegistry()
 
             async def index(context: CheckContext) -> CheckResult:
                 config = context.stage_configuration
-                report = await self.pipeline().scan(
-                    self.connectors(
-                        Path(config.directory) if config.directory else None,
-                        Path(config.manifest) if config.manifest else None,
-                    )
+                manifest = (
+                    Path(config.manifest)
+                    if config.manifest
+                    else None
+                    if config.directory
+                    else self.settings.manifest
+                )
+                connectors = self.connectors(
+                    Path(config.directory) if config.directory else None, manifest
+                )
+                downloads = 0
+                if staged:
+                    for connector in connectors:
+                        if isinstance(connector, MicrosoftLearnBenchmarkConnector):
+                            if progress:
+                                connector.progress = progress.source
+                            synchronized = await connector.sync()
+                            downloads += synchronized.downloaded
+                            if progress:
+                                progress.synchronized(synchronized)
+                            if synchronized.failed:
+                                raise RuntimeError("Benchmark synchronization has failed assets")
+                ingestion = self.pipeline()
+                if progress:
+                    ingestion.progress = progress.source
+                report = await ingestion.scan(
+                    connectors,
+                    staged=staged,
+                    phase=progress.phase if progress else None,
+                    initial_downloads=downloads,
                 )
                 if report.failed:
                     raise RuntimeError(f"Indexing had {report.failed} failed sources")
@@ -120,7 +151,9 @@ class Runtime:
             )
             registry.register(enrichment_stage(self.database, self.comparisons))
             registry.register(issues_stage(self.database))
-        return PipelineOrchestrator(self.database, registry)
+        return PipelineOrchestrator(
+            self.database, registry, progress.execution if progress else None
+        )
 
     def benchmarks(self) -> MicrosoftLearnBenchmarkConnector:
         if self._benchmarks is None:

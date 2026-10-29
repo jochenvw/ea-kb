@@ -2,7 +2,9 @@
 
 `IngestionPipeline` in `__init__.py` coordinates injected connector/parser/model/store contracts.
 
-- `scan` bounds discovery/workers and records progress; `_process` compares revisions and claims work.
+- `scan` bounds discovery/workers; `_prepare` acquires revisions and `_ingest` claims extraction.
+- Staged scans spool metadata to disk and finish acquisition before parallel extraction begins.
+- Progress separates known/unknown identities, actual transfers, reuse and metadata-only sources.
 - `_execute` reuses parsing/extraction checkpoints and commits exact knowledge/evidence atomically.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.

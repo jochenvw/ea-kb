@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 from collections import Counter
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from urllib.parse import quote, unquote, urljoin, urlsplit, urlunsplit
 
 import httpx
@@ -106,6 +106,7 @@ class MicrosoftLearnBenchmarkConnector(HTTPConnector):
         client: httpx.AsyncClient | None = None,
     ):
         super().__init__([], max_bytes, client=client, name="microsoft-security-benchmark")
+        self.progress: Callable[[SourceItem, str], None] | None = None
         if not 1 <= concurrency <= 16:
             raise ValueError("Benchmark download concurrency must be between 1 and 16")
         self.artifacts = artifacts
@@ -219,6 +220,8 @@ class MicrosoftLearnBenchmarkConnector(HTTPConnector):
             name=asset.url,
             format=asset.format,
         )
+        if self.progress:
+            self.progress(item, "cache_known" if previous else "cache_new")
         record = (
             SourceRecord(
                 item=item,
@@ -241,6 +244,8 @@ class MicrosoftLearnBenchmarkConnector(HTTPConnector):
             raise ValueError("Conditional download has no validated cached original")
         if not result.not_modified:
             counts["downloaded"] += 1
+        if self.progress:
+            self.progress(item, "reused" if result.not_modified else "downloaded")
         if asset.format == "md" and raw.lstrip().lower().startswith((b"<!doctype html", b"<html")):
             asset = asset.model_copy(update={"format": "html"})
         digest = content_hash(raw)

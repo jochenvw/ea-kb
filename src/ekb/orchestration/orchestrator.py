@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import suppress
 from uuid import UUID, uuid4
 
@@ -20,8 +21,14 @@ from ekb.ports.workflow import StageContext
 
 
 class PipelineOrchestrator:
-    def __init__(self, database: UnitOfWorkFactory, registry: StageRegistry):
+    def __init__(
+        self,
+        database: UnitOfWorkFactory,
+        registry: StageRegistry,
+        progress: Callable[[Execution], None] | None = None,
+    ):
         self.database, self.registry = database, registry
+        self.progress = progress
 
     async def status(self, run_id: UUID | None = None) -> PipelineStatus | None:
         async with self.database() as uow:
@@ -39,6 +46,8 @@ class PipelineOrchestrator:
         async with self.database() as uow:
             await uow.workflow.save_execution(execution)
             await uow.commit()
+        if self.progress:
+            self.progress(execution)
 
     async def _heartbeat(self, owner: UUID) -> None:
         while True:
@@ -182,6 +191,7 @@ class PipelineOrchestrator:
                 )
                 continue
             async with self.database() as uow:
+                before = await uow.knowledge.counts()
                 snapshot = await uow.resolution.snapshot()
                 inputs: list[ArtifactReference] = []
                 for dependency in stage.spec.dependencies:
@@ -230,12 +240,23 @@ class PipelineOrchestrator:
                             log.warning("pipeline_retry", stage_id=identifier, attempt=attempts)
                             await asyncio.sleep(0.1 * 2**attempts)
                     output = output.model_copy(update={"producer_fingerprint": manifest})
+                async with self.database() as uow:
+                    after = await uow.knowledge.counts()
+                    checks = await uow.workflow.executions(execution.id, 1000)
                 execution = execution.model_copy(
                     update={
                         "status": "done",
                         "output": output,
                         "finished_at": now(),
                         "attempts": attempts + 1,
+                        "statistics": {
+                            "new_concepts": after.concepts - before.concepts,
+                            "new_proposals": after.proposals - before.proposals,
+                            "new_issues": after.issues - before.issues,
+                            "open_issues": after.open_issues,
+                            "checks_done": sum(c.status == "done" for c in checks),
+                            "checks_reused": sum(c.status == "skipped" for c in checks),
+                        },
                     }
                 )
             except BaseException as error:

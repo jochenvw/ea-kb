@@ -406,6 +406,11 @@ class ScanReport(Model):
     finished_at: datetime | None = None
     status: str = "running"
     discovered: int = 0
+    known: int = 0
+    unknown: int = 0
+    downloaded: int = 0
+    reused: int = 0
+    metadata_only: int = 0
     processed: int = 0
     skipped: int = 0
     missing: int = 0
@@ -413,6 +418,18 @@ class ScanReport(Model):
     concepts: int = 0
     dry_run: bool = False
     errors: list[str] = Field(default_factory=list)
+
+
+class WorkspaceCounts(Model):
+    sources: int = 0
+    revisions: int = 0
+    segments: int = 0
+    concepts: int = 0
+    versions: int = 0
+    occurrences: int = 0
+    proposals: int = 0
+    issues: int = 0
+    open_issues: int = 0
 
 
 class AuthorityEvent(Model):

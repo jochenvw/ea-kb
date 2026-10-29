@@ -51,6 +51,66 @@ resume checkpoints. A crashed worker's lease becomes reclaimable after five minu
 Copy `.env.example` to `.env` for overrides. Runtime data lives under gitignored `data`.
 `EKB_CONFIG_FILE` selects a YAML profile; explicit settings, environment and `.env` override YAML.
 
+### One-command ingestion
+
+```powershell
+uv run ekb pipeline run --manifest sources\public.yaml
+# Or use source/stage settings from a profile:
+uv run ekb pipeline run --config config\local.yaml
+# Explicitly destructive; prompts with the database and exact cache directories:
+uv run ekb pipeline run --config config\local.yaml --fresh
+# Automation only: confirmation is required when fresh JSON mode is selected:
+uv run ekb pipeline run --config config\local.yaml --fresh --yes --json
+```
+
+The ASCII banner precedes the selected YAML source definitions and worker limits. The three
+visible passes are:
+
+1. **Acquire:** bounded parallel discovery/revision checking and downloads. Lists each file as
+   known/not-known to the DB, reused, downloaded or metadata-only, then summarizes counts.
+   Benchmark synchronization happens automatically here; its `cache_known`/`cache_new` labels
+   refer to the download cache, separately from DB identity. Provider discovery may normalize
+   structured publisher content to follow its links; generic concept extraction has not begun.
+2. **Extract:** after acquisition completes, bounded workers open prepared originals, reuse
+   parsing/model checkpoints, validate exact evidence and persist candidates. An ephemeral
+   disk-spooled inventory avoids keeping downloaded documents or an unbounded job list in RAM.
+   The summary distinguishes processed/skipped files and emitted candidate results (not unique concepts).
+3. **Reconcile and detect issues:** the existing durable enrichment and issue stages run in order.
+   Each reports new concepts/proposals/issues and executed/reused checks; decisions remain governed.
+   Independent files run concurrently, but dependent stages/checks are not blindly parallelized.
+
+The overall summary includes persisted totals and observed workspace changes, UI links, credential-free
+database location, cache folders and a JSON report under `data\reports`. `--output FILE` selects a
+report path; `--json` suppresses human progress. Counts are not claims of approval or compliance.
+Failures produce a nonzero exit, retain checkpoints and save available failure details. UI links
+assume the default address and require `uv run ekb web` in another terminal.
+
+`--fresh` clears **only EKB tables** (including model, embedding, comparison and workflow caches),
+`data_dir\artifacts` and the generated benchmark cache. It retains Alembic state, unrelated tables,
+source files/manifests, reports, telemetry and the separate parser-test/teacher input collection.
+It refuses active scans/leases, broad/root paths, symlink/junction paths, source/cache overlap and
+shared Azure Blob storage. Stop ingestion workers first; a read-only browser may remain open.
+Files are quarantined while the DB reset is transactional and restored if that reset fails.
+Do not use `--fresh` merely to retry failed work; ordinary reruns reuse valid checkpoints.
+
+### Foundry models with local storage
+
+`config\foundry.yaml` opts into paid extraction/reconciliation (`ekb-student`) and embeddings
+(`ekb-embedding`) without moving PostgreSQL or artifacts to Azure. Authenticate with `az login`,
+deploy those names in your existing account, and select its **OpenAI v1** endpoint:
+
+```powershell
+$env:EKB_MODEL_ENDPOINT = "https://YOUR-ACCOUNT.openai.azure.com/openai/v1"
+uv run ekb pipeline run --config config\foundry.yaml
+```
+
+The profile requires HTTPS/Entra authentication, structured output and completion-token parameters.
+Environment/`.env` overrides still apply; check the printed provider/model IDs before starting.
+Keep account-specific profiles under ignored `data`, never commit tokens or keys. An existing
+deployment and a successful smoke test prove access, not quality: run the held-out qualification
+workflow in `evaluation.md` before calling these models qualified. Cost remains unknown until
+actual input/output/embedding prices are configured.
+
 ### Package feeds
 
 The lock file was resolved using the approved `packagefeedproxy.microsoft.io` PyPI mirror.

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import tempfile
 from collections.abc import Callable
+from contextlib import nullcontext
 from uuid import UUID, uuid4
 
 from ekb.adapters.sources import SourceMissingError
@@ -85,8 +88,16 @@ class IngestionPipeline:
             ),
         )
 
-    async def scan(self, connectors: list[SourceConnector], *, dry_run: bool = False) -> ScanReport:
-        report = ScanReport(id=uuid4(), dry_run=dry_run)
+    async def scan(
+        self,
+        connectors: list[SourceConnector],
+        *,
+        dry_run: bool = False,
+        staged: bool = False,
+        phase: Callable[[str, ScanReport], None] | None = None,
+        initial_downloads: int = 0,
+    ) -> ScanReport:
+        report = ScanReport(id=uuid4(), dry_run=dry_run, downloaded=initial_downloads)
 
         def increment(**counts: int) -> None:
             nonlocal report
@@ -102,6 +113,11 @@ class IngestionPipeline:
                 update={"errors": [*report.errors, f"{label}: {type(error).__name__}"]}
             )
             log.error("source_failed", source_id=label, error_type=type(error).__name__)
+
+        def notify(item: SourceItem, status: str) -> None:
+            if status in {"known", "unknown", "downloaded", "reused", "metadata_only"}:
+                increment(**{status: 1})
+            self.progress(item, status)
 
         async def save_report() -> None:
             if not dry_run:
@@ -151,12 +167,62 @@ class IngestionPipeline:
             for _ in range(self.concurrency):
                 await queue.put(None)
 
+        inventory_lock = asyncio.Lock()
+
         async def worker() -> None:
             while (work := await queue.get()) is not None:
                 connector, item = work
                 self.progress(item, "checking")
                 try:
-                    outcome, concepts = await self._process(connector, item, dry_run)
+                    revision, content, ready = await self._prepare(connector, item, dry_run, notify)
+                    if not ready:
+                        increment(skipped=1)
+                        self.progress(item, "skipped")
+                    elif dry_run:
+                        increment(processed=1)
+                    elif inventory is not None:
+                        assert revision is not None
+                        line = json.dumps(
+                            {
+                                "item": item.model_dump(mode="json"),
+                                "revision": revision.model_dump(mode="json"),
+                            }
+                        )
+                        async with inventory_lock:
+                            await asyncio.to_thread(inventory.write, line + "\n")
+                    else:
+                        assert revision is not None
+                        outcome, concepts = await self._ingest(item, revision, content)
+                        increment(**{outcome: 1}, concepts=concepts)
+                        self.progress(item, outcome)
+                except Exception as error:
+                    failure(str(item.id), error)
+                    self.progress(item, "failed")
+                await save_report()
+
+        prepared: asyncio.Queue[tuple[SourceItem, SourceRevision] | None] = asyncio.Queue(
+            maxsize=self.concurrency * 2
+        )
+
+        async def prepared_producer() -> None:
+            assert inventory is not None
+            await asyncio.to_thread(inventory.seek, 0)
+            while line := await asyncio.to_thread(inventory.readline):
+                entry = json.loads(line)
+                await prepared.put(
+                    (
+                        SourceItem.model_validate(entry["item"]),
+                        SourceRevision.model_validate(entry["revision"]),
+                    )
+                )
+            for _ in range(self.concurrency):
+                await prepared.put(None)
+
+        async def prepared_worker() -> None:
+            while (work := await prepared.get()) is not None:
+                item, revision = work
+                try:
+                    outcome, concepts = await self._ingest(item, revision, None)
                     increment(**{outcome: 1}, concepts=concepts)
                     self.progress(item, outcome)
                 except Exception as error:
@@ -165,12 +231,27 @@ class IngestionPipeline:
                 await save_report()
 
         await save_report()
-        with tracer.start_as_current_span("scan", attributes={"scan.id": str(report.id)}):
+        spool = (
+            tempfile.TemporaryFile(mode="w+t", encoding="utf-8") if staged else nullcontext(None)
+        )
+        with (
+            spool as inventory,
+            tracer.start_as_current_span("scan", attributes={"scan.id": str(report.id)}),
+        ):
             try:
+                if phase:
+                    phase("discovery", report)
                 async with asyncio.TaskGroup() as group:
                     group.create_task(producer())
                     for _ in range(self.concurrency):
                         group.create_task(worker())
+                if inventory is not None:
+                    if phase:
+                        phase("discovered", report)
+                    async with asyncio.TaskGroup() as group:
+                        group.create_task(prepared_producer())
+                        for _ in range(self.concurrency):
+                            group.create_task(prepared_worker())
                 report = report.model_copy(
                     update={"status": "completed" if report.failed == 0 else "partial"}
                 )
@@ -180,22 +261,31 @@ class IngestionPipeline:
             finally:
                 report = report.model_copy(update={"finished_at": now()})
                 await asyncio.shield(save_report())
+                if phase:
+                    phase("completed", report)
         return report
 
-    async def _process(
-        self, connector: SourceConnector, item: SourceItem, dry_run: bool
-    ) -> tuple[str, int]:
+    async def _prepare(
+        self,
+        connector: SourceConnector,
+        item: SourceItem,
+        dry_run: bool,
+        notify: Callable[[SourceItem, str], None],
+    ) -> tuple[SourceRevision | None, bytes | None, bool]:
+        async with self.uow() as uow:
+            previous = await uow.sources.get(item.id)
+        notify(item, "known" if previous else "unknown")
         if item.metadata.get("metadata_only"):
             if not dry_run:
                 async with self.uow() as uow:
                     await uow.sources.save(SourceRecord(item=item, status="metadata_only"))
                     await uow.commit()
-            return "skipped", 0
+            notify(item, "metadata_only")
+            return None, None, False
         with tracer.start_as_current_span(
             "revision.comparison", attributes={"source.id": str(item.id)}
         ):
             async with self.uow() as uow:
-                previous = await uow.sources.get(item.id)
                 revision = (
                     await uow.sources.revision(previous.revision_id)
                     if previous and previous.revision_id
@@ -216,11 +306,7 @@ class IngestionPipeline:
                     else None
                 )
             if dry_run:
-                return (
-                    ("skipped", 0)
-                    if same_metadata and task and task.status == "done"
-                    else ("processed", 0)
-                )
+                return revision, None, not (same_metadata and task and task.status == "done")
             if same_metadata and task and task.status == "done":
                 async with self.uow() as uow:
                     assert previous is not None
@@ -238,7 +324,8 @@ class IngestionPipeline:
                 log.info(
                     "source_skipped", source_id=str(item.id), reason="metadata_and_fingerprint"
                 )
-                return "skipped", 0
+                notify(item, "reused")
+                return revision, None, False
 
         content = None
         source = previous or SourceRecord(item=item)
@@ -261,6 +348,12 @@ class IngestionPipeline:
                     )
                     await uow.commit()
                 raise
+            if fetched.not_modified or "benchmark_asset" in item.metadata:
+                notify(item, "reused")
+            elif item.location.startswith(("https://", "http://")):
+                notify(item, "downloaded")
+            else:
+                notify(item, "read")
             source = source.model_copy(
                 update={
                     "item": item,
@@ -287,12 +380,19 @@ class IngestionPipeline:
                     source_location=item.location,
                     metadata_snapshot=item.model_dump(mode="json"),
                 )
+        else:
+            notify(item, "reused")
         assert revision is not None
         async with self.uow() as uow:
             await uow.sources.save(source)
             revision = await uow.sources.save_revision(revision)
             await uow.sources.save(source.model_copy(update={"revision_id": revision.id}))
             await uow.commit()
+        return revision, content, True
+
+    async def _ingest(
+        self, item: SourceItem, revision: SourceRevision, content: bytes | None
+    ) -> tuple[str, int]:
         process_fp = self._processing_fingerprint(revision.content_hash, item)
         task = ProcessingTask(
             id=stable_id(revision.id, process_fp), revision_id=revision.id, fingerprint=process_fp

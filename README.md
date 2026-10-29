@@ -28,6 +28,10 @@ Open <http://127.0.0.1:8000>. The fixture documents are synthetic.
 Browse knowledge, source evidence, the review queue and pipeline activity. No Node runtime is needed.
 Use `uv run ekb --help` for other commands.
 
+For the full configured corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.
+It prints file progress, three-pass summaries and result links. Add `--fresh` for a confirmed reset
+of EKB tables and owned local caches; source inputs are preserved. See [operations](docs/usage.md).
+
 ## Documentation
 
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
@@ -44,4 +48,5 @@ Use `uv run ekb --help` for other commands.
 **Local/private MVP:** token-protected HTTP governance, no enterprise identity or access roles.
 Extraction defaults to limited offline rules
 with no paid calls; configure a model before assessing model quality. Candidates are not approved
-policy or compliance conclusions. Live model inference and Azure deployment remain unverified.
+policy or compliance conclusions. Live smoke tests do not establish model quality; held-out
+qualification and full infrastructure deployment remain separate gates.

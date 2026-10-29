@@ -127,6 +127,79 @@ async def test_dry_run_has_no_writes_or_model_calls(database, tmp_path):
         assert await uow.processing.scans() == []
 
 
+async def test_staged_acquisition_barrier_and_bounded_parallel_extraction(database, tmp_path):
+    pipeline, parser, inference, source = build(database, tmp_path)
+    for index in range(4):
+        (source / f"policy-{index}.txt").write_text(f"Users must retain audit {index}.")
+    fetched = set()
+    active, peak = 0, 0
+
+    class ParallelFiles(FilesystemConnector):
+        async def fetch(self, item, previous):
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.03)
+            result = await super().fetch(item, previous)
+            fetched.add(item.id)
+            active -= 1
+            return result
+
+    original = parser.parse
+
+    async def parse_after_acquisition(item, revision, content):
+        assert len(fetched) == 4, "No document may parse before acquisition completes"
+        return await original(item, revision, content)
+
+    parser.parse = parse_after_acquisition
+    phases = []
+    first = await pipeline.scan(
+        [ParallelFiles(source)], staged=True, phase=lambda phase, report: phases.append(phase)
+    )
+    assert phases == ["discovery", "discovered", "completed"]
+    assert peak > 1 and peak <= pipeline.concurrency
+    assert first.processed == 4 and first.unknown == 4 and first.known == 0
+    calls = inference.calls
+    second = await pipeline.scan([ParallelFiles(source)], staged=True)
+    assert second.known == second.reused == second.skipped == 4
+    assert second.unknown == second.processed == 0 and inference.calls == calls
+
+
+async def test_staged_http_downloads_count_real_transfers_and_reuse_304(database, tmp_path):
+    import httpx
+
+    from ekb.adapters.sources import HTTPConnector
+    from ekb.domain.models import SourceSpec
+
+    pipeline, _, inference, _ = build(database, tmp_path)
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if request.headers.get("if-none-match") == '"stable"':
+            return httpx.Response(304)
+        return httpx.Response(200, text="Users must authenticate.", headers={"etag": '"stable"'})
+
+    specification = SourceSpec(
+        id="synthetic-download",
+        publisher="Example",
+        name="Synthetic policy",
+        location="https://example.invalid/policy.txt",
+        format="txt",
+        category="test",
+        access_notes="Synthetic test response only",
+        intended_scope="Test",
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        connector = HTTPConnector([specification], client=client)
+        first = await pipeline.scan([connector], staged=True)
+        calls = inference.calls
+        second = await pipeline.scan([connector], staged=True)
+    assert first.downloaded == 1 and first.unknown == 1 and first.processed == 1
+    assert second.downloaded == 0 and second.reused == 1 and second.known == 1
+    assert second.skipped == 1 and inference.calls == calls and len(requests) == 2
+
+
 async def test_temporary_inaccessibility_does_not_delete_history(database, tmp_path):
     pipeline, parser, inference, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")

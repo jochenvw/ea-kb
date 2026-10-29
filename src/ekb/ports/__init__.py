@@ -21,6 +21,7 @@ from ekb.domain.models import (
     SourceRecord,
     SourceRevision,
     Usage,
+    WorkspaceCounts,
 )
 from ekb.domain.reconciliation import (
     ComparisonReport,
@@ -92,6 +93,7 @@ class SourceRepository(Protocol):
 
 
 class KnowledgeRepository(Protocol):
+    async def counts(self) -> WorkspaceCounts: ...
     async def search(
         self, query: str = "", limit: int = 50, *, after: UUID | None = None
     ) -> list[ConceptDetail]: ...

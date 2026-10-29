@@ -4,6 +4,8 @@
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - `Postgres` creates units of work; uncommitted changes roll back on exit.
+- `reset` locks and clears only EKB tables transactionally; active scans/leases block fresh starts.
+- Knowledge counts query persisted totals without loading the complete knowledge snapshot.
 - Processing claims use owner IDs and renewable leases; segment commits must fence stale workers.
 - Publication assessments are immutable; semantic versions may be unknown and authority is scoped.
 - `benchmarks.py` stores immutable typed benchmark snapshots and validates exact source bindings.

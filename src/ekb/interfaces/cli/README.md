@@ -6,6 +6,8 @@
 - `sources sync microsoft-security-benchmark` downloads and normalizes actual published assets.
 - `compare` persists review-only comparisons; `lineage` accepts UUIDs or `mcsb-v2:NS-6`.
 - `workflow.py` adds `pipeline run/status/resume`, `reconcile`, `issues` and strict `knowledge` groups.
+- `pipeline run` supports source/profile selection, guarded `--fresh`, `--json` and saved reports.
+- `presentation.py` renders ASCII branding, file/check progress, accurate summaries and safe links.
 - `eval workflow` demonstrates retained real sources and explicitly simulated isolated governance.
 - `evaluation.py` adds `test`, `eval qualify/verify-corpus/distill`; live calls require explicit opt-in.
 - `test --ui` includes frontend checks/build and local Playwright regressions before Python/evals.

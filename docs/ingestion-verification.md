@@ -107,3 +107,39 @@ The packaged wheel contains the exact final browser assets and third-party licen
 Ignored evidence is under `data\ui-verification`: `suite\suite.json`, `browser-acceptance.json`,
 final screenshots and `package\`. These browser checks do not imply live model qualification,
 additional ingestion or approval of any proposal.
+
+## Staged CLI and Foundry readiness
+
+The subsequent CLI release passed **174 Python tests, zero skips**, plus offline evaluations.
+Ruff lint/format, basedpyright, Alembic drift and lockfile checks passed. Disposable-state tests
+covered parallel acquisition, the acquisition/extraction barrier, HTTP transfer versus cache reuse,
+human/JSON reporting, failure exits, confirmed reset, active-work refusal and reset rollback.
+The main corpus was not reset.
+
+Actual CLI replay `12ace3ff-a594-4703-b7a0-5e21f804a6f9` completed all durable stages:
+**235 found, 235 known, 0 unknown; 1 downloaded, 229 reused, 5 metadata-only; 0 processed,
+235 skipped, 0 failures**. Enrichment and issue detection each reused six checks. Persisted
+knowledge totals above remained unchanged. This replay used deterministic rules, not paid inference.
+The live browser rendered the updated pipeline records, review queue and knowledge library.
+
+Two deployments were added to an existing Sweden Central Foundry account: `ekb-student`
+(`gpt-5.4-mini`, version `2026-03-17`) and `ekb-embedding` (`text-embedding-3-small`, version `1`).
+Existing deployments were preserved. Entra-authenticated synthetic smoke calls returned one
+exact-grounded candidate without validation failures, 1,536-dimensional embeddings and an
+exact-duplicate semantic result. No corpus text was sent and no database records were written
+by these smoke calls. **These models are not held-out qualified; pricing and cost remain unknown.**
+Full infrastructure deployment is separate from adding these models to an existing account.
+
+Ignored evidence is under `data\cli-verification`: `suite\suite.json`, `pipeline.json`,
+`pipeline.txt` and `foundry-smoke.json`. The ignored `data\foundry-local.yaml` selects the deployed
+models and the existing acceptance manifest:
+
+```powershell
+uv run ekb pipeline run --config data\foundry-local.yaml
+# Explicit clean restart; prompts before deleting EKB knowledge and owned caches:
+uv run ekb pipeline run --config data\foundry-local.yaml --fresh
+```
+
+These commands enable paid model calls. Environment overrides still take precedence; inspect the
+printed model IDs. Use `--fresh --yes` only for intentional unattended resets. The portable
+`config\foundry.yaml` template and reset boundaries are documented in `usage.md`.

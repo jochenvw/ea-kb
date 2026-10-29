@@ -1,0 +1,19 @@
+# Local PostgreSQL/filesystem with explicit paid Foundry inference.
+# Set EKB_MODEL_ENDPOINT to https://ACCOUNT.openai.azure.com/openai/v1 before use.
+data_dir: data
+artifact_backend: filesystem
+inference: openai
+model_endpoint: ""
+model_managed_identity: true
+model_id: ekb-student
+reconciliation_model_id: ekb-student
+embedding_model_id: ekb-embedding
+model_structured_output: true
+model_temperature: null
+model_max_token_parameter: max_completion_tokens
+model_max_output_tokens: 4096
+model_context_tokens: 128000
+scan_concurrency: 4
+parse_concurrency: 2
+model_concurrency: 2
+manifest: sources/public.yaml
