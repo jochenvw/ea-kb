@@ -80,6 +80,23 @@ Public sites can move or deny automated requests. Fetch failures remain visible 
 historical evidence. Original content hashes preserve the retrieved edition; mutable upstream URLs
 are not a substitute for an archival citation.
 
+### Downloadable parser-test corpus
+
+The supplied corpus downloader retrieves additional real PDFs, a Word assessment template,
+the complete NIST OSCAL catalog, and public overview/regulatory HTML when publishers permit it:
+
+```powershell
+uv run python scripts\download_test_corpus.py --dry-run
+uv run python scripts\download_test_corpus.py
+```
+
+Its source list is `config\test_corpus.yaml`; downloaded files and a SHA-256/retrieval index stay
+under gitignored `data\test-corpus\public`. Repeat runs validate cached files and use conditional
+requests when available; `--force` refreshes them. This is a download-only parser-test collection,
+separate from the selected ingestion manifest above. It makes no model calls. ISO remains public
+overview metadata, never licensed standard text. Publisher refusals or empty challenge responses
+are recorded in `index.json` under `failures` and cause a nonzero exit; valid existing files survive.
+
 ## Inspection interfaces
 
 ```powershell
@@ -181,8 +198,8 @@ The complete verification loop uses disposable schemas in the local PostgreSQL s
 uv sync --all-extras
 $env:EKB_TEST_DATABASE_URL = "postgresql+asyncpg://ekb:ekb@localhost:5432/ekb"
 uv run pytest -q
-uv run ruff check src tests migrations
-uv run ruff format --check src tests migrations
+uv run ruff check src tests migrations scripts
+uv run ruff format --check src tests migrations scripts
 uv run basedpyright
 uv run alembic check
 ```

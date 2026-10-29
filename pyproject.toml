@@ -68,7 +68,7 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 [tool.basedpyright]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 strict = ["src/ekb/domain", "src/ekb/ports"]
 reportMissingTypeStubs = false
 

@@ -1,0 +1,56 @@
+# EKB realistic ingestion test corpus; URLs from official publishers.
+# These sources are NOT assertions that regulations apply to a specific company.
+# Download only where permitted; ISO full texts require authorized copies.
+sources:
+  - id: shell-annual-2025
+    title: Shell Annual Report and Accounts 2025
+    category: corporate_strategy
+    format: pdf
+    url: https://www.shell.com/investors/results-and-reporting/annual-report/_jcr_content/root/main/section/promo.multi.stream/1779352356739/36306d968747b6079d3f800b2b1552a033856b5d/shell-integrated-annual-and-sustainability-report.pdf
+    test: [objectives, mixed_topics, tables, provenance, large_pdf]
+  - id: shell-capital-markets-2025
+    title: Shell Capital Markets Day 2025 slide deck (accessible PDF)
+    category: strategy_presentation
+    format: pdf
+    url: https://www.shell.com/investors/investor-presentations/capital-markets-day-2025/_jcr_content/root/main/section/promo_1962010312_cop/links/item3.stream/1752057184780/7babf10c6fc8e1415eadc37050252bb4a7c879a2/shell-capital-markets-day-2025-accessibility-sides.pdf
+    test: [slide_layout, objectives, overlap_with_annual_report]
+  - id: nist-csf-2
+    title: NIST Cybersecurity Framework 2.0
+    category: voluntary_framework
+    format: pdf
+    url: https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=957258
+    test: [recommended_outcomes, framework_sections, source_evidence]
+  - id: nist-oscal-sp80053
+    title: NIST SP 800-53 Rev 5 OSCAL control catalog
+    category: structured_security_controls
+    format: json
+    url: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json
+    test: [structured_ingestion, stable_control_ids, overlaps, no_llm_parse]
+  - id: eu-methane-2024-1787
+    title: EU Regulation 2024/1787 on methane emissions in energy sector
+    category: regulation
+    jurisdiction: EU
+    format: html
+    url: https://eur-lex.europa.eu/eli/reg/2024/1787/oj/eng
+    test: [mandated_requirements, applicability, exceptions, effective_dates]
+  - id: uk-hse-offshore-l154
+    title: UK HSE offshore safety case regulation and guidance L154
+    category: regulatory_guidance
+    jurisdiction: UK_offshore
+    format: pdf
+    url: https://www.hse.gov.uk/pubns/priced/l154.pdf
+    test: [mandatory_vs_guidance, multi_level_heading, supersession]
+  - id: uk-hse-diving-template
+    title: UK HSE offshore safety case diving assessment template
+    category: inspection_template
+    jurisdiction: UK_offshore
+    format: docx
+    url: https://www.hse.gov.uk/offshore/assets/docs/sc-diving-assessment-template.docx
+    test: [word_parsing, headings, tables, form_structure]
+  - id: iso-27001
+    title: ISO/IEC 27001:2022 official metadata and overview
+    category: licensed_standard_metadata
+    format: html
+    url: https://www.iso.org/standard/27001
+    test: [metadata_only, licensed_content_boundary]
+    note: This is not the normative full standard. Add an authorized PDF manually if licensed.
