@@ -36,6 +36,13 @@ def comparable_path(path: Path) -> Path:
     return Path(value)
 
 
+def filesystem_path(path: Path) -> Path:
+    value = str(path)
+    if os.name != "nt" or value.startswith("\\\\?\\"):
+        return path
+    return Path("\\\\?\\UNC\\" + value[2:] if value.startswith("\\\\") else "\\\\?\\" + value)
+
+
 class FilesystemArtifactStore:
     def __init__(self, directory: Path, *, document_directory: Path | None = None):
         self.directory = directory.resolve()
@@ -47,7 +54,7 @@ class FilesystemArtifactStore:
         # Windows can add a device prefix while another worker creates the target.
         if not comparable_path(path).is_relative_to(comparable_path(self.directory)):
             raise ValueError("Artifact path escapes its storage root")
-        return path
+        return filesystem_path(path)
 
     async def put(self, content: bytes) -> str:
         key = content_hash(content)
@@ -88,7 +95,7 @@ class FilesystemArtifactStore:
         path = self.document_directory.joinpath(*key.split("/")).resolve()
         if not comparable_path(path).is_relative_to(comparable_path(self.document_directory)):
             raise ValueError("Named artifact path escapes its storage root")
-        return path
+        return filesystem_path(path)
 
     async def put_named(self, key: str, content: bytes) -> None:
         path = self._named_path(key)

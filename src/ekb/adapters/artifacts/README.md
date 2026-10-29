@@ -5,6 +5,7 @@
 - Keys are SHA-256 digests; reads verify integrity.
 - Named relative keys hold corpus views/checkpoints; originals remain immutable SHA-256 objects.
 - Filesystem named writes atomically replace views, with bounded Windows reader-lock retries.
+- Windows I/O uses device-prefixed absolute paths after containment validation, including long roots.
 - Azure named objects use the configured corpus prefix; consumers verify manifest hashes.
 - Filesystem writes publish once with hard links; the storage volume must support them.
 - Azure uses a pre-existing container and configured identity permissions.

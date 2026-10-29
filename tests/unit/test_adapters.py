@@ -45,6 +45,16 @@ async def test_concurrent_artifact_publication_is_create_once(tmp_path):
         assert await store.put(content) == keys[0]
 
 
+async def test_long_artifact_paths_preserve_atomic_originals_and_named_replacement(tmp_path):
+    root = tmp_path / ("r" * 60) / ("s" * 60) / ("t" * 60)
+    store = FilesystemArtifactStore(root)
+    key = await store.put(b"long path original")
+    await store.put_named("normalized/snapshot.json", b"first")
+    await store.put_named("normalized/snapshot.json", b"second")
+    assert await store.get(key) == b"long path original"
+    assert await store.get_named("normalized/snapshot.json") == b"second"
+
+
 async def test_named_artifacts_advance_without_changing_originals(tmp_path):
     store = FilesystemArtifactStore(
         tmp_path / "artifacts", document_directory=tmp_path / "benchmark"
