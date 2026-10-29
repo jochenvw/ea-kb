@@ -2,13 +2,13 @@
   "notes": "Manually labeled, deliberately small. Official excerpts are short, attributed and not full licensed works. Synthetic cases are explicitly identified; no ISO clauses are reproduced.",
   "cases": [
     {
-      "id": "shell-annual-objective",
+      "id": "public-annual-objective",
       "source": "Shell Annual Report and Accounts 2025, PDF page 12; official URL in sources/public.yaml. Short excerpt.",
       "text": "We aim to sustain liquids production through to 2030",
       "expected": [{"kind": "objective", "excerpt": "We aim to sustain liquids production through to 2030"}]
     },
     {
-      "id": "shell-strategy-objective",
+      "id": "public-strategy-objective",
       "source": "Shell public strategy https://www.shell.com/what-we-do/our-strategy.html. Short strategy wording; objective annotation is manual.",
       "text": "deliver more value with less emissions",
       "expected": [{"kind": "objective", "excerpt": "deliver more value with less emissions"}]

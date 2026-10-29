@@ -325,14 +325,14 @@ SharePoint integration should eventually use Microsoft Graph delta capabilities 
 
 ## 6. Initial source corpus
 
-Provide a reproducible source manifest containing publicly available and legally retrievable material relevant to a multinational oil and gas company.
+Provide a reproducible source manifest containing publicly available and legally retrievable enterprise strategy, standards and regulatory material. The initial corpus is illustrative, not a company or industry restriction.
 
 Initial targets:
 
 **Corporate strategy**
 
-- Shell annual report.
-- Public Shell strategy or sustainability material.
+- A public corporate annual report.
+- Public corporate strategy or sustainability material.
 
 **Cybersecurity**
 
@@ -346,11 +346,11 @@ Initial targets:
 
 **Regulatory**
 
-Choose a small, clearly identified set of oil-and-gas-relevant regulatory publications. Include jurisdiction and applicability metadata.
+Choose a small, clearly identified set of regulatory publications. The initial corpus uses offshore safety examples; other industries can supply their own manifests. Include jurisdiction and applicability metadata.
 
 Possible domains include operational safety, environmental protection, cybersecurity, and industrial control systems.
 
-Do not assume every regulation applies to Shell or every oil and gas operator.
+Do not assume every regulation applies to every enterprise or operation.
 
 Do not download or redistribute copyrighted ISO full texts without suitable authorization. Provide a mechanism for users to supply licensed documents locally.
 
@@ -807,7 +807,7 @@ Implement the TUI, minimal web UI, provenance queries, and read-only MCP tools.
 
 **Milestone 5 — Initial public corpus and validation**
 
-Ingest a small representative set of accessible Shell, NIST, ISO-related, and regulatory material.
+Ingest a small representative set of accessible corporate strategy, NIST, ISO-related, and regulatory material.
 
 Produce extraction results with source evidence and evaluation metrics.
 

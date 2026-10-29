@@ -3,6 +3,9 @@
 These instructions apply throughout this repository. Preserve a small, executable Enterprise
 Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
 
+Keep product descriptions, domain logic and synthetic examples enterprise- and industry-neutral.
+Publisher-specific names belong in actual source attribution and corpus metadata, not product branding.
+
 ## Work minimally
 
 - Read the nearest folder README, affected implementation and tests before editing. Follow existing

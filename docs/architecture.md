@@ -2,6 +2,8 @@
 
 EKB is an asynchronous modular monolith. PostgreSQL is the authoritative store;
 original documents live in content-addressed filesystem or Azure Blob artifacts.
+It is a general enterprise architecture knowledge tool: sample publishers and industries belong
+in source manifests and scope metadata, not organization-specific domain logic.
 
 ## Scope and design drivers
 

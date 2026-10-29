@@ -39,7 +39,7 @@ sources:
     category: corporate-strategy
     retrieval: http
     access_notes: Public corporate report; Shell copyright. Retrieve for local analysis; do not redistribute the report.
-    intended_scope: Public Shell group reporting, not automatically a binding enterprise requirement. Initial sample covers PDF pages 8-15 only.
+    intended_scope: Public corporate reporting, not automatically a binding enterprise requirement. Initial sample covers PDF pages 8-15 only.
     pages: [8, 9, 10, 11, 12, 13, 14, 15]
   - id: shell-public-strategy
     publisher: Shell plc
@@ -114,7 +114,7 @@ sources:
     retrieval: http
     jurisdiction: United Kingdom
     access_notes: Official as-made legislation XML. Crown copyright; reuse subject to Open Government Licence and site exceptions. Check amendments before applying.
-    intended_scope: Duties of licensees within the instrument's offshore scope. Illustrative potential relevance only; no assertion that it applies to Shell or every operator.
+    intended_scope: Duties of licensees within the instrument's offshore scope. Illustrative potential relevance only; applicability to an enterprise or operator must be established separately.
   - id: us-offshore-30cfr250-107-2025
     publisher: US Government Publishing Office / Bureau of Safety and Environmental Enforcement
     name: 30 CFR 250.107, 2025 edition - safe and workmanlike operations
@@ -124,4 +124,4 @@ sources:
     retrieval: http
     jurisdiction: United States
     access_notes: Official 2025 CFR edition, US government publication. Historical edition; verify current text and amendments.
-    intended_scope: Potentially relevant to covered US Outer Continental Shelf operations, not a universal oil-and-gas or Shell mandate.
+    intended_scope: Potentially relevant to covered US Outer Continental Shelf operations, not a universal enterprise mandate.

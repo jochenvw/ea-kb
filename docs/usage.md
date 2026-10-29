@@ -71,15 +71,16 @@ authorized reachable index; do not disable certificate validation.
 uv run ekb scan --manifest sources\public.yaml
 ```
 
-The manifest includes Shell's 2025 annual report (selected PDF pages), public strategy and
+The sample manifest combines a public corporate annual report (selected PDF pages), strategy and
 sustainability pages, selected official NIST CSF 2.0 outcomes and SP 800-53 controls, and precisely
-identified UK/US offshore safety publications. Each entry documents publisher, identifier,
+identified UK/US offshore safety publications. These are illustrative sources, not an industry or
+company restriction. Each entry documents publisher, identifier,
 format, jurisdiction, access conditions and intended scope. Full downloaded originals are retained;
 only selected NIST controls/annual-report pages are initially parsed.
 
 ISO/IEC 27001 and ISO 14001 entries are **metadata references only**. No ISO full text or invented
 ISO clauses are provided. Put suitably licensed documents in an authorized private source directory.
-Regulatory entries do not assert applicability to Shell or every oil-and-gas operation. Check current
+Regulatory entries do not assert applicability to any particular enterprise or operation. Check current
 law, amendments, geography and enterprise adoption before using a candidate as an obligation.
 
 Public sites can move or deny automated requests. Fetch failures remain visible and do not erase

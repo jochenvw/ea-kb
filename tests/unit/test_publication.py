@@ -22,7 +22,7 @@ from ekb.domain.publication import assess_publication, project_authority
     [
         ("# Microsoft benchmark v2 (preview)", PublicationStatus.PREVIEW, None),
         (
-            "# Synthetic Shell architecture guidelines\nStatus: Draft\nVersion: 2.0.0-draft.1",
+            "# Synthetic enterprise architecture guidelines\nStatus: Draft\nVersion: 2.0.0-draft.1",
             PublicationStatus.DRAFT,
             "2.0.0-draft.1",
         ),

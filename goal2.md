@@ -579,7 +579,7 @@ And inspect:
 
 Implement **SemVer 2.0 pre-release support for all knowledge sources and concepts**, regardless of publisher, source type, or format.
 
-This applies to external standards (NIST, ISO, Microsoft), regulations, internal enterprise documents (e.g., Shell architecture guidelines), objectives, requirements, and architecture decisions.
+This applies to external standards (NIST, ISO, Microsoft), regulations, internal enterprise documents (e.g., architecture guidelines), objectives, requirements, and architecture decisions.
 
 **1. Detect publication maturity**
 
@@ -637,7 +637,7 @@ Every detected maturity status must reference its source evidence.
 Include tests for:
 
 - Microsoft benchmark preview releases.
-- Internal Shell draft architecture guidelines.
+- Internal enterprise draft architecture guidelines.
 - External consultation documents.
 - Approved internal standards.
 - Documents without explicit version or publication status.

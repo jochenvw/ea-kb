@@ -1,8 +1,9 @@
 # Enterprise Knowledge Base (EKB)
 
-Extract objective and requirement candidates from documents while preserving originals, exact
-source evidence and revision history. Incremental scans resume interrupted work and skip unchanged
-inputs. Built with async Python 3.13, PostgreSQL and replaceable adapters.
+An enterprise architecture knowledge tool for extracting objective and requirement candidates while
+preserving original documents, exact source evidence and revision history. Incremental scans resume
+interrupted work and skip unchanged inputs. Built with async Python 3.13, PostgreSQL and replaceable
+adapters.
 
 Inspect results through the command line, terminal UI, web interface or read-only
 Model Context Protocol (MCP) server.
