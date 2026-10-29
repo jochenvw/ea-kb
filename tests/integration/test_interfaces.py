@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import date
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -97,6 +98,158 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             await asyncio.wait_for(app.state.scan_task, timeout=10)
             assert (await client.get("/api/scans")).json()[0]["skipped"] == 3
     await runtime.__aexit__()
+
+
+async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, tmp_path):
+    from ekb.domain.models import SemanticVersion, now
+
+    runtime = await prepared(database, tmp_path)
+    app = create_app(runtime)
+    try:
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                sources = (await client.get("/api/sources")).json()
+                details = [
+                    (await client.get(f"/api/sources/{source['item']['id']}")).json()
+                    for source in sources
+                ]
+                own = max(details, key=lambda source: source["versions"])
+                assert own["versions"] >= 2
+                source_id = own["source"]["item"]["id"]
+                first = (await client.get(f"/api/sources/{source_id}?limit=1")).json()
+                assert len(first["items"]) == 1 and first["next_cursor"]
+                second = (
+                    await client.get(
+                        f"/api/sources/{source_id}?limit=1&after={first['next_cursor']}"
+                    )
+                ).json()
+                assert first["items"][0]["version"]["id"] != second["items"][0]["version"]["id"]
+                assert sum(item["evidence_count"] for item in own["items"]) == own["occurrences"]
+                item = own["items"][0]
+                concept = await runtime.knowledge.get(UUID(item["concept_id"]))
+                assert concept
+                original = next(v for v in concept.versions if str(v.id) == item["version"]["id"])
+                later = original.model_copy(
+                    update={
+                        "id": uuid4(),
+                        "predecessor_id": original.id,
+                        "semantic_version": SemanticVersion(major=1, minor=0, patch=0),
+                        "recorded_at": now(),
+                        "candidate": original.candidate.model_copy(
+                            update={"statement": "A later interpretation without this source."}
+                        ),
+                    }
+                )
+                async with database() as uow:
+                    await uow.knowledge.add_version(later)
+                    await uow.commit()
+                again = (await client.get(f"/api/sources/{source_id}")).json()
+                assert later.id not in {UUID(row["version"]["id"]) for row in again["items"]}
+                assert again["versions"] == own["versions"]
+                assert (await client.get(f"/sources/{source_id}")).status_code == 200
+                assert (await client.get(f"/api/sources/{uuid4()}")).status_code == 404
+                assert (await client.get(f"/sources/{uuid4()}")).status_code == 404
+                assert (await client.get(f"/api/sources/{source_id}?limit=51")).status_code == 422
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_table_inspection_only_exposes_owned_tables_with_stable_readonly_links(
+    database, tmp_path
+):
+    from sqlalchemy import text
+
+    runtime = await prepared(database, tmp_path)
+    async with database.engine.begin() as connection:
+        await connection.execute(text("CREATE TABLE unrelated_private (secret text)"))
+    app = create_app(runtime)
+    try:
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                catalog = (await client.get("/api/inspection/tables")).json()
+                assert {table["name"] for table in catalog} >= {
+                    "sources",
+                    "occurrences",
+                    "reconciliation_decisions",
+                    "issue_events",
+                }
+                assert "unrelated_private" not in {table["name"] for table in catalog}
+                first = (await client.get("/api/inspection/tables/segments?limit=1")).json()
+                second = (
+                    await client.get(
+                        f"/api/inspection/tables/segments?limit=1&after={first['next_cursor']}"
+                    )
+                ).json()
+                assert first["rows"][0]["id"] != second["rows"][0]["id"]
+                assert (
+                    next(c for c in first["columns"] if c["name"] == "revision_id")["reference"]
+                    == "source_revisions"
+                )
+                exact = (
+                    await client.get(
+                        f"/api/inspection/tables/segments?record={first['rows'][0]['id']}"
+                    )
+                ).json()
+                assert exact["rows"] == first["rows"]
+                for name in ("unrelated_private", "pg_authid", "sources;DROP TABLE sources"):
+                    assert (await client.get(f"/api/inspection/tables/{name}")).status_code == 404
+                assert (
+                    await client.get("/api/inspection/tables/segments?record=invalid")
+                ).status_code == 404
+                assert (
+                    await client.get("/api/inspection/tables/sources?limit=1000")
+                ).status_code == 422
+                assert (
+                    await client.post("/api/inspection/tables/sources", json={})
+                ).status_code == 405
+                for path in ("/data", "/logs", "/explore", "/reconciliation"):
+                    assert (await client.get(path)).status_code == 200
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_log_inspection_omits_payloads_and_credentials_and_tolerates_partial_writes(
+    database, tmp_path
+):
+    runtime = await prepared(database, tmp_path)
+    directory = runtime.settings.data_dir / "telemetry" / "123"
+    directory.mkdir(parents=True)
+    (directory / "logs.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "source_failed",
+                "timestamp": "2026-01-01T10:00:00Z",
+                "error_type": "ValueError",
+                "password": "do-not-serve",
+                "message": "Sensitive document body",
+                "payload": {"token": "do-not-serve"},
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {"event": "raw_payload", "timestamp": "2026-01-01T11:00:00Z", "token": "secret"}
+        )
+        + '\n{"unfinished":'
+    )
+    (directory / "traces.jsonl").write_text("Sensitive trace body")
+    app = create_app(runtime)
+    try:
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get("/api/inspection/logs")
+                assert response.status_code == 200
+                assert response.json()["events"][0]["fields"] == {"error_type": "ValueError"}
+                assert len(response.json()["events"]) == 1
+                assert "Sensitive" not in response.text and "do-not-serve" not in response.text
+                assert (await client.get("/api/inspection/logs?limit=201")).status_code == 422
+    finally:
+        await runtime.__aexit__()
 
 
 async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(database, tmp_path):

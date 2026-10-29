@@ -7,6 +7,7 @@
 - Size/backup limits apply per process; retain or clean old process directories operationally.
 - Azure settings optionally add Monitor trace/log/metric exporters to the same instrumentation.
 - Application exception spans record type/status, not sensitive messages or source payloads.
+- `inspection.py` reads bounded recent log tails, serving only known events and safe diagnostic fields.
 
 Use the shared `log` and `tracer`; flush on runtime teardown.
 Debug model payloads belong to the inference adapter, not normal telemetry.

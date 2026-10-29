@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   Sun,
   Workflow,
+  Network,
+  ScrollText,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,18 +33,54 @@ import {
 import { date, label, useResource } from "@/lib/api";
 import { Knowledge, ConceptPage } from "@/knowledge";
 import { Review } from "@/review";
-import { Sources } from "@/sources";
+import { Sources, SourcePage } from "@/sources";
+import { Explorer } from "@/network";
+import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Activity } from "@/activity";
 import { Benchmarks } from "@/benchmarks";
 import type { Issue, Pipeline, Source } from "@/types";
 
 const navigation = [
-  { href: "/", name: "Overview", icon: LayoutDashboard },
-  { href: "/knowledge", name: "Knowledge", icon: BookOpen },
-  { href: "/review", name: "Review queue", icon: CheckCheck },
-  { href: "/sources", name: "Sources", icon: Files },
-  { href: "/benchmarks", name: "Benchmarks", icon: GitCompareArrows },
-  { href: "/pipeline", name: "Pipeline", icon: Workflow },
+  { href: "/", name: "Overview", icon: LayoutDashboard, group: "Workspace" },
+  {
+    href: "/review",
+    name: "Reconciliation backlog",
+    icon: CheckCheck,
+    group: "Work",
+  },
+  { href: "/pipeline", name: "Pipeline", icon: Workflow, group: "Work" },
+  { href: "/sources", name: "Sources", icon: Files, group: "Reference" },
+  { href: "/knowledge", name: "Knowledge", icon: BookOpen, group: "Reference" },
+  {
+    href: "/explore",
+    name: "Visual explorer",
+    icon: Network,
+    group: "Reference",
+  },
+  {
+    href: "/benchmarks",
+    name: "Benchmarks",
+    icon: GitCompareArrows,
+    group: "Reference",
+  },
+  {
+    href: "/reconciliation",
+    name: "Reconciliation log",
+    icon: History,
+    group: "Reference",
+  },
+  {
+    href: "/data",
+    name: "Data inspector",
+    icon: Database,
+    group: "Operations",
+  },
+  {
+    href: "/logs",
+    name: "Operational logs",
+    icon: ScrollText,
+    group: "Operations",
+  },
 ];
 
 export function App() {
@@ -49,9 +88,11 @@ export function App() {
   const query = new URLSearchParams(window.location.search);
   const section = path.startsWith("/concepts/")
     ? "/knowledge"
-    : path === "/" && query.has("q")
-      ? "/knowledge"
-      : path;
+    : path.startsWith("/sources/")
+      ? "/sources"
+      : path === "/" && query.has("q")
+        ? "/knowledge"
+        : path;
   const active =
     navigation.find((item) => item.href === section) ?? navigation[0];
   const [menu, setMenu] = useState(false);
@@ -90,20 +131,28 @@ export function App() {
             <small>Architecture knowledge</small>
           </span>
         </a>
-        <p className="nav-label">WORKSPACE</p>
-        <nav aria-label="Main navigation">
-          {navigation.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              aria-current={section === item.href ? "page" : undefined}
-            >
-              <item.icon aria-hidden="true" />
-              {item.name}
-              {section === item.href && <ChevronRight className="nav-arrow" />}
-            </a>
-          ))}
-        </nav>
+        {["Workspace", "Work", "Reference", "Operations"].map((group) => (
+          <div className="nav-group" key={group}>
+            <p className="nav-label">{group.toUpperCase()}</p>
+            <nav aria-label={`${group} navigation`}>
+              {navigation
+                .filter((item) => item.group === group)
+                .map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    aria-current={section === item.href ? "page" : undefined}
+                  >
+                    <item.icon aria-hidden="true" />
+                    {item.name}
+                    {section === item.href && (
+                      <ChevronRight className="nav-arrow" />
+                    )}
+                  </a>
+                ))}
+            </nav>
+          </div>
+        ))}
         <div className="sidebar-bottom">
           <Separator />
           <div className="workspace-label">
@@ -132,7 +181,7 @@ export function App() {
             >
               <Menu />
             </Button>
-            <span>Workspace</span>
+            <span>{active.group}</span>
             <ChevronRight size={14} />
             <strong>{active.name}</strong>
           </div>
@@ -160,7 +209,16 @@ export function App() {
               <Knowledge />
             ))}
           {section === "/review" && <Review governance={governance} />}
-          {section === "/sources" && <Sources />}
+          {section === "/sources" &&
+            (path.startsWith("/sources/") ? (
+              <SourcePage id={path.split("/")[2]} />
+            ) : (
+              <Sources />
+            ))}
+          {section === "/explore" && <Explorer />}
+          {section === "/reconciliation" && <ReconciliationLog />}
+          {section === "/data" && <DataExplorer />}
+          {section === "/logs" && <Logs />}
           {section === "/pipeline" && (
             <Activity scanRunning={config.data?.scan_running === true} />
           )}
@@ -203,7 +261,7 @@ function Overview() {
           </a>
         </Button>
         <Button asChild>
-          <a href="/review">
+          <a href="/review?view=issues">
             <CheckCheck />
             Review issues
           </a>
@@ -247,7 +305,7 @@ function Overview() {
           description="Open issues, with higher severity first."
           action={
             <Button variant="ghost" size="sm" asChild>
-              <a href="/review">
+              <a href="/review?view=issues">
                 View queue
                 <ArrowUpRight />
               </a>

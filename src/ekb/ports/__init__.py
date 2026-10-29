@@ -5,6 +5,14 @@ from typing import Protocol, Self
 from uuid import UUID
 
 from ekb.domain.benchmarks import BenchmarkRole, NativeControlBinding, StoredBenchmarkDocument
+from ekb.domain.inspection import (
+    BacklogPage,
+    BacklogStatus,
+    KnowledgeGraph,
+    SourceInspection,
+    TableInfo,
+    TablePage,
+)
 from ekb.domain.models import (
     AuthorityEvent,
     Capabilities,
@@ -146,7 +154,28 @@ class BenchmarkRepository(Protocol):
     ) -> list[StoredBenchmarkDocument]: ...
 
 
+class InspectionRepository(Protocol):
+    async def tables(self) -> list[TableInfo]: ...
+    async def rows(
+        self, name: str, limit: int = 50, *, after: str | None = None, record: str | None = None
+    ) -> TablePage: ...
+    async def source(
+        self, source_id: UUID, limit: int = 50, *, after: UUID | None = None
+    ) -> SourceInspection | None: ...
+    async def graph(self, concept_id: UUID) -> KnowledgeGraph | None: ...
+    async def backlog(
+        self,
+        limit: int = 50,
+        *,
+        after: UUID | None = None,
+        status: BacklogStatus = "all",
+        check_id: str | None = None,
+    ) -> BacklogPage: ...
+
+
 class UnitOfWork(Protocol):
+    @property
+    def inspection(self) -> InspectionRepository: ...
     @property
     def workflow(self) -> WorkflowRepository: ...
     @property

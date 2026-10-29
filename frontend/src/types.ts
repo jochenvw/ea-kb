@@ -69,6 +69,7 @@ export interface Concept {
 export interface Provenance {
   occurrence: {
     id: string;
+    concept_version_id: string;
     excerpt: string;
     start: number;
     end: number;
@@ -134,6 +135,59 @@ export interface Decision {
   actor: string;
   rationale: string;
   recorded_at: string;
+}
+
+export interface SourceInspection {
+  source: Source;
+  revisions: number;
+  segments: number;
+  versions: number;
+  occurrences: number;
+  items: { concept_id: string; version: Version; evidence_count: number }[];
+  next_cursor: string | null;
+}
+
+export interface KnowledgeGraph {
+  root: string;
+  nodes: { id: string; label: string; kind: string; href: string }[];
+  edges: {
+    source: string;
+    target: string;
+    kind: string;
+    status: string;
+    href: string;
+  }[];
+  truncated: boolean;
+}
+
+export interface BacklogPage {
+  items: { finding: Finding; decision: Decision | null }[];
+  total: number;
+  next_cursor: string | null;
+}
+
+export interface TableInfo {
+  name: string;
+  count: number;
+}
+
+export interface TablePage {
+  name: string;
+  columns: { name: string; type: string; reference: string | null }[];
+  rows: Record<string, unknown>[];
+  next_cursor: string | null;
+  previews: boolean;
+}
+
+export interface LogPage {
+  events: {
+    timestamp: string;
+    event: string;
+    process: string;
+    fields: Record<string, string | number>;
+  }[];
+  files_read: number;
+  truncated: boolean;
 }
 
 export interface Execution {

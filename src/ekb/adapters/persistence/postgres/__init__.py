@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from ekb.adapters.persistence.postgres.benchmarks import Benchmarks
+from ekb.adapters.persistence.postgres.inspection import Inspection
 from ekb.adapters.persistence.postgres.issues import Issues
 from ekb.adapters.persistence.postgres.models import (
     AuthorityRow,
@@ -726,6 +727,7 @@ class PostgresUnitOfWork:
         self.workflow = Workflow(self.session)
         self.resolution = ResolutionStore(self.session)
         self.issues = Issues(self.session)
+        self.inspection = Inspection(self.session)
 
     async def __aenter__(self) -> PostgresUnitOfWork:
         return self

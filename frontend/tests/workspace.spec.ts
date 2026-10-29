@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const findingId = "22222222-2222-4222-8222-222222222222";
+const relatedId = "33333333-3333-4333-8333-333333333333";
+const sourceId = "44444444-4444-4444-8444-444444444444";
 const timestamp = "2026-01-01T10:00:00Z";
 const scope = { environment: "test", organization: null };
 const publication = {
@@ -13,7 +15,7 @@ const statement = "Teams must retain audit logs.";
 const excerpt = "Teams must retain <em>audit logs</em>.";
 const source = {
   item: {
-    id,
+    id: sourceId,
     name: "Example architecture standard",
     location: "https://example.com/standard",
     format: "md",
@@ -105,6 +107,18 @@ async function fixture(page: Page, governance = false) {
     if (path === "/api/ui/config")
       data = { governance_enabled: governance, scan_running: false };
     else if (path === "/api/sources") data = [source];
+    else if (path === `/api/sources/${sourceId}`)
+      data = {
+        source,
+        revisions: 1,
+        segments: 2,
+        versions: 1,
+        occurrences: 1,
+        items: [
+          { concept_id: id, version: concept.versions[0], evidence_count: 1 },
+        ],
+        next_cursor: null,
+      };
     else if (path === "/api/concepts")
       data = statement
         .toLowerCase()
@@ -112,6 +126,50 @@ async function fixture(page: Page, governance = false) {
         ? [concept]
         : [];
     else if (path === `/api/concepts/${id}`) data = concept;
+    else if (
+      path === `/api/concepts/${id}/graph` ||
+      path === `/api/concepts/${relatedId}/graph`
+    )
+      data = {
+        root: path.includes(relatedId) ? relatedId : id,
+        nodes: [
+          {
+            id,
+            label: statement,
+            kind: "requirement",
+            href: `/concepts/${id}`,
+          },
+          {
+            id: relatedId,
+            label: "An associated security objective.",
+            kind: "objective",
+            href: `/concepts/${relatedId}`,
+          },
+          {
+            id: sourceId,
+            label: source.item.name,
+            kind: "source",
+            href: `/sources/${sourceId}`,
+          },
+        ],
+        edges: [
+          {
+            source: sourceId,
+            target: id,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${sourceId}`,
+          },
+          {
+            source: id,
+            target: relatedId,
+            kind: "alias",
+            status: "proposal",
+            href: `/review?finding_id=${findingId}`,
+          },
+        ],
+        truncated: false,
+      };
     else if (path === `/api/concepts/${id}/provenance`)
       data = [
         {
@@ -125,6 +183,7 @@ async function fixture(page: Page, governance = false) {
           segment: { id, heading: "Logging", location: { page: 4 } },
           occurrence: {
             id,
+            concept_version_id: id,
             excerpt,
             start: 5,
             end: 5 + excerpt.length,
@@ -138,6 +197,15 @@ async function fixture(page: Page, governance = false) {
       data = url.searchParams.get("severity") === "critical" ? [] : [issue];
     else if (path === `/api/issues/${id}`) data = { issue, events: [] };
     else if (path === "/api/reconciliation/findings") data = [finding];
+    else if (path === "/api/reconciliation/backlog")
+      data = {
+        items:
+          url.searchParams.get("status") === "pending"
+            ? []
+            : [{ finding, decision: { id, outcome: "deferred" } }],
+        total: url.searchParams.get("status") === "pending" ? 0 : 1,
+        next_cursor: null,
+      };
     else if (path === `/api/reconciliation/findings/${findingId}`)
       data = finding;
     else if (path === "/api/reconciliation/decisions")
@@ -175,6 +243,51 @@ async function fixture(page: Page, governance = false) {
         configured_cost: null,
         model_latency_ms: 0,
         validation_failures: 0,
+      };
+    else if (path === "/api/inspection/tables")
+      data = [
+        { name: "sources", count: 1 },
+        { name: "source_revisions", count: 2 },
+      ];
+    else if (path === "/api/inspection/tables/sources")
+      data = {
+        name: "sources",
+        columns: [
+          { name: "id", type: "UUID", reference: null },
+          { name: "payload", type: "JSONB", reference: null },
+        ],
+        rows: [{ id: sourceId, payload: source }],
+        next_cursor: null,
+        previews: true,
+      };
+    else if (path === "/api/inspection/tables/source_revisions")
+      data = {
+        name: "source_revisions",
+        columns: [
+          { name: "id", type: "UUID", reference: null },
+          { name: "source_id", type: "UUID", reference: "sources" },
+        ],
+        rows: [
+          {
+            id: url.searchParams.has("after") ? relatedId : id,
+            source_id: sourceId,
+          },
+        ],
+        next_cursor: url.searchParams.has("after") ? null : id,
+        previews: true,
+      };
+    else if (path === "/api/inspection/logs")
+      data = {
+        events: [
+          {
+            timestamp,
+            event: "source_failed",
+            process: "123",
+            fields: { error_type: "ValueError", source_id: sourceId },
+          },
+        ],
+        files_read: 1,
+        truncated: true,
       };
     else if (path === "/api/benchmarks/controls/mcsb-v2:NS-6")
       data = {
@@ -296,7 +409,7 @@ test("overview makes attention and durable stages primary", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "View queue", exact: true }),
-  ).toHaveAttribute("href", "/review");
+  ).toHaveAttribute("href", "/review?view=issues");
   await expect(page.getByText("Indexing", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -326,6 +439,7 @@ test("issue filters and evidence drill-down do not expose write controls", async
   page,
 }) => {
   await page.goto("/review");
+  await page.getByRole("tab", { name: "Issues", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Issue severity" })
     .selectOption("critical");
@@ -580,4 +694,136 @@ test("benchmark mappings, alternatives and lineage do not imply authority", asyn
   await expect(
     page.getByText("All semantic transitions require review.", { exact: true }),
   ).toBeVisible();
+});
+
+test("reference sources drill into source-bound versions and exact evidence", async ({
+  page,
+}) => {
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        ...concept,
+        versions: [
+          ...concept.versions,
+          {
+            ...concept.versions[0],
+            id: relatedId,
+            candidate: {
+              ...concept.versions[0].candidate,
+              statement: "A later interpretation from elsewhere.",
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/sources");
+  await expect(
+    page.getByRole("navigation", { name: "Reference navigation" }),
+  ).toContainText("Sources");
+  await page.getByRole("link", { name: source.item.name, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Extracted things", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: statement, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`version_id=${id}`));
+  await expect(page.locator(".concept-statement")).toHaveText(statement);
+  await expect(page.locator("blockquote")).toHaveText(excerpt);
+  await page.getByRole("link", { name: source.item.name, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: source.item.name, exact: true }),
+  ).toBeVisible();
+});
+
+test("visual exploration recenters connected interpretations and separates proposal links", async ({
+  page,
+}) => {
+  await page.goto(`/explore?concept=${id}`);
+  await expect(
+    page.getByRole("group", {
+      name: "Navigable evidence and relationship map",
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".graph-edge.is-proposal")).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "Inspect Alias Proposal link" }),
+  ).toHaveAttribute("href", `/review?finding_id=${findingId}`);
+  await page
+    .getByRole("link", { name: "Explore An associated security objective." })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`concept=${relatedId}`));
+  await expect(
+    page.getByRole("link", {
+      name: "Inspect interpretation An associated security objective.",
+    }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("work backlog is separate from the reference reconciliation ledger", async ({
+  page,
+}) => {
+  await page.goto("/review");
+  await expect(
+    page.getByRole("heading", { name: "Active reconciliation backlog" }),
+  ).toBeVisible();
+  await expect(page.getByText("1 outstanding proposals")).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Backlog decision state" })
+    .selectOption("pending");
+  await expect(page.getByText("0 outstanding proposals")).toBeVisible();
+  await expect(page.getByText("Nothing to show yet")).toBeVisible();
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: "Reconciliation log", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Recorded proposals" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Backlog decision state" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("tab", { name: "Decision history", exact: true })
+    .click();
+  await expect(
+    page.getByText("No decisions recorded", { exact: true }),
+  ).toBeVisible();
+});
+
+test("data inspector follows foreign keys and respects terminal cursor pages", async ({
+  page,
+}) => {
+  await page.goto("/data?table=source_revisions");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByText(relatedId, { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Next", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("link", { name: sourceId, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`table=sources&record=${sourceId}`));
+  await page.getByText("Inspect JSON preview", { exact: true }).click();
+  await expect(page.locator("pre")).toContainText(source.item.name);
+  await expect(page.getByRole("button", { name: /delete|save/i })).toHaveCount(
+    0,
+  );
+});
+
+test("operational log tails are inspectable and searchable", async ({
+  page,
+}) => {
+  await page.goto("/logs");
+  await expect(page.getByText("Source Failed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/A bounded recent tail is shown/)).toBeVisible();
+  await page.getByText("Inspect event fields", { exact: true }).click();
+  await expect(page.locator("pre")).toContainText("ValueError");
+  await page
+    .getByRole("searchbox", { name: "Search loaded log events" })
+    .fill("not-present");
+  await expect(page.getByText("Nothing to show yet")).toBeVisible();
 });

@@ -25,7 +25,8 @@ uv run ekb web
 ```
 
 Open <http://127.0.0.1:8000>. The fixture documents are synthetic.
-Browse knowledge, source evidence, the review queue and pipeline activity. No Node runtime is needed.
+Browse Reference (sources, evidence and relationships), Work (reconciliation backlog), and
+Operations (read-only tables and logs). No Node runtime is needed.
 Use `uv run ekb --help` for other commands.
 
 For the full configured corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.

@@ -4,7 +4,8 @@
 `static\ui` contains committed production HTML/CSS/JavaScript, source fingerprints and licenses.
 `static\theme.css` is the canonical Clawpilot light/dark palette.
 FastAPI serves the built shell and existing JSON services; production needs no Node.js process.
-The UI separates overview, knowledge, sources, review, benchmarks and durable pipeline activity.
+The UI groups Work (backlog/pipeline), Reference (sources/knowledge/graph/ledger) and Operations.
+Source details show evidenced versions; table/log inspection is bounded and strictly read-only.
 Knowledge and proposals use server cursors; evidence and identifiers sit behind drill-downs.
 Governance forms retain authenticated server handlers, explicit rationale and append-only auditing.
 See `frontend\README.md`, `tests\integration\test_interfaces.py` and `docs\usage.md`.

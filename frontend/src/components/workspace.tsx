@@ -245,12 +245,14 @@ export function CursorPager({
   onNext,
   onPrevious,
   disabled = false,
+  hasNext,
 }: {
   page: number;
   count: number;
   onNext: () => void;
   onPrevious: () => void;
   disabled?: boolean;
+  hasNext?: boolean;
 }) {
   return (
     <div className="pager">
@@ -270,7 +272,7 @@ export function CursorPager({
         <Button
           size="sm"
           variant="outline"
-          disabled={disabled || count !== 50}
+          disabled={disabled || !(hasNext ?? count === 50)}
           onClick={onNext}
         >
           Next

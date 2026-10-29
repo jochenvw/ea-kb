@@ -34,6 +34,7 @@ import {
   useResource,
 } from "@/lib/api";
 import type { Concept, Provenance, Version } from "@/types";
+import { RelationshipGraph } from "@/network";
 
 export function Knowledge() {
   const [query, setQuery] = useState(
@@ -175,7 +176,15 @@ export function ConceptPage({
   const provenance = useResource<Provenance[]>(
     `/api/concepts/${encodeURIComponent(id)}/provenance`,
   );
-  const version = concept.data?.versions.at(-1);
+  const requested = new URLSearchParams(location.search).get("version_id");
+  const version =
+    concept.data?.versions.find((item) => item.id === requested) ??
+    concept.data?.versions.at(-1);
+  const evidence = requested
+    ? provenance.data?.filter(
+        (item) => item.occurrence.concept_version_id === requested,
+      )
+    : provenance.data;
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="back-link">
@@ -197,6 +206,19 @@ export function ConceptPage({
               description="Extracted interpretation; verify against the exact source."
             >
               <p className="concept-statement">{version.candidate.statement}</p>
+              {requested && (
+                <p className="table-note">
+                  Viewing source-linked version recorded{" "}
+                  {date(version.recorded_at)}. Other interpretations remain in
+                  version history.
+                </p>
+              )}
+              <Button variant="outline" size="sm" asChild>
+                <a href={`/explore?concept=${id}`}>
+                  Explore visual relationships
+                  <ArrowUpRight />
+                </a>
+              </Button>
               <div className="tag-row">
                 <Badge variant="secondary">
                   {label(version.candidate.modality)}
@@ -228,10 +250,10 @@ export function ConceptPage({
                 >
                   <LoadState
                     resource={provenance}
-                    empty={provenance.data?.length === 0}
+                    empty={evidence?.length === 0}
                   >
                     <div className="evidence-list">
-                      {provenance.data?.map((item) => (
+                      {evidence?.map((item) => (
                         <Evidence key={item.occurrence.id} item={item} />
                       ))}
                     </div>
@@ -291,6 +313,7 @@ export function ConceptPage({
                 />
               </TabsContent>
               <TabsContent value="history">
+                <RelationshipGraph id={id} />
                 <Panel
                   title="Version history"
                   description="Publisher edition labels are not invented semantic versions."
@@ -352,7 +375,11 @@ function Evidence({ item }: { item: Provenance }) {
       <div className="evidence-heading">
         <FileText size={18} />
         <div>
-          <h3>{item.source.item.name}</h3>
+          <h3>
+            <a href={`/sources/${item.source.item.id}`}>
+              {item.source.item.name}
+            </a>
+          </h3>
           <p>
             {item.segment.heading ?? "Source passage"}
             {item.segment.location.page != null

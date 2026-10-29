@@ -143,3 +143,26 @@ uv run ekb pipeline run --config data\foundry-local.yaml --fresh
 These commands enable paid model calls. Environment overrides still take precedence; inspect the
 printed model IDs. Use `--fresh --yes` only for intentional unattended resets. The portable
 `config\foundry.yaml` template and reset boundaries are documented in `usage.md`.
+
+## Reference, work and operational inspection
+
+The reference/work release passed the combined `uv run ekb test --ui` suite:
+**180 Python tests, 17 Playwright regressions, zero skips**, plus offline evaluations.
+Ruff lint/format, basedpyright and Alembic drift checks passed. New cases cover evidence-bound
+source versions, graph direction/proposal distinction, decision-head backlog filtering,
+obsolete-run exclusion, manual proposals, table allowlisting/cursors and bounded private log tails.
+
+Separate acceptance checks used the actual populated workspace: **238 sources**, a source
+drill-down with **29 evidenced versions/passages**, a **5-node/4-edge** duplicate neighborhood,
+**2,269 outstanding proposals**, all **24 EKB tables**, and **100 recent log events**.
+Source-to-version-to-evidence navigation, graph recentering and foreign-key record links worked.
+Six reference/work/operations pages were checked at desktop and mobile sizes without browser/API
+errors or horizontal page overflow. The instance stayed read-only; no mutations, model calls,
+new ingestion or governance decisions were performed by these checks.
+
+The sidebar now separates Work (backlog and pipeline), Reference (sources, knowledge, visual
+explorer, benchmarks and reconciliation ledger), and Operations (data and log inspection).
+The reference ledger retains historical proposals; the work backlog excludes accepted/rejected
+heads and proposals outside the latest successful enrichment output, except manual proposals.
+Ignored evidence and screenshots are under `data\reference-work-verification`, including
+`suite\suite.json` and `browser-acceptance.json`.

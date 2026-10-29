@@ -37,17 +37,24 @@ import {
 } from "@/components/workspace";
 import { RelatedConcept } from "@/knowledge";
 import { date, externalUrl, label, useResource } from "@/lib/api";
-import type { Decision, Finding, Issue } from "@/types";
+import type { BacklogPage, Decision, Finding, Issue } from "@/types";
 
 export function Review({ governance }: { governance: boolean }) {
   const query = new URLSearchParams(location.search);
   return (
     <>
       <Heading
-        eyebrow="HUMAN REVIEW"
+        eyebrow="WORK / HUMAN REVIEW"
         title="Focus on what needs a decision."
         description="Triage exceptions, inspect supporting evidence and record an explicit, auditable decision."
-      />
+      >
+        <Button variant="outline" asChild>
+          <a href="/reconciliation">
+            Reconciliation log
+            <ArrowUpRight />
+          </a>
+        </Button>
+      </Heading>
       {!governance && (
         <div className="read-only">
           <LockKeyhole size={18} />
@@ -61,22 +68,24 @@ export function Review({ governance }: { governance: boolean }) {
         </div>
       )}
       <Tabs
-        defaultValue={query.has("finding_id") ? "proposals" : "issues"}
+        defaultValue={
+          query.has("issue_id") ||
+          query.has("status") ||
+          query.get("view") === "issues"
+            ? "issues"
+            : "proposals"
+        }
         className="review-tabs"
       >
         <TabsList aria-label="Review views">
           <TabsTrigger value="issues">Issues</TabsTrigger>
-          <TabsTrigger value="proposals">Proposals</TabsTrigger>
-          <TabsTrigger value="history">Decision history</TabsTrigger>
+          <TabsTrigger value="proposals">Reconciliation backlog</TabsTrigger>
         </TabsList>
         <TabsContent value="issues">
           <Issues governance={governance} />
         </TabsContent>
         <TabsContent value="proposals">
-          <Proposals governance={governance} />
-        </TabsContent>
-        <TabsContent value="history">
-          <History />
+          <Proposals governance={governance} backlog />
         </TabsContent>
       </Tabs>
     </>
@@ -368,20 +377,59 @@ function IssueDetails({ id, governance }: { id: string; governance: boolean }) {
   );
 }
 
-function Proposals({ governance }: { governance: boolean }) {
+export function Proposals({
+  governance,
+  backlog = false,
+}: {
+  governance: boolean;
+  backlog?: boolean;
+}) {
+  const [status, setStatus] = useState("all");
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [selected, setSelected] = useState<string | null>(
     new URLSearchParams(location.search).get("finding_id"),
   );
   const cursor = cursors.at(-1);
-  const resource = useResource<Finding[]>(
-    `/api/reconciliation/findings?limit=50${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
+  const suffix = `limit=50${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`;
+  const ledger = useResource<Finding[]>(
+    backlog ? null : `/api/reconciliation/findings?${suffix}`,
   );
+  const queue = useResource<BacklogPage>(
+    backlog ? `/api/reconciliation/backlog?${suffix}&status=${status}` : null,
+  );
+  const resource = backlog
+    ? { ...queue, data: queue.data?.items.map((item) => item.finding) ?? null }
+    : ledger;
   return (
     <Panel
-      title="Recorded proposals"
-      description="A paged evidence ledger, not a list of approved policies. Historical proposals are retained."
+      title={backlog ? "Active reconciliation backlog" : "Recorded proposals"}
+      description={
+        backlog
+          ? "Current enrichment and manual proposals awaiting a decision, deferred or reversed. Accepted, rejected and superseded-run proposals are excluded."
+          : "A paged evidence ledger, not a list of approved policies. Historical proposals are retained."
+      }
     >
+      {backlog && (
+        <div className="toolbar">
+          <Filter
+            name="Backlog decision state"
+            value={status}
+            onChange={(value) => {
+              setStatus(value);
+              setCursors([null]);
+            }}
+            options={[
+              ["all", "All outstanding"],
+              ["pending", "No decision"],
+              ["deferred", "Deferred"],
+              ["reversed", "Reversed"],
+            ]}
+          />
+          <span className="muted">
+            {queue.data?.total ?? "…"} outstanding proposals
+          </span>
+        </div>
+      )}
       <Sheet
         open={selected !== null}
         onOpenChange={(open) => {
@@ -395,6 +443,7 @@ function Proposals({ governance }: { governance: boolean }) {
                 <TableHead className="statement-column">Proposal</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Confidence</TableHead>
+                {backlog && <TableHead>Decision state</TableHead>}
                 <TableHead>
                   <span className="sr-only">Inspect</span>
                 </TableHead>
@@ -415,6 +464,17 @@ function Proposals({ governance }: { governance: boolean }) {
                     </Badge>
                   </TableCell>
                   <TableCell>{Math.round(finding.confidence * 100)}%</TableCell>
+                  {backlog && (
+                    <TableCell>
+                      <Status
+                        value={
+                          queue.data?.items.find(
+                            (item) => item.finding.id === finding.id,
+                          )?.decision?.outcome ?? "pending"
+                        }
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <SheetTrigger asChild>
                       <Button
@@ -447,6 +507,7 @@ function Proposals({ governance }: { governance: boolean }) {
         page={cursors.length}
         count={resource.data?.length ?? 0}
         disabled={resource.loading || !!resource.error}
+        hasNext={backlog ? queue.data?.next_cursor != null : undefined}
         onPrevious={() => setCursors(cursors.slice(0, -1))}
         onNext={() => {
           const last = resource.data?.at(-1)?.id;
@@ -618,7 +679,7 @@ function ConceptReferences({ ids }: { ids: string[] }) {
   );
 }
 
-function History() {
+export function History() {
   const resource = useResource<Decision[]>("/api/reconciliation/decisions");
   const items = [...(resource.data ?? [])].sort((a, b) =>
     b.recorded_at.localeCompare(a.recorded_at),

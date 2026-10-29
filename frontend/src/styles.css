@@ -99,12 +99,13 @@ pre {
   border-right: 1px solid var(--cp-border);
   background: var(--cp-bg-elevated);
   z-index: 30;
+  overflow-y: auto;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 8px 44px;
+  margin: 0 8px 20px;
   text-decoration: none;
 }
 .brand-mark {
@@ -136,11 +137,110 @@ pre {
 }
 .nav-label {
   padding: 0 12px;
-  margin-bottom: 12px;
+  margin: 12px 0 6px;
 }
 .sidebar nav {
   display: grid;
-  gap: 6px;
+  gap: 2px;
+}
+.graph-viewport {
+  overflow-x: auto;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-bg-elevated);
+  border-radius: 10px;
+  margin: 16px 0;
+}
+.graph-viewport svg {
+  width: 100%;
+  min-width: 860px;
+}
+.graph-node {
+  fill: var(--cp-surface);
+  stroke: var(--cp-border-strong);
+}
+.graph-node.is-root {
+  fill: var(--cp-accent-soft);
+  stroke: var(--cp-accent);
+  stroke-width: 2;
+}
+.graph-viewport a:hover .graph-node,
+.graph-viewport a:focus .graph-node {
+  stroke: var(--cp-accent);
+  stroke-width: 3;
+}
+.graph-label {
+  fill: var(--cp-text);
+  font-size: 13px;
+}
+.graph-kind,
+.graph-edge-label {
+  fill: var(--cp-text-muted);
+  font-size: 11px;
+}
+.graph-edge {
+  fill: none;
+  stroke: var(--cp-text-muted);
+  stroke-width: 1.5;
+}
+.graph-edge.is-proposal {
+  stroke: var(--cp-accent);
+  stroke-dasharray: 6 5;
+}
+.graph-arrow {
+  fill: var(--cp-text-muted);
+}
+.graph-legend,
+.graph-links,
+.graph-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.graph-legend {
+  justify-content: space-between;
+  color: var(--cp-text-muted);
+}
+.graph-links a,
+.graph-choices a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  text-decoration: none;
+}
+.graph-choices {
+  margin-top: 16px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.graph-choices a {
+  max-width: 100%;
+}
+.graph-choices a[aria-current="true"] {
+  border-color: var(--cp-accent);
+  background: var(--cp-accent-soft);
+}
+.graph-links {
+  margin-bottom: 16px;
+}
+.record-filter {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 200px;
+}
+.data-cell {
+  min-width: 120px;
+  max-width: 420px;
+  vertical-align: top;
+}
+.data-cell .technical {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 .sidebar nav a {
   display: flex;

@@ -83,6 +83,116 @@ async def test_stage_order_check_caches_partial_execution_and_rejected_proposals
         await runtime.__aexit__()
 
 
+async def test_backlog_tracks_latest_decisions_and_graph_preserves_proposal_direction(
+    database, tmp_path
+):
+    from ekb.domain.execution import ArtifactReference, Execution
+    from ekb.domain.models import now
+
+    runtime, _, config = await prepare(database, tmp_path)
+    try:
+        await runtime.orchestrator().run(configuration=config)
+        duplicate = next(f for f in await runtime.reconciliation.findings() if f.action == "alias")
+        app = create_app(runtime)
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                pending = (await client.get("/api/reconciliation/backlog?limit=1")).json()
+                assert pending["total"] >= 1
+                assert len(pending["items"]) == 1
+                before = (await client.get("/api/reconciliation/backlog")).json()
+                assert str(duplicate.id) in {item["finding"]["id"] for item in before["items"]}
+                graph = (await client.get(f"/api/concepts/{duplicate.concept_ids[1]}/graph")).json()
+                edge = next(e for e in graph["edges"] if e["status"] == "proposal")
+                assert edge["source"] == str(duplicate.concept_ids[0])
+                assert edge["target"] == str(duplicate.concept_ids[1])
+                assert any(node["kind"] == "source" for node in graph["nodes"])
+                assert any(e["status"] == "provenance" for e in graph["edges"])
+                deferred = await runtime.reconciliation.decide(
+                    Decision(
+                        finding_id=duplicate.id,
+                        outcome="deferred",
+                        actor="reviewer",
+                        rationale="More evidence required.",
+                    )
+                )
+                queue = (await client.get("/api/reconciliation/backlog?status=deferred")).json()
+                assert queue["items"][0]["decision"]["id"] == str(deferred.id)
+                accepted = await runtime.reconciliation.decide(
+                    Decision(
+                        finding_id=duplicate.id,
+                        outcome="accepted",
+                        previous_id=deferred.id,
+                        actor="reviewer",
+                        rationale="Evidence reviewed.",
+                    )
+                )
+                queue = (await client.get("/api/reconciliation/backlog")).json()
+                assert str(duplicate.id) not in {item["finding"]["id"] for item in queue["items"]}
+                await runtime.reconciliation.decide(
+                    Decision(
+                        finding_id=duplicate.id,
+                        outcome="reversed",
+                        previous_id=accepted.id,
+                        actor="reviewer",
+                        rationale="Reopen the interpretation.",
+                    )
+                )
+                reversed_queue = (
+                    await client.get("/api/reconciliation/backlog?status=reversed")
+                ).json()
+                assert reversed_queue["items"][0]["finding"]["id"] == str(duplicate.id)
+                async with database() as uow:
+                    await uow.workflow.save_execution(
+                        Execution(
+                            kind="stage",
+                            processor_id="enrichment",
+                            version="test",
+                            fingerprint="test",
+                            status="done",
+                            finished_at=now(),
+                            output=ArtifactReference(
+                                contract="findings/v1",
+                                revision="test",
+                                producer_fingerprint="test",
+                                source_revision="test",
+                            ),
+                        )
+                    )
+                    await uow.commit()
+                assert (await client.get("/api/reconciliation/backlog")).json()["total"] == 0
+                manual = duplicate.model_copy(update={"id": uuid4(), "check_id": "manual"})
+                await runtime.reconciliation.propose(manual)
+                queue = (await client.get("/api/reconciliation/backlog")).json()
+                assert queue["total"] == 1 and queue["items"][0]["finding"]["id"] == str(manual.id)
+                for _ in range(2):
+                    await runtime.reconciliation.propose(manual.model_copy(update={"id": uuid4()}))
+                await runtime.reconciliation.decide(
+                    Decision(
+                        finding_id=manual.id,
+                        outcome="rejected",
+                        actor="reviewer",
+                        rationale="This manual proposal is not supported.",
+                    )
+                )
+                first = (await client.get("/api/reconciliation/backlog?limit=1")).json()
+                second = (
+                    await client.get(
+                        f"/api/reconciliation/backlog?limit=1&after={first['next_cursor']}"
+                    )
+                ).json()
+                assert first["total"] == second["total"] == 2
+                assert first["items"][0]["finding"]["id"] != second["items"][0]["finding"]["id"]
+                assert second["next_cursor"] is None
+                assert (
+                    await client.get("/api/reconciliation/backlog?status=rejected")
+                ).status_code == 422
+                assert (await client.get(f"/api/concepts/{uuid4()}/graph")).status_code == 404
+    finally:
+        await runtime.__aexit__()
+
+
 async def test_accepted_alias_canonical_resolution_reversal_and_restart(database, tmp_path):
     runtime, _, config = await prepare(database, tmp_path)
     try:

@@ -230,6 +230,36 @@ are recorded in `index.json` under `failures` and cause a nonzero exit; valid ex
 
 ## Inspection interfaces
 
+The browser separates looking things up from doing governed work:
+
+| Area | Pages |
+|---|---|
+| Reference | `/sources` and `/sources/{id}`: source inventory, extracted versions and exact evidence |
+| Reference | `/knowledge`, `/concepts/{id}`, `/explore`: interpretations, provenance and visual navigation |
+| Reference | `/benchmarks`, `/reconciliation`: publisher records, proposal ledger and decision history |
+| Work | `/review`: active reconciliation backlog and issue triage; `/pipeline`: ingestion activity |
+| Operations | `/data`: read-only EKB tables and foreign-key drill-down; `/logs`: recent application events |
+
+Source detail links preserve the evidenced version via `?version_id=...`. Graphs navigate
+concept-level source history and stored/proposed links across versions, not automatic equivalence
+or evidence for every version; dashed proposals remain distinct from asserted relationships.
+The graph is a bounded neighborhood (12 connected interpretations, 8 source documents), with
+click-through navigation rather than an unbounded whole-corpus visualization.
+
+The reconciliation backlog includes manual and latest-successful-enrichment proposals without an
+accepted/rejected decision head. Deferred and reversed decisions remain outstanding; obsolete-run
+proposals stay in the reference ledger, not the work queue. Issues are a separate severity-ordered
+triage view. Decision forms still require configured operator authentication and explicit rationale.
+
+`/data` permits only registered EKB tables, at most 50 records per primary-key page, exact-record
+lookup and linked foreign keys. Text/nested JSON/arrays are previews; this is not a full export,
+arbitrary SQL console or database editor. Unrelated database tables and configuration secrets
+are not exposed. Keep the existing local/private deployment boundary.
+`/logs` shows up to 100 recent events by default (API maximum 200), from the newest 16 among at most
+256 discovered log-file candidates, with 64 KiB read per file. Only known application events and
+diagnostic fields are served; raw exception messages, traces and model payloads are excluded.
+Use **Refresh logs** to reread the tails; older files remain on disk.
+
 ```powershell
 uv run ekb tui --directory tests\fixtures\local
 # Or: uv run ekb tui --manifest sources\public.yaml

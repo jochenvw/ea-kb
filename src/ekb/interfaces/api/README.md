@@ -6,6 +6,8 @@
 - Browser routes serve the prebuilt React/shadcn shell; `/health` checks PostgreSQL.
 - `/api/ui/config` exposes only governance-enabled and scan-running booleans, never credentials.
 - `/api/concepts` accepts an exclusive UUID `after` cursor for stable, bounded browsing.
+- `inspection.py` serves source drill-down, graphs, outstanding proposals and read-only table/log pages.
+- Inspection permits EKB-owned tables only, not arbitrary SQL, files, raw traces or mutations.
 - `/scans` starts one application-owned task using server-configured sources, not arbitrary paths.
 - `/api/benchmarks` exposes editions, controls, comparisons and evidence chains.
 - Benchmark inspection is read-only: cached results or structural previews, never model calls.

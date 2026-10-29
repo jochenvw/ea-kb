@@ -106,6 +106,21 @@ disabled by default. Configuration/deployment does not establish provider qualit
    work and returns domain values. Provenance joins occurrences, segments, source revisions and
    source inventory; retrieving an explanation does not require a model call.
 
+The browser groups **Reference**, **Work** and **Operations**. The `InspectionRepository` port
+returns bounded source/version pages, concept neighborhoods, active proposal queues and owned-table
+previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill-down selects
+versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
+Graphs distinguish persisted relationship assertions, proposal records and source-history links;
+they do not invent unresolved targets or confer version-specific authority.
+
+The work backlog selects manual proposals plus the latest successful enrichment output, excluding
+accepted/rejected decision heads and obsolete-run findings. Deferred/reversed heads remain work;
+the reference ledger retains history independently. No snapshot construction, ingestion, inference
+or approval occurs during inspection. Table inspection resolves names against EKB's ORM metadata,
+uses primary-key cursors and foreign-key links, and exposes no SQL or write endpoint.
+Log inspection runs filesystem reads off the event loop, caps file/tail counts and projects only
+allowlisted operational events/fields, never raw telemetry payloads or arbitrary file paths.
+
 Occurrence offsets delimit text in the persisted parsed segment, not byte offsets into PDF or
 Office originals. Segment locations and the revision's artifact key bridge normalized text back
 to the preserved document; each revision snapshots its historical source location and metadata.

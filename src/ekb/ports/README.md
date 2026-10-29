@@ -4,6 +4,7 @@
 repositories and explicit units of work.
 Knowledge search supports an optional exclusive UUID cursor in stable identifier order.
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.
+`InspectionRepository` provides bounded source, graph, backlog and allowlisted table queries.
 `ArtifactStore` separates immutable content-addressed originals from named corpus views/checkpoints.
 `SemanticVerifier` and `EmbeddingPort` are opt-in boundaries; `BenchmarkRepository` preserves
 source-bound comparisons and native identifier resolution without equating mapping with coverage.

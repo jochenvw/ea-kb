@@ -22,6 +22,7 @@ from ekb.domain.reconciliation import (
     EditionView,
 )
 from ekb.interfaces.api.governance import register as register_governance
+from ekb.interfaces.api.inspection import register as register_inspection
 from ekb.observability import log
 from ekb.runtime import Runtime
 from ekb.services.knowledge import LineageResult, Statistics
@@ -57,6 +58,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         return request.app.state.runtime
 
     register_governance(app, active, templates)
+    register_inspection(app, active)
 
     @app.get("/health")
     async def health(request: Request) -> dict[str, str]:
@@ -157,7 +159,18 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/sources", response_class=HTMLResponse)
     @app.get("/pipeline", response_class=HTMLResponse)
     @app.get("/benchmarks", response_class=HTMLResponse)
+    @app.get("/explore", response_class=HTMLResponse)
+    @app.get("/reconciliation", response_class=HTMLResponse)
+    @app.get("/data", response_class=HTMLResponse)
+    @app.get("/logs", response_class=HTMLResponse)
     async def workspace(request: Request):
+        return templates.TemplateResponse(request=request, name="index.html")
+
+    @app.get("/sources/{source_id}", response_class=HTMLResponse)
+    async def source_page(request: Request, source_id: UUID):
+        async with active(request).database() as uow:
+            if await uow.sources.get(source_id) is None:
+                raise HTTPException(404, "Source not found")
         return templates.TemplateResponse(request=request, name="index.html")
 
     @app.get("/concepts/{concept_id}", response_class=HTMLResponse)
