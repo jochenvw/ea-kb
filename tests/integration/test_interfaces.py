@@ -112,9 +112,9 @@ async def test_tui_browses_sources_and_stays_responsive_during_scan(database, tm
         await pilot.press("enter")
         await pilot.pause()
         assert '"provenance"' in str(app.query_one("#evidence", Static).content)
-        app.action_scan()
-        await asyncio.sleep(0.3)
+        worker = app.action_scan()
         await pilot.pause()
+        await asyncio.wait_for(worker.wait(), timeout=10)
         assert "skipped" in str(app.query_one("#status", Static).content)
     await runtime.__aexit__()
 
