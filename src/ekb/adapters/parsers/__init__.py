@@ -37,6 +37,23 @@ class Block:
     media: tuple[str, ...] = ()
 
 
+def document_metadata(values: dict[str, Any]) -> list[Block]:
+    fields = {
+        key: value.strip()
+        for key, value in values.items()
+        if isinstance(value, str) and value.strip()
+    }
+    if not fields:
+        return []
+    return [
+        Block(
+            "\n".join(f"{key}: {value}" for key, value in fields.items()),
+            location={"document_metadata": fields},
+            quality="document_metadata",
+        )
+    ]
+
+
 def split_text(text: str, max_chars: int) -> list[tuple[int, str]]:
     """Prefer paragraph/sentence boundaries; offsets always refer to the parsed text."""
     pieces: list[tuple[int, str]] = []
@@ -65,7 +82,7 @@ class StructuredParser:
         self.ocr = ocr
         self.max_chars = max_chars
         self.version = fingerprint(
-            implementation="structured-v3",
+            implementation="structured-v4-publication-metadata",
             ocr=ocr,
             max_chars=max_chars,
             packages={name: version(name) for name in ("pymupdf", "python-docx", "python-pptx")},
@@ -148,6 +165,8 @@ class StructuredParser:
         blocks: list[Block] = []
         heading = None
         with pymupdf.open(stream=content, filetype="pdf") as document:
+            metadata = document.metadata or {}
+            blocks.extend(document_metadata({"title": metadata.get("title")}))
             for page_index in range(len(document)):
                 if pages and page_index + 1 not in pages:
                     continue
@@ -215,7 +234,14 @@ class StructuredParser:
 
     def _docx(self, content: bytes) -> list[Block]:
         document = Document(io.BytesIO(content))
-        blocks: list[Block] = []
+        properties = document.core_properties
+        blocks = document_metadata(
+            {
+                "title": properties.title,
+                "version": properties.version,
+                "status": properties.content_status,
+            }
+        )
         heading = None
         for index, block in enumerate(document.iter_inner_content()):
             if isinstance(block, Paragraph):
@@ -256,7 +282,14 @@ class StructuredParser:
 
     def _pptx(self, content: bytes) -> list[Block]:
         presentation = Presentation(io.BytesIO(content))
-        blocks = []
+        properties = presentation.core_properties
+        blocks = document_metadata(
+            {
+                "title": properties.title,
+                "version": properties.version,
+                "status": properties.content_status,
+            }
+        )
         for index, slide in enumerate(presentation.slides, 1):
             heading = slide.shapes.title.text if slide.shapes.title else None
             texts = []
@@ -304,7 +337,14 @@ class StructuredParser:
         catalog = json.loads(content).get("catalog")
         if not isinstance(catalog, dict):
             raise ValueError("Expected an OSCAL catalog object")
-        blocks = []
+        metadata = catalog.get("metadata", {})
+        blocks = document_metadata(
+            {
+                "title": metadata.get("title"),
+                "version": metadata.get("version"),
+                "status": metadata.get("status"),
+            }
+        )
 
         def visit(node: dict[str, Any], control_id: str | None = None) -> None:
             cid = node.get("id", control_id) if "title" in node else control_id
@@ -322,7 +362,7 @@ class StructuredParser:
                     visit(child, cid)
 
         visit(catalog)
-        if not blocks:
+        if not any(block.quality != "document_metadata" for block in blocks):
             raise ValueError("OSCAL catalog contains no control prose")
         return blocks
 
@@ -370,7 +410,14 @@ class StructuredParser:
         soup = BeautifulSoup(content, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
-        blocks = []
+        metadata = {
+            str(tag.get("name")): tag.get("content")
+            for tag in soup.find_all("meta")
+            if tag.get("name") in {"title", "version", "status", "publication_status"}
+        }
+        if "title" not in metadata and soup.title:
+            metadata["title"] = soup.title.get_text(" ", strip=True)
+        blocks = document_metadata(metadata)
         heading = None
         main = soup.find("main") or soup.find("article") or soup
         for tag in main.find_all(["h1", "h2", "h3", "h4", "p", "li", "tr"]):

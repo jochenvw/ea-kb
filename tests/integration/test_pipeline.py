@@ -160,6 +160,50 @@ async def test_changed_processing_configuration_reuses_parsing(database, tmp_pat
     assert parser.calls == 1 and inference.calls == 2
 
 
+async def test_draft_withdrawal_and_parser_replay_preserve_publication(database, tmp_path):
+    pipeline, parser, inference, source = build(database, tmp_path)
+    path = source / "guidelines.md"
+
+    def document(version, status):
+        return (
+            f"# Synthetic internal guidelines\nStatus: {status}\nVersion: {version}\n\n"
+            "# Requirement\nUsers must authenticate."
+        )
+
+    path.write_text(document("2.0.0-draft.1", "Draft"))
+    first = await pipeline.scan([FilesystemConnector(source)])
+    assert first.processed == 1 and first.failed == 0
+    async with database() as uow:
+        initial_source = (await uow.sources.list())[0]
+        assert initial_source.revision_id is not None
+        assert initial_source.publication.publication_status == "draft"
+        assert str(initial_source.publication.semantic_version) == "2.0.0-draft.1"
+    unchanged = await pipeline.scan([FilesystemConnector(source)])
+    assert unchanged.skipped == 1 and parser.calls == 1
+    path.write_text(document("2.0.0-draft.2", "Draft"))
+    assert (await pipeline.scan([FilesystemConnector(source)])).failed == 0
+    path.write_text(document("2.0.0-draft.2", "Withdrawn"))
+    assert (await pipeline.scan([FilesystemConnector(source)])).failed == 0
+    async with database() as uow:
+        current = (await uow.sources.list())[0]
+        assert current.publication.publication_status == "withdrawn"
+        historical = await uow.sources.revision(initial_source.revision_id)
+        assert historical and historical.publication.publication_status == "draft"
+        concepts = await uow.knowledge.search("authenticate")
+        assert len(concepts) == 1 and len(concepts[0].versions) == 3
+        assert all(
+            state.governance_status == "proposed" and state.canonical_status == "not_canonical"
+            for state in concepts[0].authority_states
+        )
+        assert all(version.semantic_version is None for version in concepts[0].versions)
+    parser.version = "new-parser-with-identical-output"
+    replayed = await pipeline.scan([FilesystemConnector(source)])
+    assert replayed.failed == 0 and replayed.processed == 1 and parser.calls == 4
+    async with database() as uow:
+        concept = (await uow.knowledge.search("authenticate"))[0]
+        assert len(concept.versions) == 3
+
+
 async def test_cancellation_releases_task_and_persists_scan_for_resume(database, tmp_path):
     pipeline, parser, inference, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")

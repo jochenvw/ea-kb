@@ -47,7 +47,8 @@ This is not a distributed graph-processing or autonomous-agent system.
 Model calls and database commits are at-least-once, not exactly-once billing. Artifacts and database
 commits are not one transaction. Inventory queries and per-result concept hydration grow with corpus
 size despite bounded processing concurrency. Enterprise authentication, automatic promotion,
-semantic reconciliation and the phase-two benchmark/pre-release model are not implemented.
+semantic reconciliation and the phase-two benchmark model are not implemented. Generalized
+publication evidence, SemVer prereleases and scoped authority are supported independently.
 See `docs\codebase\CONCERNS.md`.
 
 ## 6) Evidence

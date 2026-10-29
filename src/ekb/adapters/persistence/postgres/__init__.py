@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -21,6 +21,7 @@ from ekb.adapters.persistence.postgres.models import (
     ConceptRow,
     OccurrenceRow,
     ParseRow,
+    PublicationRow,
     RelationshipRow,
     RevisionRow,
     RunRow,
@@ -39,15 +40,18 @@ from ekb.domain.models import (
     Occurrence,
     ProcessingTask,
     Provenance,
+    PublicationMetadata,
     Relationship,
     ScanReport,
     Segment,
     SourceRecord,
     SourceRevision,
     Usage,
+    fingerprint,
     now,
     stable_id,
 )
+from ekb.domain.publication import project_authority
 from ekb.observability import tracer
 
 
@@ -70,11 +74,50 @@ class Sources:
 
     async def get(self, source_id: UUID) -> SourceRecord | None:
         row = await self.session.get(SourceRow, source_id)
-        return SourceRecord.model_validate(row.payload) if row else None
+        if row is None:
+            return None
+        source = SourceRecord.model_validate(row.payload)
+        if source.revision_id:
+            source = source.model_copy(
+                update={"publication": await self._publication(source.revision_id)}
+            )
+        return source
 
     async def list(self) -> list[SourceRecord]:
         rows = await self.session.scalars(select(SourceRow).order_by(SourceRow.location))
-        return [SourceRecord.model_validate(row.payload) for row in rows]
+        sources = [SourceRecord.model_validate(row.payload) for row in rows]
+        revisions = [source.revision_id for source in sources if source.revision_id]
+        ranked = (
+            select(
+                PublicationRow.id,
+                func.row_number()
+                .over(
+                    partition_by=PublicationRow.revision_id,
+                    order_by=(PublicationRow.recorded_at.desc(), PublicationRow.id),
+                )
+                .label("position"),
+            )
+            .where(PublicationRow.revision_id.in_(revisions))
+            .subquery()
+        )
+        assessments = await self.session.scalars(
+            select(PublicationRow)
+            .join(ranked, ranked.c.id == PublicationRow.id)
+            .where(ranked.c.position == 1)
+        )
+        publications = {
+            row.revision_id: PublicationMetadata.model_validate(row.payload) for row in assessments
+        }
+        return [
+            source.model_copy(
+                update={
+                    "publication": publications.get(source.revision_id, source.publication)
+                    if source.revision_id
+                    else source.publication
+                }
+            )
+            for source in sources
+        ]
 
     async def save(self, source: SourceRecord) -> None:
         await upsert(
@@ -90,7 +133,57 @@ class Sources:
 
     async def revision(self, revision_id: UUID) -> SourceRevision | None:
         row = await self.session.get(RevisionRow, revision_id)
-        return SourceRevision.model_validate(row.payload) if row else None
+        if row is None:
+            return None
+        return SourceRevision.model_validate(row.payload).model_copy(
+            update={"publication": await self._publication(revision_id)}
+        )
+
+    async def _publication(self, revision_id: UUID) -> PublicationMetadata:
+        row = await self.session.scalar(
+            select(PublicationRow)
+            .where(PublicationRow.revision_id == revision_id)
+            .order_by(PublicationRow.recorded_at.desc(), PublicationRow.id)
+            .limit(1)
+        )
+        return PublicationMetadata.model_validate(row.payload) if row else PublicationMetadata()
+
+    async def save_publication(
+        self, revision_id: UUID, publication: PublicationMetadata, fingerprint: str
+    ) -> None:
+        revision = await self.session.get(RevisionRow, revision_id)
+        if revision is None:
+            raise ValueError("Publication assessment requires a stored source revision")
+        for reference in publication.evidence:
+            if reference.segment_id:
+                segment = await self.session.get(SegmentRow, reference.segment_id)
+                if (
+                    segment is None
+                    or segment.revision_id != revision_id
+                    or segment.payload["text"][reference.start : reference.end] != reference.excerpt
+                ):
+                    raise ValueError("Publication evidence must match the exact stored revision")
+            elif reference.field:
+                source = await self.session.get(SourceRow, revision.source_id)
+                assert source is not None
+                item = source.payload["item"]
+                actual = (
+                    item["name"]
+                    if reference.field == "name"
+                    else item.get("metadata", {}).get(reference.field)
+                )
+                if actual != reference.excerpt:
+                    raise ValueError("Publication metadata evidence must match the stored source")
+        await immutable(
+            self.session,
+            PublicationRow,
+            {
+                "id": stable_id(revision_id, fingerprint),
+                "revision_id": revision_id,
+                "fingerprint": fingerprint,
+                "payload": publication.model_dump(mode="json"),
+            },
+        )
 
     async def save_revision(self, revision: SourceRevision) -> SourceRevision:
         await immutable(
@@ -180,12 +273,18 @@ class Knowledge:
         events = await self.session.scalars(
             select(AuthorityRow).where(AuthorityRow.concept_version_id.in_(version_ids))
         )
+        event_list = [AuthorityEvent.model_validate(row.payload) for row in events]
         return ConceptDetail(
             id=concept_id,
             versions=version_list,
             occurrences=[Occurrence.model_validate(row.payload) for row in occurrences],
             relationships=[Relationship.model_validate(row.payload) for row in relationships],
-            authority_events=[row.payload for row in events],
+            authority_events=[event.model_dump(mode="json") for event in event_list],
+            authority_states=project_authority(
+                event_list,
+                datetime.now(UTC).date(),
+                version_ids,
+            ),
         )
 
     async def persist(self, segment: Segment, result: InferenceResult) -> list[UUID]:
@@ -195,6 +294,10 @@ class Knowledge:
             raise ValueError("Evidence must refer to the exact persisted segment")
         concept_ids: list[UUID] = []
         version_ids: list[UUID] = []
+        revision = await Sources(self.session).revision(segment.revision_id)
+        assert revision is not None
+        publication = revision.publication
+        publication_identity = publication.model_dump(mode="json", exclude={"evidence", "notes"})
         for candidate in result.extraction.candidates:
             normalized = re.sub(r"\s+", " ", candidate.statement).strip().casefold()
             identity_key = json.dumps(
@@ -208,8 +311,29 @@ class Knowledge:
             )
             concept_id = stable_id("concept", identity_key)
             version = ConceptVersion(
-                id=stable_id(concept_id, "1.0.0"), concept_id=concept_id, candidate=candidate
+                id=stable_id(
+                    concept_id,
+                    "unversioned",
+                    fingerprint(publication=publication_identity),
+                ),
+                concept_id=concept_id,
+                candidate=candidate,
+                publication=publication,
             )
+            previous_unversioned = await self.session.scalars(
+                select(VersionRow).where(
+                    VersionRow.concept_id == concept_id,
+                    VersionRow.semantic_version.is_(None),
+                )
+            )
+            for existing in previous_unversioned:
+                stored = ConceptVersion.model_validate(existing.payload)
+                if (
+                    stored.publication.model_dump(mode="json", exclude={"evidence", "notes"})
+                    == publication_identity
+                ):
+                    version = stored
+                    break
             with tracer.start_as_current_span(
                 "concept.persistence", attributes={"concept.id": str(concept_id)}
             ):
@@ -224,7 +348,7 @@ class Knowledge:
                     {
                         "id": version.id,
                         "concept_id": concept_id,
-                        "semantic_version": str(version.version),
+                        "semantic_version": None,
                         "statement": candidate.statement,
                         "predecessor_id": None,
                         "payload": version.model_dump(mode="json"),
@@ -356,13 +480,11 @@ class Knowledge:
         if previous is None or previous.concept_id != version.concept_id:
             raise ValueError("An explicit predecessor in the same concept is required")
         previous_model = ConceptVersion.model_validate(previous.payload)
-        current_numbers = (version.version.major, version.version.minor, version.version.patch)
-        old_numbers = (
-            previous_model.version.major,
-            previous_model.version.minor,
-            previous_model.version.patch,
-        )
-        if current_numbers <= old_numbers:
+        if version.semantic_version is None:
+            raise ValueError("Explicit semantic versions require an established version")
+        if previous_model.semantic_version is not None and (
+            version.semantic_version.compare_precedence(previous_model.semantic_version) <= 0
+        ):
             raise ValueError("New semantic version must exceed its predecessor")
         await self.session.execute(
             insert(VersionRow).values(

@@ -19,6 +19,7 @@ from ekb.domain.models import (
     parsing_fingerprint,
     stable_id,
 )
+from ekb.domain.publication import assess_publication, publication_fingerprint
 from ekb.observability import log, tracer
 from ekb.ports import (
     ArtifactStore,
@@ -64,6 +65,9 @@ class IngestionPipeline:
             content=content,
             parser=parsing_fingerprint(self.parser.version, item),
             inference=self.inference_fingerprint,
+            publication=publication_fingerprint(
+                item, parsing_fingerprint(self.parser.version, item)
+            ),
         )
 
     async def scan(self, connectors: list[SourceConnector], *, dry_run: bool = False) -> ScanReport:
@@ -356,9 +360,18 @@ class IngestionPipeline:
                 )
                 await uow.commit()
         count = 0
+        publication = assess_publication(item, segments)
+        async with self.uow() as uow:
+            await uow.processing.heartbeat(task_id, owner)
+            await uow.sources.save_publication(
+                revision.id,
+                publication,
+                publication_fingerprint(item, parsing_fingerprint(self.parser.version, item)),
+            )
+            await uow.commit()
         usages: list[Usage] = []
         for segment in segments:
-            if segment.quality in {"image_only", "ocr_no_text"}:
+            if segment.quality in {"image_only", "ocr_no_text", "document_metadata"}:
                 log.info("segment_skipped", segment_id=str(segment.id), reason=segment.quality)
                 continue
             cache_fp = fingerprint(

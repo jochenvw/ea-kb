@@ -7,14 +7,14 @@
   </section>
   {% if scan_running %}<p role="status">Scan running. This view refreshes automatically.</p>{% endif %}
   <h2>Concepts</h2>
-  <table><thead><tr><th>Kind</th><th>Statement</th><th>Textual modality</th><th>Evidence</th></tr></thead>
+  <table><thead><tr><th>Kind</th><th>Statement</th><th>Textual modality</th><th>Source publication</th><th>Evidence</th></tr></thead>
     <tbody>{% for concept in concepts %}{% set candidate = concept.versions[-1].candidate %}
-    <tr><td>{{ candidate.kind.value }}</td><td><a href="/concepts/{{ concept.id }}">{{ candidate.statement }}</a></td><td>{{ candidate.modality.value }}</td><td>{{ concept.occurrences | length }} occurrences</td></tr>
-    {% else %}<tr><td colspan="4">No concepts yet. Start a scan or change the search.</td></tr>{% endfor %}</tbody>
+    <tr><td>{{ candidate.kind.value }}</td><td><a href="/concepts/{{ concept.id }}">{{ candidate.statement }}</a></td><td>{{ candidate.modality.value }}</td><td>{{ concept.versions[-1].publication.publication_status.value }}</td><td>{{ concept.occurrences | length }} occurrences</td></tr>
+    {% else %}<tr><td colspan="5">No concepts yet. Start a scan or change the search.</td></tr>{% endfor %}</tbody>
   </table>
   <h2>Sources</h2>
-  <table><thead><tr><th>Source</th><th>Format</th><th>Status</th><th>Last check</th></tr></thead>
-    <tbody>{% for source in sources %}<tr><td>{{ source.item.name }}</td><td>{{ source.item.format }}</td><td>{{ source.status }}</td><td>{{ source.checked_at }}</td></tr>{% endfor %}</tbody>
+  <table><thead><tr><th>Source</th><th>Format</th><th>Retrieval</th><th>Publication</th><th>Last check</th></tr></thead>
+    <tbody>{% for source in sources %}<tr><td>{{ source.item.name }}</td><td>{{ source.item.format }}</td><td>{{ source.status }}</td><td>{{ source.publication.publication_status.value }}</td><td>{{ source.checked_at }}</td></tr>{% endfor %}</tbody>
   </table>
   <h2>Recent scans</h2>
   <table><thead><tr><th>Started</th><th>Status</th><th>Processed / skipped / missing / failed</th></tr></thead>

@@ -138,10 +138,11 @@ neither a graph database nor a vector index is required.
 |---|---|
 | `sources`, `source_revisions` | Current inventory and immutable content snapshots; revisions reference a source and optional predecessor |
 | `segments`, `parse_checkpoints` | Ordered/hierarchical evidence and durable revision/parser markers, including empty parses |
+| `publication_assessments` | Immutable revision/detector assessments with exact maturity/version evidence |
 | `concepts`, `concept_versions` | Exact normalized identities and versioned interpretations with optional predecessors |
 | `occurrences` | Exact excerpts/offsets connecting concept versions to persisted segments |
 | `relationships` | Directed concept edges supported by an occurrence, with scope/status in the payload |
-| `authority_events` | Append-only promotion/withdrawal records for a specific concept version |
+| `authority_events` | Append-only review/approval/rejection and promotion/withdrawal records, scoped and time-bounded |
 | `processing_runs`, `processing_tasks` | Scan summaries and revision/fingerprint tasks with status, owner, lease, attempts and usage |
 | `segment_results` | Validated extraction replay indexed by inference/context fingerprint and linked to its originating segment |
 
@@ -163,15 +164,21 @@ Stable concept identities, immutable versions, source occurrences and authority 
 history. Explicit version additions require a caller-supplied semantic version and predecessor;
 automatic semantic version classification and promotion are intentionally absent.
 
-`SUPERSEDES` is represented by version predecessor references, not mixed into business
-relationships. Recursive origin/dependent queries traverse `DERIVES_FROM` and `DEPENDS_ON`;
+Version predecessor references preserve explicit concept history. Published framework supersession
+can use the separate `SUPERSEDES` relationship kind; published mappings use `MAPS_TO`.
+Recursive origin/dependent queries traverse `DERIVES_FROM` and `DEPENDS_ON`;
 SQL tracks visited paths and bounds depth to terminate cycles. Other relationship kinds are
 available for inspection but are not treated as dependency lineage.
 
-The initial candidate version is `1.0.0`. Repository-level explicit version insertion and authority
-history are supported and contract-tested, but there is no end-user approval/version-management
-workflow. Current semantic versions accept only numeric `MAJOR.MINOR.PATCH`; the generalized
-draft/preview/pre-release semantics in `goal2.md` are not implemented.
+Initial concept semantic versions are unknown rather than invented. Explicit SemVer 2.0 versions
+support prerelease/build identifiers and precedence, including concurrent draft branches.
+Publisher edition labels and normalized source versions are separate from concept semantic versions.
+Source-independent publication detection cites exact persisted text or metadata; immutable
+assessments retain detector/parser history. Document metadata is not sent for semantic extraction.
+Scoped authority projections distinguish review/approval from canonical promotion, apply effective
+periods, and never infer authority from a source's final/approved status. See
+`docs\decisions\0003-publication-and-semver.md` for migration and evidence decisions.
+There is still no end-user approval/version-management workflow.
 
 ## Interfaces and observability
 
@@ -257,8 +264,8 @@ once per process; changing settings is not a hot-reload mechanism.
   guaranteed immutable. ISO entries are metadata only; licensed text must be supplied locally.
 - Inspection results are bounded (200 concepts per query, up to 1,000 tasks for statistics). This MVP
   has no pagination UI or enterprise authorization. Keep interfaces local/private.
-- Benchmark-edition comparison, Microsoft Cloud Security Benchmark mappings/Azure Policy retrieval,
-  semantic reconciliation and generalized pre-release versioning in `goal2.md` remain future work.
+- Benchmark-edition comparison, Microsoft Cloud Security Benchmark mappings/Azure Policy retrieval
+  and semantic reconciliation in `goal2.md` are not yet implemented.
 
 ## Evidence
 

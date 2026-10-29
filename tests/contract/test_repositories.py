@@ -166,7 +166,7 @@ async def test_explicit_version_and_authority_history(database):
             id=uuid4(),
             concept_id=ids[0],
             predecessor_id=old.id,
-            version=SemanticVersion.parse("1.0.1"),
+            semantic_version=SemanticVersion.parse("1.0.1"),
             candidate=old.candidate,
         )
         await uow.knowledge.add_version(revision)
@@ -187,6 +187,77 @@ async def test_explicit_version_and_authority_history(database):
         assert len(detail.versions) == 2 and detail.versions[0] == old
         assert detail.versions[1].predecessor_id == old.id
         assert len(detail.authority_events) == 1
+        assert any(
+            state.concept_version_id == revision.id and state.canonical_status == "canonical"
+            for state in detail.authority_states
+        )
+
+
+async def test_concurrent_prerelease_branches_preserve_unknown_and_final_history(database):
+    segment = await seed(database)
+    async with database() as uow:
+        ids = await uow.knowledge.persist(
+            segment,
+            InferenceResult(
+                extraction=Extraction(
+                    candidates=[
+                        Candidate(
+                            kind=ConceptKind.REQUIREMENT,
+                            statement="Authenticate",
+                            excerpt="authenticate.",
+                        )
+                    ]
+                ),
+                model_id="test",
+                prompt_version="v1",
+            ),
+        )
+        await uow.commit()
+    async with database() as uow:
+        detail = await uow.knowledge.get(ids[0])
+        assert detail is not None
+        old = detail.versions[0]
+        assert old.semantic_version is None
+        branches = [
+            ConceptVersion(
+                id=uuid4(),
+                concept_id=ids[0],
+                predecessor_id=old.id,
+                semantic_version=SemanticVersion.parse(label),
+                candidate=old.candidate,
+            )
+            for label in ("2.0.0-draft.1", "2.0.0-preview.2")
+        ]
+        for branch in branches:
+            await uow.knowledge.add_version(branch)
+        final = branches[0].model_copy(
+            update={
+                "id": uuid4(),
+                "predecessor_id": branches[0].id,
+                "semantic_version": SemanticVersion.parse("2.0.0"),
+            }
+        )
+        await uow.knowledge.add_version(final)
+        with pytest.raises(ValueError, match="exceed"):
+            await uow.knowledge.add_version(
+                final.model_copy(
+                    update={
+                        "id": uuid4(),
+                        "predecessor_id": final.id,
+                        "semantic_version": SemanticVersion.parse("2.0.0+build.2"),
+                    }
+                )
+            )
+        await uow.commit()
+    async with database() as uow:
+        detail = await uow.knowledge.get(ids[0])
+        assert detail and len(detail.versions) == 4
+        assert all(state.canonical_status == "not_canonical" for state in detail.authority_states)
+        assert {
+            version.predecessor_id
+            for version in detail.versions
+            if version.id in {branch.id for branch in branches}
+        } == {old.id}
 
 
 async def test_expired_lease_can_be_reclaimed_but_wrong_owner_is_fenced(database):

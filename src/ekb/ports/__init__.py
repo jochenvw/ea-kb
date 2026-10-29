@@ -8,10 +8,12 @@ from ekb.domain.models import (
     AuthorityEvent,
     Capabilities,
     ConceptDetail,
+    ConceptVersion,
     FetchResult,
     InferenceResult,
     ProcessingTask,
     Provenance,
+    PublicationMetadata,
     ScanReport,
     Segment,
     SourceItem,
@@ -54,6 +56,9 @@ class SourceRepository(Protocol):
     async def save(self, source: SourceRecord) -> None: ...
     async def revision(self, revision_id: UUID) -> SourceRevision | None: ...
     async def save_revision(self, revision: SourceRevision) -> SourceRevision: ...
+    async def save_publication(
+        self, revision_id: UUID, publication: PublicationMetadata, fingerprint: str
+    ) -> None: ...
     async def save_segments(
         self, revision_id: UUID, segments: list[Segment], parser_fingerprint: str
     ) -> None: ...
@@ -69,6 +74,7 @@ class KnowledgeRepository(Protocol):
     async def provenance(self, concept_id: UUID) -> list[Provenance]: ...
     async def similar(self, concept_id: UUID, limit: int = 10) -> list[ConceptDetail]: ...
     async def record_authority(self, event: AuthorityEvent) -> None: ...
+    async def add_version(self, version: ConceptVersion) -> None: ...
 
 
 class LineageRepository(Protocol):

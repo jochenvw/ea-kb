@@ -11,7 +11,7 @@ that every listed risk has produced a failure.
 | High for policy use | Limited offline baseline; candidates are not approved policy | `RulesInference` | Incomplete/misclassified interpretations | Evaluate a model and retain review |
 | Medium | Model completion and checkpoint commit are separate | Pipeline `_execute` | Crash can repeat billable calls | Preserve idempotence; allow for at-least-once calls |
 | Medium | Separate artifact/database durability | Artifacts, pipeline `_process` | Orphans or incomplete restore | Retain/migrate both stores |
-| Medium | Phase-two semantics absent | `goal2.md`, domain/ORM models | No benchmark reconciliation or pre-release model | Treat requirements as planned behavior |
+| Medium | Benchmark reconciliation absent | `goal2.md`, domain/ORM models | No benchmark extraction/comparison yet | Treat those requirements as planned behavior |
 
 ## 2) Technical Debt
 
@@ -19,7 +19,7 @@ that every listed risk has produced a failure.
 |---|---|---|---|
 | Concrete adapter error in pipeline | `SourceMissingError` import | Source-provider coupling | Move shared failure semantics to a contract boundary |
 | Adapter-level version insertion | `Knowledge.add_version`, port definitions | No provider-neutral user approval workflow | Design use case/contract before UI |
-| Numeric semantic versions only | `SemanticVersion.parse` | Cannot represent requested draft/preview labels | Explicit publication model, migration and tests |
+| Publication inference is conservative | `domain\publication.py` | Ambiguous/missing status remains unknown | Review cited evidence; keep authority explicit |
 | Heuristic format reconstruction | `StructuredParser` | Complex columns/tables/diagrams can lose semantics | Extend using real examples and grounding regressions |
 
 The source/config scan found no production `TODO`/`FIXME`/`HACK` markers. Their absence does not

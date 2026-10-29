@@ -6,6 +6,7 @@
 - Blocking libraries run through `asyncio.to_thread`; OCR is selective and opt-in.
 - Parser output/configuration changes must change the processing fingerprint.
 - Images remain original-document references; do not invent diagram semantics or clause text.
+- Document metadata is separate evidence, not body prose to send for semantic extraction.
 
 No model calls belong here. Start with `tests\unit\test_parsers.py` for format-specific examples
 and `tests\integration\test_pipeline.py` for directory roundtrips.

@@ -64,9 +64,11 @@ class KnowledgeApp(App):
         yield Footer()
 
     async def on_mount(self) -> None:
-        self.query_one("#sources", DataTable).add_columns("Source", "Format", "Status", "Revision")
+        self.query_one("#sources", DataTable).add_columns(
+            "Source", "Format", "Retrieval", "Publication", "Revision"
+        )
         self.query_one("#concepts", DataTable).add_columns(
-            "Kind", "Statement", "Modality", "Evidence"
+            "Kind", "Statement", "Modality", "Publication", "Evidence"
         )
         self.query_one("#scans", DataTable).add_columns(
             "Started", "Status", "Processed", "Skipped", "Failed"
@@ -89,6 +91,7 @@ class KnowledgeApp(App):
                 source.item.name,
                 source.item.format,
                 source.status,
+                source.publication.publication_status.value,
                 str(source.revision_id or ""),
                 key=str(source.item.id),
             )
@@ -100,6 +103,7 @@ class KnowledgeApp(App):
                 candidate.kind.value,
                 candidate.statement,
                 candidate.modality.value,
+                concept.versions[-1].publication.publication_status.value,
                 str(len(concept.occurrences)),
                 key=str(concept.id),
             )

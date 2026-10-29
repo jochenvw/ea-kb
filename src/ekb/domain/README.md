@@ -1,6 +1,7 @@
 # Domain values and evidence rules
 
 - `models.py` defines frozen schemas, identity/fingerprint helpers, scope, versions and provenance.
+- `publication.py` assesses evidenced maturity and projects time/scoped authority independently.
 - `grounding.py` checks exact evidence substrings and relationship candidate references.
 - Objectives and requirements remain candidates until an explicit authority decision.
 

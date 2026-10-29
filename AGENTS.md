@@ -92,6 +92,9 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
   prompt, schema or relevant processing configuration changes.
 - Preserve originals, exact evidence, stable identifiers and historical occurrences. Never invent
   missing text, scope, authority or successful retrieval. A candidate is not approved policy.
+- Keep publisher labels, publication maturity, semantic versions, governance and scoped canonical
+  adoption independent. Retain unknown versions; do not turn edition labels into semantic versions
+  or automatically promote a draft, preview, published document or newest revision.
 - Preserve explicit unit-of-work commits, rollback on failure, atomic segment persistence and
   ownership fencing. Make retries idempotent; do not claim exactly-once external model billing.
 - Use Alembic for schema changes. Keep database and artifact-store changes consistent; switching

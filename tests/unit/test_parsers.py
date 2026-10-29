@@ -10,6 +10,7 @@ from pptx.util import Inches
 
 from ekb.adapters.parsers import StructuredParser, split_text
 from ekb.domain.models import SourceItem, SourceRevision
+from ekb.domain.publication import assess_publication
 
 
 async def parse(content, format, **metadata):
@@ -92,6 +93,37 @@ async def test_pptx_preserves_slide_notes_and_text():
     assert "improve availability" in segments[0].text
     assert segments[1].location["notes"] is True
     assert "retain logs" in segments[1].text
+
+
+@pytest.mark.parametrize("format", ["pdf", "docx", "pptx", "html"])
+async def test_publication_metadata_has_exact_separate_evidence(format):
+    title = "Synthetic architecture standard (preview)"
+    if format == "pdf":
+        document = pymupdf.open()
+        document.set_metadata({"title": title})
+        document.new_page().insert_text((72, 72), "Users should authenticate.")
+        content = document.tobytes()
+        document.close()
+    elif format in {"docx", "pptx"}:
+        office = Document() if format == "docx" else Presentation()
+        office.core_properties.title = title
+        office.core_properties.version = "2.0.0-preview.2"
+        stream = io.BytesIO()
+        office.save(stream)
+        content = stream.getvalue()
+    else:
+        content = (
+            f"<html><head><title>{title}</title></head><body><p>Guidance.</p></body></html>"
+        ).encode()
+    segments = await parse(content, format)
+    item = SourceItem(id=uuid4(), connector="test", location="test", name="standard", format=format)
+    publication = assess_publication(item, segments)
+    assert publication.publication_status == "preview"
+    assert segments[0].quality == "document_metadata"
+    assert publication.evidence
+    for reference in publication.evidence:
+        segment = next(segment for segment in segments if segment.id == reference.segment_id)
+        assert segment.text[reference.start : reference.end] == reference.excerpt
 
 
 async def test_oscal_selection_reaches_nested_subcategories():

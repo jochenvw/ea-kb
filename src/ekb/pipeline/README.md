@@ -4,6 +4,7 @@
 
 - `scan` bounds discovery/workers and records progress; `_process` compares revisions and claims work.
 - `_execute` reuses parsing/extraction checkpoints and commits exact knowledge/evidence atomically.
+- Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Keep downloads, parsing and inference outside database transactions.
 

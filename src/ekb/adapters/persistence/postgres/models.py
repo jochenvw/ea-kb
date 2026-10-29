@@ -42,6 +42,16 @@ class RevisionRow(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
+class PublicationRow(Base):
+    __tablename__ = "publication_assessments"
+    __table_args__ = (UniqueConstraint("revision_id", "fingerprint"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    revision_id: Mapped[UUID] = mapped_column(ForeignKey("source_revisions.id"), index=True)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
 class SegmentRow(Base):
     __tablename__ = "segments"
     __table_args__ = (UniqueConstraint("revision_id", "parser_fingerprint", "ordinal"),)
@@ -65,7 +75,7 @@ class VersionRow(Base):
     __table_args__ = (UniqueConstraint("concept_id", "semantic_version"),)
     id: Mapped[UUID] = mapped_column(primary_key=True)
     concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
-    semantic_version: Mapped[str] = mapped_column(String(50))
+    semantic_version: Mapped[str | None] = mapped_column(Text)
     predecessor_id: Mapped[UUID | None] = mapped_column(ForeignKey("concept_versions.id"))
     statement: Mapped[str] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
@@ -101,7 +111,12 @@ class RelationshipRow(Base):
 
 class AuthorityRow(Base):
     __tablename__ = "authority_events"
-    __table_args__ = (CheckConstraint("action IN ('promote', 'withdraw')"),)
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('review', 'approve', 'reject', 'promote', 'withdraw')",
+            name="authority_action",
+        ),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     concept_version_id: Mapped[UUID] = mapped_column(ForeignKey("concept_versions.id"), index=True)
     action: Mapped[str] = mapped_column(String(20))

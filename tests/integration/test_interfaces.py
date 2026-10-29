@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -6,9 +7,10 @@ import httpx
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 from pydantic import SecretStr
-from textual.widgets import DataTable, Static, TabbedContent
+from textual.widgets import DataTable, Input, Static, TabbedContent
 
 from ekb.config import Settings
+from ekb.domain.models import AuthorityEvent, Scope
 from ekb.interfaces.api import create_app
 from ekb.interfaces.mcp import create_server
 from ekb.interfaces.tui import KnowledgeApp
@@ -114,4 +116,66 @@ async def test_tui_browses_sources_and_stays_responsive_during_scan(database, tm
         await asyncio.sleep(0.3)
         await pilot.pause()
         assert "skipped" in str(app.query_one("#status", Static).content)
+    await runtime.__aexit__()
+
+
+async def test_publication_and_scoped_approval_are_distinct_across_interfaces(database, tmp_path):
+    runtime = await prepared(database, tmp_path)
+    directory = tmp_path / "draft"
+    directory.mkdir()
+    (directory / "standard.md").write_text(
+        "# Synthetic draft standard\nVersion: 2.0.0-draft.1\n\n"
+        "# Requirement\nOperators must retain synthetic draft audit logs."
+    )
+    report = await runtime.pipeline().scan(runtime.connectors(directory))
+    assert report.failed == 0
+    concept = (await runtime.knowledge.search("synthetic draft audit"))[0]
+    async with database() as uow:
+        await uow.knowledge.record_authority(
+            AuthorityEvent(
+                id=uuid4(),
+                concept_version_id=concept.versions[-1].id,
+                action="approve",
+                actor="test-reviewer",
+                reason="Synthetic pilot only",
+                effective_at=date(2020, 1, 1),
+                scope=Scope(environment="test"),
+            )
+        )
+        await uow.commit()
+    app = create_app(runtime)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = (await client.get(f"/api/concepts/{concept.id}")).json()
+            assert response["versions"][-1]["publication"]["publication_status"] == "draft"
+            assert response["versions"][-1]["semantic_version"] is None
+            assert any(
+                state["governance_status"] == "approved"
+                and state["canonical_status"] == "not_canonical"
+                and state["scope"]["environment"] == "test"
+                for state in response["authority_states"]
+            )
+            page = (await client.get(f"/concepts/{concept.id}")).text
+            assert "<strong>draft</strong>" in page and "not_canonical" in page
+            assert "separate, scoped decisions" in page
+    async with create_connected_server_and_client_session(
+        create_server(runtime.knowledge)
+    ) as session:
+        result = await session.call_tool(
+            "search_concepts", {"query": "synthetic draft audit", "limit": 10}
+        )
+        assert result.structuredContent
+        record = result.structuredContent["result"][0]
+        assert record["versions"][-1]["publication"]["publication_status"] == "draft"
+        assert all(
+            state["canonical_status"] == "not_canonical" for state in record["authority_states"]
+        )
+    terminal = KnowledgeApp(runtime, directory)
+    async with terminal.run_test(size=(140, 50)) as pilot:
+        terminal.query_one("#search", Input).value = "synthetic draft audit"
+        await terminal.action_reload()
+        await pilot.pause()
+        assert terminal.query_one("#concepts", DataTable).get_row(str(concept.id))[3] == "draft"
     await runtime.__aexit__()
