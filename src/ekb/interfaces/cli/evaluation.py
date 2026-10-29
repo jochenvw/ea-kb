@@ -37,6 +37,10 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             bool, typer.Option(help="Explicitly enable configured paid model calls.")
         ] = False,
         unit_only: Annotated[bool, typer.Option()] = False,
+        ui: Annotated[
+            bool,
+            typer.Option(help="Also check/build the frontend and run Playwright (needs Node)."),
+        ] = False,
         output: Annotated[Path, typer.Option()] = Path("data") / "suite",
         dataset: Annotated[Path, typer.Option()] = DATASET,
     ):
@@ -44,7 +48,7 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
 
         async def operation():
             return await run_suite(
-                Settings(), dataset, GATES, output, live=live, unit_only=unit_only
+                Settings(), dataset, GATES, output, live=live, unit_only=unit_only, ui=ui
             )
 
         execute(operation)

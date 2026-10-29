@@ -30,8 +30,10 @@ resolution; `uv.lock` is authoritative.
 | Agent Framework core / OpenAI extra | 1.22.0 / 1.17.0 | Optional chat transport | `pyproject.toml`, `uv.lock` |
 
 Blob/Identity SDKs are base dependencies, although local operation needs no Azure service.
-HTMX 2.0.8 is vendored with its license; there is no Node.js build. Tesseract/English language data
-are image system packages. Docling is not installed; its dependency fallback is documented.
+React, TypeScript, Vite, Tailwind and actual shadcn/ui primitives are locked in `frontend\package-lock.json`.
+Committed local assets and bundled licenses ship with Python; Node.js is required only to rebuild
+or run browser tests. Tesseract/English language data are image system packages.
+Docling is not installed; its dependency fallback is documented.
 
 ## 3) Development Toolchain
 
@@ -63,6 +65,6 @@ Azure artifacts need an account URL and pre-existing container. Secrets use `Sec
 
 - `pyproject.toml`, `uv.lock`, `.python-version`, `Dockerfile`, `compose.yaml`.
 - `src\ekb\config\__init__.py`, `config\local.yaml`, `config\azure.yaml`, `.env.example`.
-- `src\ekb\interfaces\web\static\htmx.min.js`,
-  `src\ekb\interfaces\web\static\HTMX-LICENSE.txt`.
+- `frontend\package.json`, `frontend\components.json`, `frontend\package-lock.json`.
+- `src\ekb\interfaces\web\static\ui\LICENSES.txt`.
 - `docs\decisions\0002-runtime-and-dependencies.md`.

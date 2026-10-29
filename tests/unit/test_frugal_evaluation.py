@@ -361,13 +361,21 @@ def test_vector_retrieval_is_text_independent_bounded_and_stable():
 
 
 @pytest.mark.parametrize(
-    "tests_pass,evaluations_pass", [(False, True), (True, False), (True, True)]
+    "tests_pass,evaluations_pass,ui_pass",
+    [
+        (False, True, None),
+        (True, False, None),
+        (True, True, None),
+        (True, True, False),
+        (True, True, True),
+    ],
 )
 async def test_combined_suite_requires_code_and_evaluation_success(
     monkeypatch,
     tmp_path,
     tests_pass,
     evaluations_pass,
+    ui_pass,
 ):
     calls = []
 
@@ -378,12 +386,50 @@ async def test_combined_suite_requires_code_and_evaluation_success(
         calls.append(True)
         return {"passed": evaluations_pass}
 
+    async def browser(*_):
+        return {"passed": ui_pass}
+
     monkeypatch.setattr(suite, "code_tests", code)
     monkeypatch.setattr(suite, "qualify", evaluate)
-    report = await suite.run_suite(Settings(), DATASET, GATES, tmp_path, unit_only=True)
-    assert report["passed"] == (tests_pass and evaluations_pass)
-    assert bool(calls) == tests_pass
+    monkeypatch.setattr(suite, "browser_tests", browser)
+    report = await suite.run_suite(
+        Settings(), DATASET, GATES, tmp_path, unit_only=True, ui=ui_pass is not None
+    )
+    assert report["passed"] == (tests_pass and evaluations_pass and ui_pass is not False)
+    assert bool(calls) == (tests_pass and ui_pass is not False)
     assert (tmp_path / "suite.json").exists()
+
+
+async def test_browser_suite_rejects_missing_reports_and_skipped_tests(monkeypatch, tmp_path):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "package.json").write_text("{}")
+    reports = frontend / "test-results"
+    reports.mkdir()
+    create_report = False
+    skipped = 0
+
+    async def process(*args, **kwargs):
+        assert args[1:] == ("run", "verify")
+        assert kwargs["cwd"] == frontend
+
+        async def communicate():
+            return b"synthetic browser checks", None
+
+        if create_report:
+            (reports / "results.json").write_text(
+                json.dumps({"stats": {"expected": 2, "skipped": skipped, "unexpected": 0}})
+            )
+        return SimpleNamespace(returncode=0, communicate=communicate)
+
+    monkeypatch.setattr(suite.shutil, "which", lambda _: "synthetic-npm")
+    monkeypatch.setattr(suite.asyncio, "create_subprocess_exec", process)
+    assert not (await suite.browser_tests(tmp_path, frontend))["passed"]
+    create_report = True
+    skipped = 1
+    assert not (await suite.browser_tests(tmp_path, frontend))["passed"]
+    skipped = 0
+    assert (await suite.browser_tests(tmp_path, frontend))["passed"]
 
 
 async def test_combined_suite_does_not_accept_missing_junit_or_skip_integrations(

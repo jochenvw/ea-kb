@@ -24,9 +24,11 @@ class KnowledgeService:
     def __init__(self, uow: UnitOfWorkFactory):
         self.uow = uow
 
-    async def search(self, query: str = "", limit: int = 50) -> list[ConceptDetail]:
+    async def search(
+        self, query: str = "", limit: int = 50, *, after: UUID | None = None
+    ) -> list[ConceptDetail]:
         async with self.uow() as uow:
-            return await uow.knowledge.search(query, limit)
+            return await uow.knowledge.search(query, limit, after=after)
 
     async def get(self, concept_id: UUID) -> ConceptDetail | None:
         async with self.uow() as uow:

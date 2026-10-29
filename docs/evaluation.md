@@ -40,14 +40,21 @@ The verification performed for v1 established **7 source hashes and 15 exact quo
 
 ```powershell
 $env:EKB_TEST_DATABASE_URL = "postgresql+asyncpg://ekb:ekb@localhost:5432/ekb"
-uv run ekb test --output data\suite
+uv run ekb test --ui --output data\suite
 ```
 
-This runs all unit, contract and PostgreSQL/interface integration tests, then extraction,
+With `--ui`, this first checks formatting, type-checks/builds the React/shadcn application and runs
+Playwright against local synthetic API fixtures. It requires the Node toolchain, `npm ci` in
+`frontend` and `npx playwright install chromium --only-shell`. Browser failures, missing reports
+or skipped cases fail the combined result. `frontend.txt` records the frontend checks.
+
+It then runs all unit, contract and PostgreSQL/interface integration tests, followed by extraction,
 semantic-pair, retrieval and existing actual-source parser/mapping/lineage evaluations.
 `suite.json`, pytest output/JUnit and detailed predictions are retained under the output directory.
 Failure of either code tests or evaluation makes the command fail. Full runs reject skipped tests;
 missing integration dependencies are not successful coverage.
+Omit `--ui` for Python-only verification; the report explicitly identifies browser checks as
+not selected. Python tests still reject committed browser assets that no longer match their source.
 
 `--unit-only` explicitly excludes integrations and permits optional-tool skips. Default execution
 uses offline rules and makes no paid calls, even if model settings exist. `--live` opts into the

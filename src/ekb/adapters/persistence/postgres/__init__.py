@@ -248,10 +248,14 @@ class Knowledge:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def search(self, query: str = "", limit: int = 50) -> list[ConceptDetail]:
+    async def search(
+        self, query: str = "", limit: int = 50, *, after: UUID | None = None
+    ) -> list[ConceptDetail]:
         statement = select(ConceptRow.id).join(VersionRow).distinct()
         if query:
             statement = statement.where(VersionRow.statement.icontains(query, autoescape=True))
+        if after is not None:
+            statement = statement.where(ConceptRow.id > after)
         ids = await self.session.scalars(statement.order_by(ConceptRow.id).limit(min(limit, 200)))
         return [detail for concept_id in ids if (detail := await self.get(concept_id))]
 

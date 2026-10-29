@@ -202,27 +202,7 @@ def register(
         status: IssueStatus | None = None,
         finding_id: UUID | None = None,
     ):
-        runtime = active(request)
-        proposals = await runtime.reconciliation.findings(200)
-        if finding_id:
-            selected = await runtime.reconciliation.get(finding_id)
-            if selected:
-                proposals = [selected]
-        history = await runtime.reconciliation.history()
-        heads = {str(d.finding_id): d for d in history}
-        concept_ids = list(dict.fromkeys(cid for f in proposals for cid in f.concept_ids))
-        concepts = {str(cid): await runtime.knowledge.get(cid) for cid in concept_ids[:200]}
-        return templates.TemplateResponse(
-            request=request,
-            name="review.html",
-            context={
-                "issues": await runtime.issues.list(status=status),
-                "findings": proposals,
-                "decisions": history,
-                "heads": heads,
-                "concepts": concepts,
-            },
-        )
+        return templates.TemplateResponse(request=request, name="index.html")
 
     @app.post("/review/decisions")
     async def review_decision(

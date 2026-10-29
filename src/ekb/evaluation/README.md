@@ -14,4 +14,6 @@ Run `uv run ekb eval run --baseline --output data\evaluation-rules.json` from th
 The offline baseline is not a paid-model benchmark; see `tests\unit\test_evaluation.py`.
 Run `uv run ekb eval benchmarks`; `--configured` explicitly opts into the configured small model.
 Run `uv run ekb eval workflow` after actual corpus sync/indexing; see `docs\phase3.md`.
-Run `uv run ekb test` for the unified suite; see `docs\evaluation.md` for gates and teacher provenance.
+Run `uv run ekb test --ui` for Python/browser tests and evals; omit `--ui` for Python-only checks.
+Frontend checks require Node.js and an installed Playwright browser; no live corpus or model.
+See `docs\evaluation.md` for gates and teacher provenance.

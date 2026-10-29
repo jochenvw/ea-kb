@@ -115,7 +115,9 @@ Publisher-specific names belong in actual source attribution and corpus metadata
 - Keep unit tests offline and deterministic. Do not introduce paid inference or live cloud calls
   into default verification. Report offline contracts separately from live integration results.
 - Every changed capability needs matching tests/evals. Use `uv run ekb test` for combined verification;
-  model/prompt/retrieval changes also need source-grounded, split-isolated qualification cases.
+  include `--ui` for browser changes (frontend formatting/types/build and Playwright). Rebuild and
+  commit generated assets with their source; source fingerprints and licenses must stay current.
+  Model/prompt/retrieval changes also need source-grounded, split-isolated qualification cases.
   Keep strong-teacher labels provisional, export only training data, and require measured live
   quality plus priced cost/latency gates before calling a cheap model qualified. See `docs\evaluation.md`.
 - Run the existing quality gates for code changes:
@@ -128,6 +130,8 @@ Publisher-specific names belong in actual source attribution and corpus metadata
 
 - Run `uv run alembic check` for persistence changes and `uv lock --check` for packaging changes.
   Documentation-only edits need no application test run unless they change executable examples.
+- If an npm-based tool cannot access its upstream, use its documented registry configuration with
+  `https://packagefeedproxy.microsoft.io/npm/`. Keep package safety restrictions enabled.
 - Update usage and contract documentation when behavior changes. Record significant architecture
   decisions briefly under `docs\decisions`; do not create planning documents as a substitute for code.
 - Commit completed, coherent changes with descriptive messages and related tests/docs. Preserve

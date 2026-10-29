@@ -51,7 +51,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     app = FastAPI(title="Enterprise Knowledge Base", version="0.1.0", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
-    templates = Jinja2Templates(directory=WEB / "templates")
+    templates = Jinja2Templates(directory=WEB / "static" / "ui")
 
     def active(request: Request) -> Runtime:
         return request.app.state.runtime
@@ -82,6 +82,16 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/api/statistics", response_model=Statistics)
     async def statistics(request: Request):
         return await active(request).knowledge.statistics()
+
+    @app.get("/api/ui/config")
+    async def ui_configuration(request: Request) -> dict[str, bool]:
+        task = request.app.state.scan_task
+        return {
+            "governance_enabled": bool(
+                active(request).settings.governance_token.get_secret_value()
+            ),
+            "scan_running": bool(task and not task.done()),
+        }
 
     @app.get("/api/benchmarks/compare", response_model=ComparisonReport)
     async def compare_benchmarks(
@@ -123,8 +133,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         request: Request,
         q: str = "",
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        after: UUID | None = None,
     ):
-        return await active(request).knowledge.search(q, limit)
+        return await active(request).knowledge.search(q, limit, after=after)
 
     @app.get("/api/concepts/{concept_id}", response_model=ConceptDetail)
     async def concept(request: Request, concept_id: UUID):
@@ -142,62 +153,17 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         return await active(request).knowledge.lineage(concept_id)
 
     @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request, q: str = ""):
-        context = {
-            "sources": await sources(request),
-            "scans": await scans(request),
-            "tasks": await tasks(request),
-            "concepts": await active(request).knowledge.search(q),
-            "statistics": await statistics(request),
-            "q": q,
-            "scan_running": bool(
-                request.app.state.scan_task and not request.app.state.scan_task.done()
-            ),
-        }
-        name = "inventory.html" if request.headers.get("HX-Request") == "true" else "index.html"
-        return templates.TemplateResponse(request=request, name=name, context=context)
+    @app.get("/knowledge", response_class=HTMLResponse)
+    @app.get("/sources", response_class=HTMLResponse)
+    @app.get("/pipeline", response_class=HTMLResponse)
+    @app.get("/benchmarks", response_class=HTMLResponse)
+    async def workspace(request: Request):
+        return templates.TemplateResponse(request=request, name="index.html")
 
     @app.get("/concepts/{concept_id}", response_class=HTMLResponse)
     async def concept_page(request: Request, concept_id: UUID):
-        detail = await concept(request, concept_id)
-        return templates.TemplateResponse(
-            request=request,
-            name="concept.html",
-            context={
-                "concept": detail,
-                "provenance": await provenance(request, concept_id),
-                "lineage": await lineage(request, concept_id),
-            },
-        )
-
-    @app.get("/benchmarks", response_class=HTMLResponse)
-    async def benchmark_page(
-        request: Request,
-        reference: str = "mcsb-v2:NS-6",
-        from_edition: str = "mcsb-v1",
-        to_edition: str = "mcsb-v2",
-    ):
-        error = None
-        chain = comparison = None
-        try:
-            chain = await active(request).comparisons.lineage(reference)
-            comparison = await active(request).comparisons.compare(
-                from_edition, to_edition, read_only=True
-            )
-        except ValueError as failure:
-            error = str(failure)
-        return templates.TemplateResponse(
-            request=request,
-            name="benchmarks.html",
-            context={
-                "chain": chain,
-                "comparison": comparison,
-                "error": error,
-                "reference": reference,
-                "from_edition": from_edition,
-                "to_edition": to_edition,
-            },
-        )
+        await concept(request, concept_id)
+        return templates.TemplateResponse(request=request, name="index.html")
 
     @app.post("/scans")
     async def start_scan(

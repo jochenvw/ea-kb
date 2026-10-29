@@ -10,3 +10,6 @@ __pycache__/
 data/
 dist/
 *.egg-info/
+node_modules/
+frontend/test-results/
+frontend/playwright-report/

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import shutil
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -11,6 +13,35 @@ from ekb.config import Settings
 from ekb.evaluation.dataset import write_json
 from ekb.evaluation.frugal import qualify
 from ekb.runtime import Runtime
+
+
+async def browser_tests(output: Path, frontend: Path = Path("frontend")) -> dict:
+    npm = shutil.which("npm")
+    if not npm or not (frontend / "package.json").is_file():
+        return {"passed": False, "error": "UI checks require Node.js/npm and a source checkout."}
+    path = frontend / "test-results" / "results.json"
+    await asyncio.to_thread(path.unlink, missing_ok=True)
+    process = await asyncio.create_subprocess_exec(
+        npm,
+        "run",
+        "verify",
+        cwd=frontend,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await process.communicate()
+    await asyncio.to_thread((output / "frontend.txt").write_bytes, stdout)
+    stats = {}
+    if await asyncio.to_thread(path.exists):
+        report = json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
+        stats = report.get("stats", {})
+    return {
+        "exit_code": process.returncode,
+        "stats": stats,
+        "passed": process.returncode == 0
+        and stats.get("expected", 0) > 0
+        and not any(stats.get(key, 0) for key in ("unexpected", "skipped", "flaky")),
+    }
 
 
 async def code_tests(output: Path, unit_only: bool) -> dict:
@@ -69,6 +100,7 @@ async def run_suite(
     *,
     live: bool = False,
     unit_only: bool = False,
+    ui: bool = False,
 ) -> dict:
     if not unit_only and not os.environ.get("EKB_TEST_DATABASE_URL"):
         raise ValueError("Set EKB_TEST_DATABASE_URL for the full suite, or select --unit-only")
@@ -82,10 +114,12 @@ async def run_suite(
             "Live suite requires explicit student, reconciliation and embedding models"
         )
     await asyncio.to_thread(output.mkdir, parents=True, exist_ok=True)
+    frontend = await browser_tests(output) if ui else None
     tests = await code_tests(output, unit_only)
     evaluation = None
     error = None
-    if tests["passed"]:
+    code_passed = tests["passed"] and (frontend is None or frontend["passed"])
+    if code_passed:
         try:
             if live:
                 async with Runtime(settings) as runtime:
@@ -111,8 +145,9 @@ async def run_suite(
     report = {
         "profile": "live" if live else "offline",
         "unit_only": unit_only,
-        "passed": tests["passed"] and bool(evaluation and evaluation["passed"]),
+        "passed": code_passed and bool(evaluation and evaluation["passed"]),
         "tests": tests,
+        "frontend": frontend,
         "evaluation": evaluation,
         "evaluation_error": error,
         "coverage": {
@@ -123,12 +158,14 @@ async def run_suite(
             "publication_versions": "benchmark eval + domain/history/scope tests",
             "governance_resolution_issues": "workflow/integration/contract tests",
             "interfaces": "HTTP, MCP and headless TUI integration tests",
+            "browser": "shadcn UI checks/build + Playwright regressions" if ui else "not selected",
             "infrastructure": "local Bicep compilation and ARM safeguards (no deployment)",
             "efficiency": "token, priced cost, latency, replay and bounded-work checks",
         },
         "limitations": [
             "Offline success is not live model qualification.",
             "A unit-only profile excludes database and transport integration evidence.",
+            *([] if ui else ["Browser regressions require --ui and the frontend toolchain."]),
         ],
     }
     await write_json(output / "suite.json", report)

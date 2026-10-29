@@ -11,6 +11,7 @@ network access or cloud credentials.
 uv run pytest -q tests\unit
 uv run pytest -q tests\integration tests\contract
 uv run pytest -q
+uv run ekb test --ui
 uv run ekb eval run --baseline --output data\evaluation-rules.json
 ```
 
@@ -31,7 +32,8 @@ Test files and functions use `test_` names.
 | Repository contract | Yes | Commit/rollback, evidence, versions, authority, leases, cycles | Real disposable PostgreSQL schema |
 | Pipeline integration | Yes | Incrementality, resume, cancellation, concurrent workers, Office/PDF | Temporary sources and real database |
 | Interface integration | Yes | HTML/API, scan form, MCP protocol, TUI interaction | ASGI transport, SDK memory session, Textual headless pilot |
-| Deployed/browser end-to-end | Not in the committed suite | External deployment, identity, live exporters | Transport tests do not establish live deployment |
+| Browser regressions | Yes, Playwright | Navigation, evidence, governance guards, filters, themes/mobile | Local synthetic API fixtures; not enterprise deployment evidence |
+| Deployed end-to-end | Not in the committed suite | External deployment, identity, live exporters | Local browser/transport tests do not establish live deployment |
 | Evaluation | Yes | Extraction, scope, modality, grounding and duplicates | Offline baseline or configured model |
 
 ## 4) Mocking and Isolation Strategy

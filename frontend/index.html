@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>EKB · Architecture knowledge</title>
+    <script>
+      (() => {
+        const param = new URLSearchParams(window.location.search).get(
+          "scoutTheme",
+        );
+        const theme =
+          param ||
+          (window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
+    <script>
+      try {
+        const theme = localStorage.getItem("ekb-theme");
+        if (
+          !new URLSearchParams(location.search).has("scoutTheme") &&
+          ["light", "dark"].includes(theme)
+        ) {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript
+      >Enable JavaScript to browse the EKB workspace, or inspect the
+      <a href="/docs">HTTP API</a>.</noscript
+    >
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

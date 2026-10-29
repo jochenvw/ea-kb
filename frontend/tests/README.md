@@ -1,0 +1,8 @@
+# Browser regressions
+
+`npm test` runs Playwright against an owned Vite server; install Chromium with `npx playwright install chromium`.
+API fixtures are synthetic and local, so this suite needs no database, corpus, model, credentials or Azure.
+Tests cover hierarchy, evidence escaping, structured versions, scope/authority separation, review
+guards, server cursors, error recovery, responsive navigation and themes. No review or scan is submitted.
+Python integration tests cover the actual FastAPI routes, authentication and persisted services.
+Real-corpus visual smoke checks use the built application served by `ekb web`.

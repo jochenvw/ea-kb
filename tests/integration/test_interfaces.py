@@ -46,14 +46,33 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
         ) as client:
             assert (await client.get("/health")).json() == {"status": "ok"}
             inventory = await client.get("/")
-            assert inventory.status_code == 200 and "Knowledge inventory" in inventory.text
-            assert (await client.get("/static/htmx.min.js")).status_code == 200
+            assert inventory.status_code == 200 and 'id="root"' in inventory.text
+            assert inventory.text.index("scoutTheme") < inventory.text.index("/static/ui/app.js")
+            for path in ("/knowledge", "/sources", "/pipeline", "/review", "/benchmarks"):
+                page = await client.get(path)
+                assert page.status_code == 200 and "/static/ui/app.js" in page.text
+            for path in ("/static/ui/app.js", "/static/ui/app.css"):
+                asset = await client.get(path)
+                assert asset.status_code == 200 and asset.headers.get("etag")
+                cached = await client.get(path, headers={"If-None-Match": asset.headers["etag"]})
+                assert cached.status_code == 304
+            assert (await client.get("/api/ui/config")).json() == {
+                "governance_enabled": False,
+                "scan_running": False,
+            }
             assert (await client.get("/api/sources")).status_code == 200
             concepts = (await client.get("/api/concepts")).json()
             assert len(concepts) == 4
+            first = (await client.get("/api/concepts?limit=2")).json()
+            second = (await client.get(f"/api/concepts?limit=2&after={first[-1]['id']}")).json()
+            assert [item["id"] for item in first + second] == [item["id"] for item in concepts]
+            assert (
+                await client.get(f"/api/concepts?limit=2&after={second[-1]['id']}")
+            ).json() == []
+            assert (await client.get("/api/concepts?after=invalid")).status_code == 422
             concept_id = concepts[0]["id"]
             detail = await client.get(f"/concepts/{concept_id}")
-            assert detail.status_code == 200 and "Exact evidence and provenance" in detail.text
+            assert detail.status_code == 200 and "/static/ui/app.js" in detail.text
             provenance = (await client.get(f"/api/concepts/{concept_id}/provenance")).json()
             assert (
                 provenance
@@ -61,8 +80,14 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             )
             assert (await client.get(f"/api/concepts/{uuid4()}")).status_code == 404
             assert (await client.get("/api/concepts?limit=500")).status_code == 422
-            partial = await client.get("/", headers={"HX-Request": "true"})
-            assert "<html" not in partial.text and 'id="inventory"' in partial.text
+            assert (await client.get(f"/concepts/{uuid4()}")).status_code == 404
+            legacy = await client.get("/?q=logging", headers={"HX-Request": "true"})
+            assert legacy.status_code == 200 and 'id="root"' in legacy.text
+            runtime.settings.governance_token = SecretStr("synthetic-browser-test-token")
+            configuration = await client.get("/api/ui/config")
+            assert configuration.json()["governance_enabled"] is True
+            assert "synthetic-browser-test-token" not in configuration.text
+            runtime.settings.governance_token = SecretStr("")
             denied = await client.post("/scans", headers={"Origin": "https://other.example"})
             assert denied.status_code == 403
             assert (await client.get("/api/statistics")).json()["task_count"] == 3
@@ -174,8 +199,7 @@ async def test_publication_and_scoped_approval_are_distinct_across_interfaces(da
                 for state in response["authority_states"]
             )
             page = (await client.get(f"/concepts/{concept.id}")).text
-            assert "<strong>draft</strong>" in page and "not_canonical" in page
-            assert "separate, scoped decisions" in page
+            assert "/static/ui/app.js" in page
     async with create_connected_server_and_client_session(
         create_server(runtime.knowledge)
     ) as session:
@@ -261,9 +285,7 @@ async def test_benchmark_inspection_is_shared_readonly_and_keeps_maturity_separa
                 assert await uow.benchmarks.comparison(UUID(comparison["id"])) is None
             assert (await client.get("/api/benchmarks/controls/mcsb-v2:FAKE")).status_code == 404
             page = await client.get("/benchmarks")
-            assert page.status_code == 200 and 'aria-label="NS-6 relationship graph"' in page.text
-            assert "MAPS_TO (published; coverage unknown)" in page.text
-            assert "not_canonical" in page.text and "Edition maturity: <strong>preview" in page.text
+            assert page.status_code == 200 and "/static/ui/app.js" in page.text
     saved = await runtime.comparisons.compare("mcsb-v1", "mcsb-v2", "NS-6")
     async with create_connected_server_and_client_session(
         create_server(runtime.knowledge, runtime.comparisons)

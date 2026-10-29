@@ -5,7 +5,7 @@ preserving original documents, exact source evidence and revision history. Incre
 interrupted work and skip unchanged inputs. Built with async Python 3.13, PostgreSQL and replaceable
 adapters.
 
-Inspect results through the command line, terminal UI, web interface or read-only
+Inspect results through the command line, terminal UI, shadcn/ui browser workspace or read-only
 Model Context Protocol (MCP) server.
 Durable indexing, enrichment and issue stages support audited reconciliation and strict scoped
 canonical resolution without automatically approving candidates.
@@ -25,6 +25,7 @@ uv run ekb web
 ```
 
 Open <http://127.0.0.1:8000>. The fixture documents are synthetic.
+Browse knowledge, source evidence, the review queue and pipeline activity. No Node runtime is needed.
 Use `uv run ekb --help` for other commands.
 
 ## Documentation
@@ -34,7 +35,8 @@ Use `uv run ekb --help` for other commands.
 - [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).
 - [Latest ingestion verification and results browser](docs/ingestion-verification.md).
 - [Teacher datasets, frugal model qualification and unified tests](docs/evaluation.md).
-  `uv run ekb test` combines code tests and offline evals; [Foundry Bicep](infra/README.md)
+  `uv run ekb test --ui` combines Python/browser tests and offline evals (UI checks need Node).
+  [Foundry Bicep](infra/README.md)
   provisions configurable student/embedding models with no teacher deployment by default.
 - [Codebase map](docs/codebase/README.md) and [agent coding standards](AGENTS.md).
   Short folder READMEs explain local responsibilities and entry points.

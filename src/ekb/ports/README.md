@@ -2,6 +2,7 @@
 
 `__init__.py` defines small typed `Protocol` interfaces for sources, artifacts, parsing, inference,
 repositories and explicit units of work.
+Knowledge search supports an optional exclusive UUID cursor in stable identifier order.
 `ArtifactStore` separates immutable content-addressed originals from named corpus views/checkpoints.
 `SemanticVerifier` and `EmbeddingPort` are opt-in boundaries; `BenchmarkRepository` preserves
 source-bound comparisons and native identifier resolution without equating mapping with coverage.

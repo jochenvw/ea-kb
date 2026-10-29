@@ -10,17 +10,21 @@ The local UI is running on <http://127.0.0.1:8000>.
 
 | Page | Inspect |
 |---|---|
-| `/` | Search objective/requirement candidates; sources, scans and processing tasks |
+| `/` | Workspace metrics, open exceptions and latest three-phase status |
+| `/knowledge` | Search and cursor-page all concept candidates |
+| `/sources` | Searchable source registry, retrieval status and publisher metadata |
 | `/concepts/{uuid}` | Candidate versions, exact evidence, original source references and lineage |
 | `/review` | Issue shortlist, reconciliation proposals and supporting passages |
 | `/benchmarks` | Publisher controls, mappings, edition comparisons and evidence |
+| `/pipeline` | Phase/check records, ingestion history and scan controls |
 | `/docs` | Interactive API documentation |
-| `/api/issues?limit=1000` | All 161 current issues, beyond the UI shortlist |
+| `/api/issues?limit=1000` | JSON inspection of up to 1,000 issues |
 | `/api/pipeline/status` | Latest pipeline and individual stage/check executions |
 
 This instance permits browsing but disables HTTP governance writes. No source was automatically
-approved, merged or promoted to canonical. The review page is a bounded shortlist, not a complete
-export of historical proposals. The terminal alternative is `uv run ekb tui`.
+approved, merged or promoted to canonical. The shadcn review queue filters up to 1,000 issues;
+historical proposals and the knowledge library have server-side cursor pages. Evidence and technical
+identifiers are drill-downs, not the primary inventory. The terminal alternative is `uv run ekb tui`.
 
 ## Checks and downloads
 
@@ -86,3 +90,20 @@ For raw database inspection, use the local PostgreSQL `ekb` database, normally p
 Read `sources`, `source_revisions`, `segments`, `concept_versions`, `occurrences`,
 `enrichment_findings`, `knowledge_issues` and `pipeline_executions`.
 Use application services for mutations rather than editing provenance or governance rows directly.
+
+## Shadcn workspace verification
+
+The subsequent browser release passed `uv run ekb test --ui`: **163 Python tests and 12 Playwright
+regressions, zero skips**, plus offline evaluations. Browser regressions use synthetic API fixtures;
+they cover evidence, scoped authority, governance guards, cursor paging, error recovery, structured
+semantic versions, unknown processing cost and responsive themes.
+
+Separate acceptance checks used the actual populated workspace: all **1,557 concepts** were reached
+through eight cursor pages without duplicates; six desktop and six mobile pages loaded without
+browser/API errors or horizontal overflow. Checks opened the duplicate issue's two interpretations,
+supporting proposal, exact concept passages, known source version and read-only edition comparison.
+The packaged wheel contains the exact final browser assets and third-party licenses.
+
+Ignored evidence is under `data\ui-verification`: `suite\suite.json`, `browser-acceptance.json`,
+final screenshots and `package\`. These browser checks do not imply live model qualification,
+additional ingestion or approval of any proposal.

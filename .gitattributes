@@ -1,2 +1,4 @@
 * text=auto eol=lf
 *.zip -text
+# Preserve upstream whitespace in bundled third-party license comments.
+src/ekb/interfaces/web/static/ui/app.js whitespace=-blank-at-eol

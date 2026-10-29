@@ -27,7 +27,7 @@ testing and concerns reference. Coding rules live in `AGENTS.md`; extension cont
 | `pipeline` / `services` | Ingestion, transactions, knowledge queries | ORM rows |
 | `orchestration` / `stages` | Durable ordering, compatible artifacts and independent checks | Transport-specific governance |
 | `adapters` | Connectors, parsing, inference, artifacts, PostgreSQL | Transport interfaces |
-| `interfaces` | CLI, Textual, FastAPI/Jinja2/HTMX, read-only MCP | Direct ORM queries (except database health checks) |
+| `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, read-only MCP | Direct ORM queries (except database health checks) |
 | `runtime.py` | Explicit dependency injection and resource lifetimes | Nothing implicit or global for business state |
 
 `SourceConnector -> change detection -> ArtifactStore -> DocumentParser -> Segment ->
@@ -259,7 +259,7 @@ Restrict the debug/data directory with operating-system ACLs, especially on Wind
 |---|---|
 | Typer CLI | Migration, doctor, scan/resume/dry-run, inventory, concept/provenance/lineage inspection, evaluation and process launch |
 | Textual terminal UI (TUI) | Responsive inventory/progress, concepts, provenance, relationships and usage; invokes the same pipeline |
-| FastAPI/Jinja2/HTMX | JSON inspection and server-rendered pages; scan submission starts an application-owned async task |
+| FastAPI + React/shadcn | Local compiled browser assets and JSON inspection; scan submission starts an application-owned async task |
 | Model Context Protocol (MCP) | Twelve read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
 | Periodic worker | Runs the same pipeline with configured connectors; not a separate implementation or broker consumer |
 
@@ -269,6 +269,18 @@ distributed scheduling. The task is cancelled on shutdown; durable checkpoints s
 Governance mutations are separately disabled until `EKB_GOVERNANCE_TOKEN` is configured. HTTP
 Basic identifies a local operator and requires HTTPS or loopback plus same-origin mutation checks.
 Read endpoints remain local/private; this is not enterprise authentication or tenant authorization.
+
+The browser has a task-oriented hierarchy: overview, searchable knowledge, sources, review queue,
+benchmark explorer and pipeline activity. Exact evidence, history, scope and technical identifiers
+are progressively disclosed. Actual shadcn components use Clawpilot tokens, keyboard-accessible
+controls and light/dark responsive layouts. TypeScript DTOs describe API responses; no browser code
+infers applicability, runs models or grants authority.
+
+Vite builds local assets into the Python package. Committed output permits Python-only checkout,
+wheel and container operation; source fingerprints reject stale builds. Knowledge and proposal
+lists use exclusive UUID cursors with bounded queries, not fake pagination over a truncated corpus.
+The former HTMX partials are retired; existing browser addresses and server review POSTs remain.
+See `decisions\0006-browser-presentation.md` and `frontend\README.md`.
 
 ## Deployment and configuration
 

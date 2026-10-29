@@ -182,9 +182,30 @@ uv run ekb mcp
 ```
 
 The TUI supports source inventory, scan/resume, per-source progress, failures, concepts,
-provenance, relationship inspection and usage statistics. The server-rendered Jinja2 web interface
-provides the same inspection workflows with vendored HTMX and no Node.js build. API documentation
-is at `/docs`; `/health` checks PostgreSQL connectivity.
+provenance, relationship inspection and usage statistics. The React/shadcn browser workspace provides
+an overview (`/`), cursor-paged knowledge library (`/knowledge`), source registry (`/sources`),
+issue/proposal review (`/review`), benchmark explorer (`/benchmarks`) and pipeline activity (`/pipeline`).
+Concept deep links retain exact evidence, version history and scoped authority. API documentation
+is at `/docs`; `/health` checks PostgreSQL connectivity. Built assets are included in the Python
+package: normal operation needs neither Node.js nor a separate frontend server.
+
+For frontend development, use Node.js 22.12+ and run these commands inside `frontend`:
+
+```powershell
+npm ci
+npx playwright install chromium --only-shell
+npm run dev
+# Or rebuild committed production assets:
+npm run build
+```
+
+The optional Vite development server proxies the local backend on port 8000. `npm run verify`
+checks formatting, type-checks/builds and runs synthetic Playwright browser regressions.
+`uv run ekb test --ui` from the repository root includes those checks with Python tests and evals.
+Use the Microsoft npm upstream in `frontend\.npmrc`; see `frontend\scripts\README.md` for lock updates.
+Do not hand-edit generated browser assets; the Python suite detects stale source fingerprints.
+Theme selection follows the OS, can be switched in the header and persists locally.
+`?scoutTheme=light` or `?scoutTheme=dark` explicitly selects the initial theme.
 
 The web scan button uses the server-configured `EKB_SOURCE_DIRECTORY` and/or the public manifest.
 It does not accept arbitrary filesystem paths from a browser. Keep the web server local/private:

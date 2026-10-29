@@ -1,10 +1,10 @@
-# Server-rendered web presentation
+# Browser presentation
 
-- `templates` contains Jinja2 pages and HTMX partials.
-- `static` contains local theme CSS and pinned HTMX with its license.
-- The sibling API package owns routing, runtime lifespan and scan submission.
-- `/review` presents issues, side-by-side proposals, canonical choices and append-only decision history.
-
-There is no Node.js frontend build or separate client-side domain model.
-Keep presentation consistent with shared knowledge/provenance services and the Clawpilot theme.
-See `tests\integration\test_interfaces.py` for page and partial-response checks.
+`frontend` at the repository root owns React/TypeScript and official shadcn/ui components.
+`static\ui` contains committed production HTML/CSS/JavaScript, source fingerprints and licenses.
+`static\theme.css` is the canonical Clawpilot light/dark palette.
+FastAPI serves the built shell and existing JSON services; production needs no Node.js process.
+The UI separates overview, knowledge, sources, review, benchmarks and durable pipeline activity.
+Knowledge and proposals use server cursors; evidence and identifiers sit behind drill-downs.
+Governance forms retain authenticated server handlers, explicit rationale and append-only auditing.
+See `frontend\README.md`, `tests\integration\test_interfaces.py` and `docs\usage.md`.
