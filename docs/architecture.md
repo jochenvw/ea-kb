@@ -237,7 +237,9 @@ Multiple workers may rediscover sources, but atomic claims prevent duplicate com
 Application OpenTelemetry spans cover scans, discovery, comparison, download, parsing, selective
 OCR, segmentation, inference, validation, transactions, concept/relationship persistence and retries.
 Exception type/status is recorded, never exception messages containing document text or SQL
-parameters. Logs carry trace/span correlation. JSONL files rotate by configured size and retention.
+parameters. Logs carry trace/span correlation. JSONL files rotate by configured size and retention
+inside `data\telemetry\<process-id>`; separate CLI/UI writers cannot collide during Windows rotation.
+Retention limits apply per process; old process directories require operational housekeeping.
 Azure adds Application Insights trace, log and metric exporters to the same instrumentation.
 Pipeline, check, reconciliation, resolution and issue spans retain run/finding correlation;
 rotating `metrics.jsonl` captures run/check/finding/issue/resolution counters.

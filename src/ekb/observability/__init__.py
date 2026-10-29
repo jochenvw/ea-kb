@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from contextlib import contextmanager
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -79,7 +80,7 @@ def configure(settings: Settings) -> None:
     global _provider, _log_provider, _meter_provider
     if _provider is not None:
         return
-    directory = settings.data_dir / "telemetry"
+    directory = settings.data_dir / "telemetry" / str(os.getpid())
     directory.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(
         directory / "logs.jsonl",

@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -190,3 +192,50 @@ def test_exception_messages_and_source_text_do_not_leak_into_traces(tmp_path, mo
         assert json.loads(text)["name"] == "parsing"
     finally:
         provider.shutdown()
+
+
+def test_concurrent_processes_rotate_independent_telemetry_streams(tmp_path):
+    script = """
+import os
+import sys
+from pathlib import Path
+from ekb.config import Settings
+from ekb.observability import configure, flush, log, tracer
+from ekb.observability.metrics import count
+
+configure(Settings(data_dir=Path(sys.argv[1]), log_max_bytes=1024, log_backups=2,
+                   azure_monitor_connection_string=""))
+for sequence in range(30):
+    with tracer.start_as_current_span("concurrent.telemetry"):
+        log.info("parallel_run", process_id=os.getpid(), sequence=sequence, padding="x" * 200)
+        count("ekb.parallel_test", process_id=os.getpid())
+flush()
+print(os.getpid())
+"""
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, str(tmp_path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for _ in range(2)
+    ]
+    try:
+        for child in children:
+            stdout, stderr = child.communicate(timeout=60)
+            assert child.returncode == 0, stderr.decode()
+            assert b"Logging error" not in stderr
+            process_id = int(stdout)
+            directory = tmp_path / "telemetry" / str(process_id)
+            logs = list(directory.glob("logs.jsonl*"))
+            assert len(logs) >= 2
+            for path in logs:
+                records = [json.loads(line) for line in path.read_text().splitlines()]
+                assert records and all(r["process_id"] == process_id for r in records)
+            assert (directory / "traces.jsonl").is_file()
+            assert (directory / "metrics.jsonl").is_file()
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+                child.communicate()
