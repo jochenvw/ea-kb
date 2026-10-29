@@ -3,6 +3,8 @@
 `create_server` in `__init__.py` builds the official FastMCP server with explicit tool schemas.
 
 - Tools: `search_concepts`, `get_concept`, `trace_provenance`, `find_related_requirements`.
+- Benchmark tools: `get_benchmark_control`, `get_benchmark_edition`, `compare_benchmark_editions`,
+  `trace_benchmark_lineage`; all inspect without model calls or proposal writes.
 - Calls delegate to `KnowledgeService`; runtime resources belong to server lifespan.
 - Stdio stdout is protocol-only; application logs go to configured telemetry files.
 

@@ -29,8 +29,10 @@ async def prepared(database, tmp_path):
     await runtime.database.close()
     runtime.database = database
     from ekb.services.knowledge import KnowledgeService
+    from ekb.services.reconciliation import BenchmarkService
 
     runtime.knowledge = KnowledgeService(database)
+    runtime.comparisons = BenchmarkService(database)
     await runtime.pipeline().scan(runtime.connectors(Path("tests/fixtures/local")))
     return runtime
 
@@ -83,6 +85,10 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "get_concept",
             "trace_provenance",
             "find_related_requirements",
+            "get_benchmark_control",
+            "get_benchmark_edition",
+            "compare_benchmark_editions",
+            "trace_benchmark_lineage",
         }
         assert all(tool.inputSchema and tool.outputSchema for tool in tools.tools)
         result = await session.call_tool("search_concepts", {"query": "logging", "limit": 10})
@@ -178,4 +184,89 @@ async def test_publication_and_scoped_approval_are_distinct_across_interfaces(da
         await terminal.action_reload()
         await pilot.pause()
         assert terminal.query_one("#concepts", DataTable).get_row(str(concept.id))[3] == "draft"
+    await runtime.__aexit__()
+
+
+async def test_benchmark_inspection_is_shared_readonly_and_keeps_maturity_separate(
+    database, tmp_path
+):
+    from collections import Counter
+
+    from ekb.adapters.sources.benchmarks import LEARN, MicrosoftLearnBenchmarkConnector, _asset
+    from ekb.domain.benchmarks import BenchmarkRole
+
+    runtime = await prepared(database, tmp_path)
+    bodies = {
+        "overview-mcsb-v1": (
+            "# Synthetic overview\n\n[Network security (NS)](mcsb-network-security)\n"
+        ),
+        "overview": (
+            "# Synthetic overview (preview)\n\n"
+            "This version supersedes [Microsoft cloud security benchmark v1](overview-mcsb-v1).\n"
+            "\n[Network security (NS)](mcsb-v2-network-security)\n"
+        ),
+        "mcsb-network-security": (
+            "# Synthetic network controls\n\n## NS-6: Protect applications\n\n"
+            "**Security principle**: Protect web applications with a firewall.\n\n"
+            "**Azure guidance**: Configure inspection.\n"
+        ),
+        "mcsb-v2-network-security": (
+            "# Synthetic network controls\n\n## NS-6: Protect applications\n\n"
+            "### Security principle\n\nProtect web applications and APIs with a firewall.\n\n"
+            "### NS-6.1: Configure inspection\n\nChoose Application Gateway or Front Door.\n\n"
+            "### Control mapping\n\n- **NIST SP800-53 Rev.5:** SC-7\n\n"
+            "## NS-7: Inspect traffic\n\n### Security principle\n\nInspect application traffic.\n"
+        ),
+    }
+
+    def handle(request):
+        return httpx.Response(200, text=bodies[request.url.path.rsplit("/", 1)[-1]])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        connector = MicrosoftLearnBenchmarkConnector(runtime.artifacts, client=client)
+        assets: tuple[tuple[str, str, BenchmarkRole], ...] = (
+            ("mcsb-v1", "overview-mcsb-v1", "overview"),
+            ("mcsb-v2", "overview", "overview"),
+            ("mcsb-v1", "mcsb-network-security", "domain"),
+            ("mcsb-v2", "mcsb-v2-network-security", "domain"),
+        )
+        for edition, slug, role in assets:
+            await connector._sync_asset(_asset(edition, LEARN + slug, role, domain="NS"), Counter())
+        assert (await runtime.pipeline().scan([connector])).failed == 0
+    app = create_app(runtime)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            control = (await client.get("/api/benchmarks/controls/mcsb-v2:NS-6")).json()
+            assert control["edition"]["publication"]["publication_status"] == "preview"
+            assert control["control"]["control"]["publication"]["publication_status"] == "unknown"
+            assert control["control"]["mappings"][0]["reference"]["resolution"] == "unresolved"
+            edition = (await client.get("/api/benchmarks/editions/mcsb-v2")).json()
+            assert edition["successors"][0]["predecessor"] == "mcsb-v1"
+            comparison = (await client.get("/api/benchmarks/compare")).json()
+            assert comparison["added_control_ids"] == ["NS-7"]
+            assert comparison["model_calls"] == comparison["embedding_calls"] == 0
+            async with database() as uow:
+                assert await uow.benchmarks.comparison(UUID(comparison["id"])) is None
+            assert (await client.get("/api/benchmarks/controls/mcsb-v2:FAKE")).status_code == 404
+            page = await client.get("/benchmarks")
+            assert page.status_code == 200 and 'aria-label="NS-6 relationship graph"' in page.text
+            assert "MAPS_TO (published; coverage unknown)" in page.text
+            assert "not_canonical" in page.text and "Edition maturity: <strong>preview" in page.text
+    saved = await runtime.comparisons.compare("mcsb-v1", "mcsb-v2", "NS-6")
+    async with create_connected_server_and_client_session(
+        create_server(runtime.knowledge, runtime.comparisons)
+    ) as session:
+        result = await session.call_tool("get_benchmark_control", {"reference": "mcsb-v2:NS-6"})
+        assert not result.isError and result.structuredContent
+        assert result.structuredContent["edition"]["publication"]["publication_status"] == "preview"
+        chain = await session.call_tool("trace_benchmark_lineage", {"reference": "mcsb-v2:NS-6"})
+        assert not chain.isError and chain.structuredContent
+        assert chain.structuredContent["semantic_proposals"][0]["comparison_id"] == str(saved.id)
+    terminal = KnowledgeApp(runtime)
+    async with terminal.run_test(size=(140, 50)) as pilot:
+        await pilot.pause()
+        await terminal.action_benchmark().wait()
+        assert '"published_edition_lineage"' in str(terminal.query_one("#evidence", Static).content)
     await runtime.__aexit__()

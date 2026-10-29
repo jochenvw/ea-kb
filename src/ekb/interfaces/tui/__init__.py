@@ -7,6 +7,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import (
     Button,
+    Checkbox,
     DataTable,
     Footer,
     Header,
@@ -30,6 +31,7 @@ class KnowledgeApp(App):
     #detail { height: 1fr; min-height: 12; }
     #status { height: auto; padding: 1; }
     #statistics { height: auto; padding: 1; }
+    #benchmarks-pane Horizontal { height: 3; }
     """
 
     def __init__(
@@ -56,6 +58,14 @@ class KnowledgeApp(App):
                 yield DataTable(id="scans", cursor_type="row")
             with TabPane("Tasks / failures", id="tasks-pane"):
                 yield DataTable(id="tasks", cursor_type="row")
+            with TabPane("Benchmarks", id="benchmarks-pane"):
+                yield Input(value="mcsb-v2:NS-6", id="benchmark-reference")
+                yield Input(value="mcsb-v1", placeholder="From edition", id="benchmark-from")
+                yield Input(value="mcsb-v2", placeholder="To edition", id="benchmark-to")
+                yield Checkbox("Compare whole editions", value=True, id="benchmark-whole")
+                with Horizontal():
+                    yield Button("Inspect lineage", id="benchmark-lineage")
+                    yield Button("Compare (read-only)", id="benchmark-compare")
         yield Static("", id="statistics", markup=False)
         with VerticalScroll(id="detail"):
             yield Static(
@@ -132,13 +142,39 @@ class KnowledgeApp(App):
         )
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "benchmark-reference":
+            self.action_benchmark()
+            return
         await self.action_reload()
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "scan":
+        if event.button.id in {"benchmark-lineage", "benchmark-compare"}:
+            self.action_benchmark(compare=event.button.id == "benchmark-compare")
+        elif event.button.id == "scan":
             self.action_scan()
         else:
             await self.action_reload()
+
+    @work(exclusive=True, group="benchmark")
+    async def action_benchmark(self, compare: bool = False) -> None:
+        reference = self.query_one("#benchmark-reference", Input).value
+        try:
+            if compare:
+                whole = self.query_one("#benchmark-whole", Checkbox).value
+                result = await self.runtime.comparisons.compare(
+                    self.query_one("#benchmark-from", Input).value,
+                    self.query_one("#benchmark-to", Input).value,
+                    None if whole else reference.partition(":")[2],
+                    read_only=True,
+                )
+            else:
+                result = await self.runtime.comparisons.lineage(reference)
+            self.query_one("#evidence", Static).update(result.model_dump_json(indent=2))
+            self.query_one("#status", Static).update(
+                "Read-only benchmark evidence; semantic transitions require review."
+            )
+        except ValueError as error:
+            self.query_one("#status", Static).update(str(error))
 
     @work(exclusive=True, group="scan")
     async def action_scan(self) -> None:

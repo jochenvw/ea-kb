@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Benchmark evidence explorer</h1>
+<form action="/benchmarks" method="get">
+  <label for="reference">Edition-qualified control</label>
+  <input id="reference" name="reference" value="{{ reference }}" placeholder="mcsb-v2:NS-6">
+  <label for="from_edition">Compare from</label>
+  <input id="from_edition" name="from_edition" value="{{ from_edition }}">
+  <label for="to_edition">Compare to</label>
+  <input id="to_edition" name="to_edition" value="{{ to_edition }}">
+  <button type="submit">Inspect</button>
+</form>
+<p>Read-only: saved comparisons or explicitly structural previews. No model calls, merges or adoption.</p>
+{% if error %}<p class="notice">{{ error }}. Sync sources and run <code>ekb scan</code> first.</p>{% endif %}
+{% if chain %}
+{% set context = chain.context %}
+{% set view = context.control %}
+{% set control = view.control %}
+<h2>{{ control.control_id }}: {{ control.title }}</h2>
+<p>Edition maturity: <strong>{{ context.edition.publication.publication_status.value }}</strong>.
+  This source: <strong>{{ control.publication.publication_status.value }}</strong>.
+  Semantic version: {{ (context.concept.versions[-1].semantic_version or "unknown") if context.concept else "unknown" }}.</p>
+<p>Enterprise governance and canonical adoption are separate:</p>
+{% if context.concept %}
+{% for state in context.concept.authority_states %}
+<p>Version <code>{{ state.concept_version_id }}</code>: {{ state.governance_status.value }} / {{ state.canonical_status.value }};
+  scope <code>{{ state.scope.model_dump(mode="json") | tojson }}</code>.</p>
+{% else %}<p>No enterprise authority recorded; not canonical.</p>{% endfor %}
+{% endif %}
+<section aria-label="NS-6 relationship graph">
+  <h2>Relationship graph</h2>
+  <article>
+    <h3>{{ reference }}</h3>
+    <blockquote>{{ control.security_principle or control.title }}</blockquote>
+    <a href="{{ control.evidence.source_url }}">Publisher source</a>
+    <p>Revision <code>{{ view.revision_id }}</code>; section {{ control.evidence.section }}.</p>
+  </article>
+  <h3>&darr; MAPS_TO (published; coverage unknown)</h3>
+  {% for binding in view.mappings %}
+  <details>
+    <summary>{{ binding.reference.framework }} / {{ binding.reference.revision or "unknown revision" }} /
+      {{ binding.reference.control_id }} &mdash; {{ binding.reference.resolution }}</summary>
+    <p>{{ binding.note }} Coverage: {{ binding.reference.coverage }}.</p>
+    <blockquote>{{ binding.reference.evidence.excerpt }}</blockquote>
+    <a href="{{ binding.reference.evidence.source_url }}">Exact mapping source</a>
+    {% for target in binding.native_controls %}
+    <p>Native control {{ target.control_id }}, revision {{ target.revision }}.</p>
+    {% for id in target.concept_ids %}<a href="/concepts/{{ id }}">{{ id }}</a> {% endfor %}
+    {% endfor %}
+  </details>
+  {% endfor %}
+  <h3>&darr; Azure implementation guidance (not simultaneous mandates)</h3>
+  <pre>{{ control.azure_guidance }}</pre>
+  <p>Deployment options: {{ control.implementation_options | join(" / ") }}.
+    Explicit alternatives: {{ control.implementation_options_are_alternatives }}.</p>
+  {% for child in control.subcontrols %}
+  <details><summary>{{ child.control_id }}: {{ child.title }}</summary><pre>{{ child.text }}</pre></details>
+  {% endfor %}
+  <h3>Published edition succession</h3>
+  {% for edge in chain.published_edition_lineage %}
+  <article>{{ edge.successor }} &rarr; SUPERSEDES (published) &rarr; {{ edge.predecessor }}
+    <blockquote>{{ edge.evidence.excerpt }}</blockquote>
+    <a href="{{ edge.evidence.source_url }}">Succession evidence</a>
+  </article>
+  {% else %}<p>No verified direct succession passage in the loaded corpus.</p>{% endfor %}
+  <h3>Semantic lineage candidates &mdash; not publisher assertions</h3>
+  {% for entry in chain.semantic_proposals %}
+  {% set proposal = entry.proposal %}
+  <article>
+    <p>{{ proposal.new.control.edition if proposal.new else "absent" }}
+      &rarr; {{ proposal.relationship_kind or proposal.lineage }} ({{ proposal.review_status }})
+      &rarr; {{ proposal.old.control.edition if proposal.old else "absent" }}.</p>
+    {% if proposal.verification %}
+    <p>{{ proposal.verification.method }}: {{ proposal.verification.judgment.outcome }};
+      confidence {{ proposal.confidence }}. {{ proposal.verification.judgment.rationale }}</p>
+    <blockquote>{{ proposal.verification.judgment.old_excerpt }}</blockquote>
+    <blockquote>{{ proposal.verification.judgment.new_excerpt }}</blockquote>
+    {% endif %}
+    <p>Proposed change: {{ proposal.proposed_change or "unknown / none" }};
+      numeric version {{ proposal.proposed_semantic_version or "unknown" }}. {{ proposal.version_note }}</p>
+    <pre>{{ proposal.guidance_diff }}</pre>
+  </article>
+  {% else %}<p>Run <code>ekb compare {{ from_edition }} {{ to_edition }} --control {{ control.control_id }}</code>
+    to persist review-only candidates.</p>{% endfor %}
+</section>
+<h2>Associated Azure Policy definitions</h2>
+{% for binding in view.policies %}
+<details>
+  <summary>{{ binding.reference.name }}</summary>
+  <p><code>{{ binding.reference.definition_id }}</code></p>
+  <p>Published reference version: {{ binding.reference.reference_version or "unknown" }}.</p>
+  {% if binding.definition %}
+  <p>Retrieved version: {{ binding.definition.version }}; mode: {{ binding.definition.mode }}.
+    Resources: {{ binding.definition.resource_types | join(", ") }}.</p>
+  <a href="{{ binding.definition.source_url }}">Actual policy JSON</a>
+  {% else %}<p>Definition not retrieved; reference remains unresolved.</p>{% endif %}
+  <blockquote>{{ binding.reference.evidence.excerpt }}</blockquote>
+</details>
+{% endfor %}
+{% endif %}
+{% if comparison %}
+<h2>{{ from_edition }} &rarr; {{ to_edition }}: loaded control identifiers</h2>
+<p>Added: {{ comparison.added_control_ids | join(", ") or "none" }}.</p>
+<p>Removed: {{ comparison.removed_control_ids | join(", ") or "none" }}.</p>
+<p>{{ comparison.notes | join(" ") }}</p>
+<table>
+  <thead><tr><th>Old / new</th><th>Semantic candidate</th><th>Changed fields</th><th>Proposed change</th></tr></thead>
+  <tbody>{% for change in comparison.changes %}
+  <tr><td>{{ change.old.control.control_id if change.old else "absent" }} /
+    {{ change.new.control.control_id if change.new else "absent" }}</td>
+    <td>{{ change.lineage }} ({{ change.review_status }})</td>
+    <td>{{ change.changed_fields | join(", ") }}</td><td>{{ change.proposed_change or "unknown / none" }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% endif %}
+{% endblock %}

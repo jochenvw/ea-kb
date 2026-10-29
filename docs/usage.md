@@ -116,6 +116,13 @@ These independent options are disabled by default; enabling them can incur provi
 Embeddings and valid judgments are cached independently of parser replay. Live paid-model quality
 has not been verified.
 
+The web `/benchmarks` explorer and TUI Benchmarks tab expose the same evidence chains and
+whole-edition changes. HTTP `/api/benchmarks` and four additional MCP benchmark tools inspect
+editions, controls, comparisons and lineage. These interfaces are read-only: cached comparisons
+or labeled structural previews, with no paid calls or proposal writes. Use CLI `compare` to persist
+a comparison. Source publication, overview maturity and version/scoped enterprise authority are
+shown separately.
+
 Repeated sync uses conditional requests only after checking cached hashes, skips unchanged parsing,
 and replays changed parsers. Failed refreshes preserve earlier valid artifacts. Focused runs retain
 other cached editions/domains. Download, skipped-parse and replay counts describe separate stages.

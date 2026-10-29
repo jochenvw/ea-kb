@@ -15,6 +15,12 @@ from sqlalchemy import text
 
 from ekb.config import Settings
 from ekb.domain.models import ConceptDetail, ProcessingTask, Provenance, ScanReport, SourceRecord
+from ekb.domain.reconciliation import (
+    BenchmarkLineage,
+    ComparisonReport,
+    ControlContext,
+    EditionView,
+)
 from ekb.observability import log
 from ekb.runtime import Runtime
 from ekb.services.knowledge import LineageResult, Statistics
@@ -74,6 +80,41 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     async def statistics(request: Request):
         return await active(request).knowledge.statistics()
 
+    @app.get("/api/benchmarks/compare", response_model=ComparisonReport)
+    async def compare_benchmarks(
+        request: Request,
+        from_edition: str = "mcsb-v1",
+        to_edition: str = "mcsb-v2",
+        control_id: str | None = None,
+    ):
+        try:
+            return await active(request).comparisons.compare(
+                from_edition, to_edition, control_id, read_only=True
+            )
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
+    @app.get("/api/benchmarks/editions/{edition}", response_model=EditionView)
+    async def benchmark_edition(request: Request, edition: str):
+        try:
+            return await active(request).comparisons.edition(edition)
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
+    @app.get("/api/benchmarks/controls/{reference}", response_model=ControlContext)
+    async def benchmark_control(request: Request, reference: str):
+        try:
+            return await active(request).comparisons.control(reference)
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
+    @app.get("/api/benchmarks/controls/{reference}/lineage", response_model=BenchmarkLineage)
+    async def benchmark_lineage(request: Request, reference: str):
+        try:
+            return await active(request).comparisons.lineage(reference)
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
     @app.get("/api/concepts", response_model=list[ConceptDetail])
     async def concepts(
         request: Request,
@@ -123,6 +164,35 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 "concept": detail,
                 "provenance": await provenance(request, concept_id),
                 "lineage": await lineage(request, concept_id),
+            },
+        )
+
+    @app.get("/benchmarks", response_class=HTMLResponse)
+    async def benchmark_page(
+        request: Request,
+        reference: str = "mcsb-v2:NS-6",
+        from_edition: str = "mcsb-v1",
+        to_edition: str = "mcsb-v2",
+    ):
+        error = None
+        chain = comparison = None
+        try:
+            chain = await active(request).comparisons.lineage(reference)
+            comparison = await active(request).comparisons.compare(
+                from_edition, to_edition, read_only=True
+            )
+        except ValueError as failure:
+            error = str(failure)
+        return templates.TemplateResponse(
+            request=request,
+            name="benchmarks.html",
+            context={
+                "chain": chain,
+                "comparison": comparison,
+                "error": error,
+                "reference": reference,
+                "from_edition": from_edition,
+                "to_edition": to_edition,
             },
         )
 

@@ -39,6 +39,21 @@ class BenchmarkService:
     ):
         self.database, self.verifier, self.embeddings = database, verifier, embeddings
 
+    async def edition(self, edition: str) -> EditionView:
+        async with self.database() as uow:
+            documents = await uow.benchmarks.documents(edition, role="overview", limit=1)
+            if not documents:
+                raise ValueError(f"No cached overview for {edition}")
+            root = documents[0]
+            source = await uow.sources.get(root.source_id)
+        return EditionView(
+            edition=edition,
+            publication=root.document.publication,
+            source_url=source.item.location if source else None,
+            snapshot_id=root.id,
+            successors=root.document.successors,
+        )
+
     async def _inputs(
         self, editions: tuple[str, ...], control_id: str | None = None
     ) -> tuple[
