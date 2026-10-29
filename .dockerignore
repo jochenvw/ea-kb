@@ -1,0 +1,12 @@
+.venv
+data
+.env
+.git
+.pytest_cache
+.ruff_cache
+.hypothesis
+**/__pycache__
+tests/unit
+tests/integration
+tests/contract
+tests/fixtures

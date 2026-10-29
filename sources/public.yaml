@@ -1,0 +1,92 @@
+# Official source locations verified during implementation. Never redistribute licensed ISO texts.
+sources:
+  - id: shell-annual-2025
+    publisher: Shell plc
+    name: Shell Annual Report and Accounts 2025 (selected strategy pages)
+    location: https://www.shell.com/investors/results-and-reporting/annual-report/_jcr_content/root/main/section/promo.multi.stream/1779352356739/36306d968747b6079d3f800b2b1552a033856b5d/shell-integrated-annual-and-sustainability-report.pdf
+    format: pdf
+    category: corporate-strategy
+    retrieval: http
+    access_notes: Public corporate report; Shell copyright. Retrieve for local analysis; do not redistribute the report.
+    intended_scope: Public Shell group reporting, not automatically a binding enterprise requirement. Initial sample covers PDF pages 8-15 only.
+    pages: [8, 9, 10, 11, 12, 13, 14, 15]
+  - id: shell-public-strategy
+    publisher: Shell plc
+    name: Shell public strategy
+    location: https://www.shell.com/what-we-do/our-strategy.model.json
+    format: web-json
+    category: corporate-strategy
+    retrieval: http
+    access_notes: Public JSON representation linked by the official strategy page; Shell copyright. Local analysis only.
+    intended_scope: Public corporate strategy at https://www.shell.com/what-we-do/our-strategy.html; not internal policy.
+  - id: shell-public-sustainability
+    publisher: Shell plc
+    name: Shell public sustainability
+    location: https://www.shell.com/what-we-do/our-strategy/sustainability.model.json
+    format: web-json
+    category: sustainability
+    retrieval: http
+    access_notes: Public JSON representation of the official sustainability page; Shell copyright. Local analysis only.
+    intended_scope: Public sustainability statements, with no assumed legal applicability.
+  - id: nist-csf-2.0
+    publisher: US National Institute of Standards and Technology
+    name: NIST Cybersecurity Framework 2.0 (selected OSCAL outcomes)
+    location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/CSF/v2.0/json/NIST_CSF_v2.0_catalog.json
+    format: oscal
+    category: cybersecurity
+    retrieval: oscal
+    jurisdiction: United States
+    access_notes: Official usnistgov repository; US government material. Follow repository license and third-party notices. Upstream main is mutable; original bytes and SHA-256 are retained.
+    intended_scope: Voluntary cybersecurity outcomes; applicability and enterprise binding status require a separate decision.
+    control_ids: [GV.OC-01, GV.RM-01, PR.AA-01]
+  - id: nist-sp800-53-rev5
+    publisher: US National Institute of Standards and Technology
+    name: NIST SP 800-53 revision 5 (selected OSCAL controls)
+    location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json
+    format: oscal
+    category: cybersecurity
+    retrieval: oscal
+    jurisdiction: United States
+    access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained; only selected controls parsed.
+    intended_scope: AC-1, AC-2 and IR-4 control statements/guidance; parameter placeholders remain unresolved. No automatic enterprise mandate.
+    control_ids: [ac-1, ac-2, ir-4]
+  - id: iso-iec-27001-metadata
+    publisher: International Organization for Standardization
+    name: ISO/IEC 27001 information security management systems
+    location: https://www.iso.org/standard/27001
+    format: html
+    category: industry-standard
+    retrieval: metadata
+    metadata_only: true
+    access_notes: Metadata reference only. ISO full text is copyrighted and requires a suitable license. Website may deny automated access.
+    intended_scope: Information security management systems metadata; no clause text or fabricated ISO requirement. Put licensed documents in a private local source directory.
+  - id: iso-14001-metadata
+    publisher: International Organization for Standardization
+    name: ISO 14001 environmental management systems
+    location: https://www.iso.org/standard/60857.html
+    format: html
+    category: industry-standard
+    retrieval: metadata
+    metadata_only: true
+    access_notes: Metadata reference to the 2015 edition; confirm current edition and applicability. No full-text download or redistribution.
+    intended_scope: Environmental management systems metadata only. Supply authorized clause text locally for extraction.
+  - id: uk-offshore-safety-2015-reg5
+    publisher: UK legislation.gov.uk / The National Archives
+    name: Offshore Installations (Offshore Safety Directive) (Safety Case etc.) Regulations 2015, regulation 5
+    location: https://www.legislation.gov.uk/uksi/2015/398/regulation/5/made/data.xml
+    format: xml
+    category: regulation-operational-safety
+    retrieval: http
+    jurisdiction: United Kingdom
+    access_notes: Official as-made legislation XML. Crown copyright; reuse subject to Open Government Licence and site exceptions. Check amendments before applying.
+    intended_scope: Duties of licensees within the instrument's offshore scope. Illustrative potential relevance only; no assertion that it applies to Shell or every operator.
+  - id: us-offshore-30cfr250-107-2025
+    publisher: US Government Publishing Office / Bureau of Safety and Environmental Enforcement
+    name: 30 CFR 250.107, 2025 edition - safe and workmanlike operations
+    location: https://www.govinfo.gov/content/pkg/CFR-2025-title30-vol2/xml/CFR-2025-title30-vol2-sec250-107.xml
+    format: xml
+    category: regulation-operational-safety
+    retrieval: http
+    jurisdiction: United States
+    access_notes: Official 2025 CFR edition, US government publication. Historical edition; verify current text and amendments.
+    intended_scope: Potentially relevant to covered US Outer Continental Shelf operations, not a universal oil-and-gas or Shell mandate.

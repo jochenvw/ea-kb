@@ -1,0 +1,113 @@
+{
+  "notes": "Manually labeled, deliberately small. Official excerpts are short, attributed and not full licensed works. Synthetic cases are explicitly identified; no ISO clauses are reproduced.",
+  "cases": [
+    {
+      "id": "shell-annual-objective",
+      "source": "Shell Annual Report and Accounts 2025, PDF page 12; official URL in sources/public.yaml. Short excerpt.",
+      "text": "We aim to sustain liquids production through to 2030",
+      "expected": [{"kind": "objective", "excerpt": "We aim to sustain liquids production through to 2030"}]
+    },
+    {
+      "id": "shell-strategy-objective",
+      "source": "Shell public strategy https://www.shell.com/what-we-do/our-strategy.html. Short strategy wording; objective annotation is manual.",
+      "text": "deliver more value with less emissions",
+      "expected": [{"kind": "objective", "excerpt": "deliver more value with less emissions"}]
+    },
+    {
+      "id": "nist-csf-outcome",
+      "source": "NIST CSF 2.0 official OSCAL GV.OC-01_statement, US government material.",
+      "text": "The organizational mission is understood and informs cybersecurity risk management",
+      "location": {"structured_control": true, "control_id": "GV.OC-01", "part_id": "GV.OC-01_statement"},
+      "expected": [{"kind": "objective", "excerpt": "The organizational mission is understood and informs cybersecurity risk management"}]
+    },
+    {
+      "id": "nist-sp800-53-control",
+      "source": "NIST SP 800-53 rev5 OSCAL AC-1, part ac-1_smt.a. Official usnistgov repository; US government material. Parameter placeholder intentionally unresolved.",
+      "text": "Develop, document, and disseminate to {{ insert: param, ac-1_prm_1 }}:",
+      "location": {"structured_control": true, "control_id": "ac-1", "part_id": "ac-1_smt.a"},
+      "expected": [{"kind": "requirement", "excerpt": "Develop, document, and disseminate to {{ insert: param, ac-1_prm_1 }}:", "modality": "unspecified"}]
+    },
+    {
+      "id": "nist-recommendation-synthetic",
+      "source": "Synthetic recommendation-shaped fixture, NOT a quotation or NIST control.",
+      "text": "Organizations should review account access periodically.",
+      "expected": [{"kind": "requirement", "excerpt": "Organizations should review account access periodically.", "modality": "recommended"}]
+    },
+    {
+      "id": "us-offshore-mandate",
+      "source": "30 CFR 250.107(a), 2025 edition, official govinfo XML; https://www.govinfo.gov/content/pkg/CFR-2025-title30-vol2/xml/CFR-2025-title30-vol2-sec250-107.xml",
+      "text": "You must protect health, safety, property, and the environment by:",
+      "expected": [{"kind": "requirement", "excerpt": "You must protect health, safety, property, and the environment by:", "modality": "mandated"}]
+    },
+    {
+      "id": "iso-metadata-not-requirement",
+      "source": "Independently authored ISO catalog metadata; no licensed clauses. https://www.iso.org/standard/27001",
+      "text": "ISO/IEC 27001 concerns information security management systems.",
+      "expected": []
+    },
+    {
+      "id": "licensed-standard-practice",
+      "source": "Synthetic internal licensing practice, NOT an ISO clause.",
+      "text": "Teams must use licensed copies when evaluating ISO requirements.",
+      "expected": [{"kind": "requirement", "excerpt": "Teams must use licensed copies when evaluating ISO requirements.", "modality": "mandated"}]
+    },
+    {
+      "id": "negation",
+      "source": "Synthetic policy fixture.",
+      "text": "Operators must not disable alarms.",
+      "expected": [{"kind": "requirement", "excerpt": "Operators must not disable alarms.", "modality": "mandated"}]
+    },
+    {
+      "id": "exception",
+      "source": "Synthetic policy fixture.",
+      "text": "Operators must retain logs unless a documented legal exception applies.",
+      "expected": [{"kind": "requirement", "excerpt": "Operators must retain logs unless a documented legal exception applies.", "modality": "mandated"}]
+    },
+    {
+      "id": "multiple-unrelated",
+      "source": "Synthetic strategy and governance fixture.",
+      "text": "We aim to reduce costs. Administrators should review access. We aim to improve availability.",
+      "expected": [
+        {"kind": "objective", "excerpt": "We aim to reduce costs."},
+        {"kind": "requirement", "excerpt": "Administrators should review access.", "modality": "recommended"},
+        {"kind": "objective", "excerpt": "We aim to improve availability."}
+      ]
+    },
+    {
+      "id": "duplicate-a",
+      "source": "Synthetic duplicate fixture A.",
+      "text": "Users must authenticate.",
+      "expected": [{"kind": "requirement", "excerpt": "Users must authenticate.", "modality": "mandated", "duplicate_group": "authenticate"}]
+    },
+    {
+      "id": "duplicate-b",
+      "source": "Synthetic duplicate fixture B.",
+      "text": "Users must authenticate.",
+      "expected": [{"kind": "requirement", "excerpt": "Users must authenticate.", "modality": "mandated", "duplicate_group": "authenticate"}]
+    },
+    {
+      "id": "similar-not-equivalent",
+      "source": "Synthetic non-equivalence fixture.",
+      "text": "Privileged users should authenticate with multiple factors.",
+      "expected": [{"kind": "requirement", "excerpt": "Privileged users should authenticate with multiple factors.", "modality": "recommended"}]
+    },
+    {
+      "id": "known-scope",
+      "source": "Synthetic explicit-scope fixture. The offline baseline intentionally cannot extract scope.",
+      "text": "In the United Kingdom, operators must maintain equipment.",
+      "expected": [{"kind": "requirement", "excerpt": "In the United Kingdom, operators must maintain equipment.", "modality": "mandated", "scope": {"jurisdiction": "United Kingdom"}}]
+    },
+    {
+      "id": "permission-not-mandate",
+      "source": "Synthetic permission fixture.",
+      "text": "Teams may use a documented alternative.",
+      "expected": []
+    },
+    {
+      "id": "qualified-outcome",
+      "source": "Synthetic strategy fixture.",
+      "text": "We aim to reduce costs without reducing availability.",
+      "expected": [{"kind": "objective", "excerpt": "We aim to reduce costs without reducing availability."}]
+    }
+  ]
+}

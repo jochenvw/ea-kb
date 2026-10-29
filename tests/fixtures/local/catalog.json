@@ -1,0 +1,24 @@
+{
+  "catalog": {
+    "uuid": "8a73d4c3-37db-48f4-a4a1-03cb45729a38",
+    "metadata": {
+      "title": "Synthetic OSCAL test fixture, not a NIST publication",
+      "version": "1.0",
+      "oscal-version": "1.1.3",
+      "last-modified": "2026-01-01T00:00:00Z"
+    },
+    "groups": [{
+      "id": "test",
+      "title": "Test controls",
+      "controls": [{
+        "id": "test-1",
+        "title": "Logging",
+        "parts": [{
+          "id": "test-1_smt",
+          "name": "statement",
+          "prose": "Administrators should retain security logs."
+        }]
+      }]
+    }]
+  }
+}

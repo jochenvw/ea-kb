@@ -1,0 +1,9 @@
+data_dir: data
+inference: rules
+artifact_backend: filesystem
+scan_concurrency: 4
+parse_concurrency: 2
+model_concurrency: 2
+ocr: false
+debug_artifacts: false
+manifest: sources/public.yaml

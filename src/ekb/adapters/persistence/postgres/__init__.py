@@ -1,0 +1,588 @@
+from __future__ import annotations
+
+import json
+import re
+from datetime import timedelta
+from difflib import SequenceMatcher
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from ekb.adapters.persistence.postgres.models import (
+    AuthorityRow,
+    ConceptRow,
+    OccurrenceRow,
+    ParseRow,
+    RelationshipRow,
+    RevisionRow,
+    RunRow,
+    SegmentResultRow,
+    SegmentRow,
+    SourceRow,
+    TaskRow,
+    VersionRow,
+)
+from ekb.domain.grounding import validate_evidence
+from ekb.domain.models import (
+    AuthorityEvent,
+    ConceptDetail,
+    ConceptVersion,
+    InferenceResult,
+    Occurrence,
+    ProcessingTask,
+    Provenance,
+    Relationship,
+    ScanReport,
+    Segment,
+    SourceRecord,
+    SourceRevision,
+    Usage,
+    now,
+    stable_id,
+)
+from ekb.observability import tracer
+
+
+async def upsert(session: AsyncSession, table: Any, values: dict[str, Any]) -> None:
+    statement = insert(table).values(**values)
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=["id"], set_={key: value for key, value in values.items() if key != "id"}
+        )
+    )
+
+
+async def immutable(session: AsyncSession, table: Any, values: dict[str, Any]) -> None:
+    await session.execute(insert(table).values(**values).on_conflict_do_nothing())
+
+
+class Sources:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get(self, source_id: UUID) -> SourceRecord | None:
+        row = await self.session.get(SourceRow, source_id)
+        return SourceRecord.model_validate(row.payload) if row else None
+
+    async def list(self) -> list[SourceRecord]:
+        rows = await self.session.scalars(select(SourceRow).order_by(SourceRow.location))
+        return [SourceRecord.model_validate(row.payload) for row in rows]
+
+    async def save(self, source: SourceRecord) -> None:
+        await upsert(
+            self.session,
+            SourceRow,
+            {
+                "id": source.item.id,
+                "connector": source.item.connector,
+                "location": source.item.location,
+                "payload": source.model_dump(mode="json"),
+            },
+        )
+
+    async def revision(self, revision_id: UUID) -> SourceRevision | None:
+        row = await self.session.get(RevisionRow, revision_id)
+        return SourceRevision.model_validate(row.payload) if row else None
+
+    async def save_revision(self, revision: SourceRevision) -> SourceRevision:
+        await immutable(
+            self.session,
+            RevisionRow,
+            {
+                "id": revision.id,
+                "source_id": revision.source_id,
+                "content_hash": revision.content_hash,
+                "predecessor_id": revision.predecessor_id,
+                "payload": revision.model_dump(mode="json"),
+            },
+        )
+        stored = await self.revision(revision.id)
+        assert stored is not None
+        return stored
+
+    async def save_segments(
+        self, revision_id: UUID, segments: list[Segment], parser_fingerprint: str
+    ) -> None:
+        for segment in segments:
+            await immutable(
+                self.session,
+                SegmentRow,
+                {
+                    "id": segment.id,
+                    "revision_id": segment.revision_id,
+                    "parser_fingerprint": parser_fingerprint,
+                    "ordinal": segment.ordinal,
+                    "parent_id": segment.parent_id,
+                    "payload": segment.model_dump(mode="json"),
+                },
+            )
+        await immutable(
+            self.session,
+            ParseRow,
+            {
+                "id": stable_id(revision_id, parser_fingerprint),
+                "revision_id": revision_id,
+                "parser_fingerprint": parser_fingerprint,
+            },
+        )
+
+    async def segments(self, revision_id: UUID, parser_fingerprint: str) -> list[Segment] | None:
+        if await self.session.get(ParseRow, stable_id(revision_id, parser_fingerprint)) is None:
+            return None
+        rows = await self.session.scalars(
+            select(SegmentRow)
+            .where(
+                SegmentRow.revision_id == revision_id,
+                SegmentRow.parser_fingerprint == parser_fingerprint,
+            )
+            .order_by(SegmentRow.ordinal)
+        )
+        return [Segment.model_validate(row.payload) for row in rows]
+
+
+class Knowledge:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def search(self, query: str = "", limit: int = 50) -> list[ConceptDetail]:
+        statement = select(ConceptRow.id).join(VersionRow).distinct()
+        if query:
+            statement = statement.where(VersionRow.statement.icontains(query, autoescape=True))
+        ids = await self.session.scalars(statement.order_by(ConceptRow.id).limit(min(limit, 200)))
+        return [detail for concept_id in ids if (detail := await self.get(concept_id))]
+
+    async def get(self, concept_id: UUID) -> ConceptDetail | None:
+        if await self.session.get(ConceptRow, concept_id) is None:
+            return None
+        versions = await self.session.scalars(
+            select(VersionRow)
+            .where(VersionRow.concept_id == concept_id)
+            .order_by(VersionRow.payload["recorded_at"].astext)
+        )
+        version_list = [ConceptVersion.model_validate(row.payload) for row in versions]
+        version_ids = [v.id for v in version_list]
+        occurrences = await self.session.scalars(
+            select(OccurrenceRow).where(OccurrenceRow.concept_version_id.in_(version_ids))
+        )
+        relationships = await self.session.scalars(
+            select(RelationshipRow).where(
+                or_(RelationshipRow.from_id == concept_id, RelationshipRow.to_id == concept_id)
+            )
+        )
+        events = await self.session.scalars(
+            select(AuthorityRow).where(AuthorityRow.concept_version_id.in_(version_ids))
+        )
+        return ConceptDetail(
+            id=concept_id,
+            versions=version_list,
+            occurrences=[Occurrence.model_validate(row.payload) for row in occurrences],
+            relationships=[Relationship.model_validate(row.payload) for row in relationships],
+            authority_events=[row.payload for row in events],
+        )
+
+    async def persist(self, segment: Segment, result: InferenceResult) -> list[UUID]:
+        validate_evidence(result.extraction, segment)
+        stored_segment = await self.session.get(SegmentRow, segment.id)
+        if stored_segment is None or Segment.model_validate(stored_segment.payload) != segment:
+            raise ValueError("Evidence must refer to the exact persisted segment")
+        concept_ids: list[UUID] = []
+        version_ids: list[UUID] = []
+        for candidate in result.extraction.candidates:
+            normalized = re.sub(r"\s+", " ", candidate.statement).strip().casefold()
+            identity_key = json.dumps(
+                [
+                    candidate.kind,
+                    normalized,
+                    candidate.modality,
+                    candidate.scope.model_dump(mode="json"),
+                ],
+                sort_keys=True,
+            )
+            concept_id = stable_id("concept", identity_key)
+            version = ConceptVersion(
+                id=stable_id(concept_id, "1.0.0"), concept_id=concept_id, candidate=candidate
+            )
+            with tracer.start_as_current_span(
+                "concept.persistence", attributes={"concept.id": str(concept_id)}
+            ):
+                await immutable(
+                    self.session,
+                    ConceptRow,
+                    {"id": concept_id, "identity_key": identity_key, "kind": candidate.kind},
+                )
+                await immutable(
+                    self.session,
+                    VersionRow,
+                    {
+                        "id": version.id,
+                        "concept_id": concept_id,
+                        "semantic_version": str(version.version),
+                        "statement": candidate.statement,
+                        "predecessor_id": None,
+                        "payload": version.model_dump(mode="json"),
+                    },
+                )
+                await self._occurrence(version.id, segment, candidate.excerpt, result)
+            concept_ids.append(concept_id)
+            version_ids.append(version.id)
+        for proposal in result.extraction.relationships:
+            from_id, to_id = concept_ids[proposal.from_index], concept_ids[proposal.to_index]
+            if from_id == to_id:
+                continue
+            occurrence = await self._occurrence(
+                version_ids[proposal.from_index], segment, proposal.excerpt, result
+            )
+            relationship = Relationship(
+                id=stable_id(from_id, to_id, proposal.kind, occurrence.id),
+                from_concept_id=from_id,
+                to_concept_id=to_id,
+                kind=proposal.kind,
+                occurrence_id=occurrence.id,
+                scope=proposal.scope,
+            )
+            with tracer.start_as_current_span("relationship.creation"):
+                await immutable(
+                    self.session,
+                    RelationshipRow,
+                    {
+                        "id": relationship.id,
+                        "from_id": from_id,
+                        "to_id": to_id,
+                        "kind": proposal.kind,
+                        "occurrence_id": occurrence.id,
+                        "payload": relationship.model_dump(mode="json"),
+                    },
+                )
+        return concept_ids
+
+    async def _occurrence(
+        self, version_id: UUID, segment: Segment, excerpt: str, result: InferenceResult
+    ) -> Occurrence:
+        start = segment.text.index(excerpt)
+        end = start + len(excerpt)
+        occurrence = Occurrence(
+            id=stable_id(version_id, segment.id, start, end),
+            concept_version_id=version_id,
+            segment_id=segment.id,
+            excerpt=excerpt,
+            start=start,
+            end=end,
+            extraction_metadata={
+                "model_id": result.model_id,
+                "prompt_version": result.prompt_version,
+                "usage": result.usage.model_dump(),
+                "authority": "candidate",
+            },
+        )
+        await immutable(
+            self.session,
+            OccurrenceRow,
+            {
+                "id": occurrence.id,
+                "concept_version_id": version_id,
+                "segment_id": segment.id,
+                "start_offset": start,
+                "end_offset": end,
+                "payload": occurrence.model_dump(mode="json"),
+            },
+        )
+        return occurrence
+
+    async def provenance(self, concept_id: UUID) -> list[Provenance]:
+        rows = await self.session.execute(
+            select(OccurrenceRow, SegmentRow, RevisionRow, SourceRow)
+            .join(SegmentRow, OccurrenceRow.segment_id == SegmentRow.id)
+            .join(RevisionRow, SegmentRow.revision_id == RevisionRow.id)
+            .join(SourceRow, RevisionRow.source_id == SourceRow.id)
+            .join(VersionRow, OccurrenceRow.concept_version_id == VersionRow.id)
+            .where(VersionRow.concept_id == concept_id)
+        )
+        return [
+            Provenance(
+                occurrence=Occurrence.model_validate(occ.payload),
+                segment=Segment.model_validate(seg.payload),
+                revision=SourceRevision.model_validate(rev.payload),
+                source=SourceRecord.model_validate(src.payload),
+            )
+            for occ, seg, rev, src in rows
+        ]
+
+    async def similar(self, concept_id: UUID, limit: int = 10) -> list[ConceptDetail]:
+        concept = await self.get(concept_id)
+        if not concept:
+            return []
+        statement = concept.versions[-1].candidate.statement.casefold()
+        words = re.findall(r"\w{4,}", statement)[:8]
+        if not words:
+            return []
+        rows = await self.session.scalars(
+            select(VersionRow)
+            .where(
+                VersionRow.concept_id != concept_id,
+                or_(*(VersionRow.statement.icontains(w, autoescape=True) for w in words)),
+            )
+            .limit(200)
+        )
+        ranked = sorted(
+            rows,
+            key=lambda row: SequenceMatcher(None, statement, row.statement.casefold()).ratio(),
+            reverse=True,
+        )
+        ids = list(dict.fromkeys(row.concept_id for row in ranked))[:limit]
+        return [detail for cid in ids if (detail := await self.get(cid))]
+
+    async def record_authority(self, event: AuthorityEvent) -> None:
+        await immutable(
+            self.session,
+            AuthorityRow,
+            {
+                "id": event.id,
+                "concept_version_id": event.concept_version_id,
+                "action": event.action,
+                "payload": event.model_dump(mode="json"),
+            },
+        )
+
+    async def add_version(self, version: ConceptVersion) -> None:
+        previous = await self.session.get(VersionRow, version.predecessor_id)
+        if previous is None or previous.concept_id != version.concept_id:
+            raise ValueError("An explicit predecessor in the same concept is required")
+        previous_model = ConceptVersion.model_validate(previous.payload)
+        current_numbers = (version.version.major, version.version.minor, version.version.patch)
+        old_numbers = (
+            previous_model.version.major,
+            previous_model.version.minor,
+            previous_model.version.patch,
+        )
+        if current_numbers <= old_numbers:
+            raise ValueError("New semantic version must exceed its predecessor")
+        await self.session.execute(
+            insert(VersionRow).values(
+                id=version.id,
+                concept_id=version.concept_id,
+                semantic_version=str(version.version),
+                predecessor_id=version.predecessor_id,
+                statement=version.candidate.statement,
+                payload=version.model_dump(mode="json"),
+            )
+        )
+
+
+class Lineage:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def trace_origins(self, concept_id: UUID, max_depth: int = 20) -> list[UUID]:
+        return await self._traverse(concept_id, False, max_depth)
+
+    async def find_dependents(self, concept_id: UUID, max_depth: int = 20) -> list[UUID]:
+        return await self._traverse(concept_id, True, max_depth)
+
+    async def _traverse(self, concept_id: UUID, reverse: bool, max_depth: int) -> list[UUID]:
+        start, target = ("to_id", "from_id") if reverse else ("from_id", "to_id")
+        # Column names are chosen solely from fixed internal constants, never user input.
+        statement = text(f"""
+            WITH RECURSIVE lineage(id, path, depth) AS (
+                SELECT CAST(:root AS uuid), ARRAY[CAST(:root AS uuid)], 0
+                UNION ALL
+                SELECT r.{target}, l.path || r.{target}, l.depth + 1
+                FROM relationships r JOIN lineage l ON r.{start} = l.id
+                WHERE r.kind IN ('DERIVES_FROM','DEPENDS_ON')
+                AND NOT r.{target} = ANY(l.path) AND l.depth < :depth
+            )
+            SELECT DISTINCT id FROM lineage WHERE depth > 0
+        """)
+        rows = await self.session.scalars(
+            statement, {"root": concept_id, "depth": max(1, min(max_depth, 100))}
+        )
+        return list(rows)
+
+
+class Processing:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def task(self, revision_id: UUID, fingerprint: str) -> ProcessingTask | None:
+        row = await self.session.scalar(
+            select(TaskRow).where(
+                TaskRow.revision_id == revision_id, TaskRow.fingerprint == fingerprint
+            )
+        )
+        return self._task(row) if row else None
+
+    @staticmethod
+    def _task(row: TaskRow) -> ProcessingTask:
+        return ProcessingTask.model_validate(row.payload).model_copy(
+            update={"status": row.status, "attempts": row.attempts}
+        )
+
+    async def claim(self, task: ProcessingTask, owner: UUID) -> bool:
+        until = now() + timedelta(minutes=5)
+        statement = insert(TaskRow).values(
+            id=task.id,
+            revision_id=task.revision_id,
+            fingerprint=task.fingerprint,
+            status="running",
+            owner=owner,
+            lease_until=until,
+            attempts=1,
+            payload=task.model_dump(mode="json"),
+        )
+        result = await self.session.scalar(
+            statement.on_conflict_do_update(
+                index_elements=["revision_id", "fingerprint"],
+                set_={
+                    "status": "running",
+                    "owner": owner,
+                    "lease_until": until,
+                    "attempts": TaskRow.attempts + 1,
+                },
+                where=and_(
+                    TaskRow.status != "done",
+                    or_(
+                        TaskRow.status != "running",
+                        TaskRow.lease_until < now(),
+                    ),
+                ),
+            ).returning(TaskRow.id)
+        )
+        return result is not None
+
+    async def heartbeat(self, task_id: UUID, owner: UUID) -> None:
+        result = await self.session.scalar(
+            update(TaskRow)
+            .where(TaskRow.id == task_id, TaskRow.owner == owner, TaskRow.status == "running")
+            .values(lease_until=now() + timedelta(minutes=5))
+            .returning(TaskRow.id)
+        )
+        if result is None:
+            raise RuntimeError("Processing lease lost")
+
+    async def finish(self, task: ProcessingTask, owner: UUID) -> None:
+        row = await self.session.scalar(
+            select(TaskRow)
+            .where(TaskRow.id == task.id, TaskRow.owner == owner, TaskRow.status == "running")
+            .with_for_update()
+        )
+        if row is None:
+            raise RuntimeError("Cannot complete a task owned by another worker")
+        task = task.model_copy(update={"usage": self._task(row).usage})
+        result = await self.session.scalar(
+            update(TaskRow)
+            .where(TaskRow.id == task.id, TaskRow.owner == owner, TaskRow.status == "running")
+            .values(
+                status=task.status,
+                lease_until=None,
+                owner=None,
+                payload=task.model_dump(mode="json"),
+            )
+            .returning(TaskRow.id)
+        )
+        if result is None:
+            raise RuntimeError("Cannot complete a task owned by another worker")
+
+    async def accumulate_usage(self, task_id: UUID, owner: UUID, usage: Usage) -> None:
+        row = await self.session.scalar(
+            select(TaskRow)
+            .where(TaskRow.id == task_id, TaskRow.owner == owner, TaskRow.status == "running")
+            .with_for_update()
+        )
+        if row is None:
+            raise RuntimeError("Processing lease lost while recording usage")
+        task = self._task(row)
+        old = task.usage
+        costs = [cost for cost in (old.cost, usage.cost) if cost is not None]
+        combined = Usage(
+            input_tokens=old.input_tokens + usage.input_tokens,
+            output_tokens=old.output_tokens + usage.output_tokens,
+            latency_ms=old.latency_ms + usage.latency_ms,
+            cost=sum(costs) if costs else None,
+            validation_failures=old.validation_failures + usage.validation_failures,
+        )
+        row.payload = task.model_copy(update={"usage": combined}).model_dump(mode="json")
+
+    async def save_scan(self, report: ScanReport) -> None:
+        await upsert(
+            self.session,
+            RunRow,
+            {
+                "id": report.id,
+                "started_at": report.started_at,
+                "payload": report.model_dump(mode="json"),
+            },
+        )
+
+    async def scans(self, limit: int = 25) -> list[ScanReport]:
+        rows = await self.session.scalars(
+            select(RunRow).order_by(RunRow.started_at.desc()).limit(limit)
+        )
+        return [ScanReport.model_validate(row.payload) for row in rows]
+
+    async def tasks(self, limit: int = 100) -> list[ProcessingTask]:
+        rows = await self.session.scalars(
+            select(TaskRow).order_by(TaskRow.id).limit(min(limit, 1000))
+        )
+        return [self._task(row) for row in rows]
+
+    async def cached(self, segment_id: UUID, fingerprint: str) -> InferenceResult | None:
+        row = await self.session.scalar(
+            select(SegmentResultRow)
+            .where(SegmentResultRow.inference_fingerprint == fingerprint)
+            .limit(1)
+        )
+        return InferenceResult.model_validate(row.payload) if row else None
+
+    async def cache(self, segment_id: UUID, fingerprint: str, result: InferenceResult) -> None:
+        await immutable(
+            self.session,
+            SegmentResultRow,
+            {
+                "id": stable_id(segment_id, fingerprint),
+                "segment_id": segment_id,
+                "inference_fingerprint": fingerprint,
+                "payload": result.model_dump(mode="json"),
+            },
+        )
+
+
+class PostgresUnitOfWork:
+    def __init__(self, factory: async_sessionmaker[AsyncSession]):
+        self.session = factory()
+        self.sources = Sources(self.session)
+        self.knowledge = Knowledge(self.session)
+        self.lineage = Lineage(self.session)
+        self.processing = Processing(self.session)
+
+    async def __aenter__(self) -> PostgresUnitOfWork:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.session.rollback()
+        await self.session.close()
+
+    async def commit(self) -> None:
+        with tracer.start_as_current_span("persistence.transaction"):
+            await self.session.commit()
+
+
+class Postgres:
+    def __init__(self, url: str, *, schema: str | None = None):
+        connect_args = {"server_settings": {"search_path": schema}} if schema else {}
+        self.engine: AsyncEngine = create_async_engine(
+            url, pool_pre_ping=True, connect_args=connect_args
+        )
+        self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
+
+    def __call__(self) -> PostgresUnitOfWork:
+        return PostgresUnitOfWork(self.sessions)
+
+    async def close(self) -> None:
+        await self.engine.dispose()

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Knowledge inventory</h1>
+<form action="/" method="get" hx-get="/" hx-target="#inventory">
+  <label for="q">Find objectives and requirements</label>
+  <input id="q" name="q" value="{{ q }}" placeholder="Search statements">
+  <button type="submit">Search</button>
+</form>
+<form action="/scans" method="post">
+  <label><input type="checkbox" name="public_manifest" value="true"> Include public source manifest</label>
+  <button type="submit">Start / resume scan</button>
+  <small>Scans use the server-configured local directory. Resuming reuses durable checkpoints.</small>
+</form>
+{% include "inventory.html" %}
+{% endblock %}
