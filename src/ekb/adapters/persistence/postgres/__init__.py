@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, text, update
+from sqlalchemy import and_, case, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -49,6 +49,7 @@ from ekb.domain.models import (
     ConceptSource,
     ConceptVersion,
     InferenceResult,
+    KnowledgeLevel,
     Occurrence,
     ProcessingTask,
     Provenance,
@@ -61,6 +62,7 @@ from ekb.domain.models import (
     Usage,
     WorkspaceCounts,
     fingerprint,
+    knowledge_level,
     now,
     stable_id,
 )
@@ -291,8 +293,36 @@ class Knowledge:
         *,
         after: UUID | None = None,
         source_id: UUID | None = None,
+        level: KnowledgeLevel | None = None,
     ) -> list[ConceptDetail]:
         matches = select(VersionRow.concept_id, VersionRow.id)
+        if level is not None:
+            explicit_platform = (
+                func.length(
+                    func.regexp_replace(
+                        func.coalesce(
+                            VersionRow.payload["candidate"]["scope"]["platform"].astext, ""
+                        ),
+                        r"\s",
+                        "",
+                        "g",
+                    )
+                )
+                > 0
+            )
+            matches = matches.where(
+                case(
+                    (
+                        and_(
+                            VersionRow.payload["candidate"]["kind"].astext == "requirement",
+                            explicit_platform,
+                        ),
+                        "implementation",
+                    ),
+                    else_="top_level",
+                )
+                == level.value
+            )
         if query:
             matches = matches.where(
                 or_(
@@ -397,6 +427,7 @@ class Knowledge:
             relationships=[Relationship.model_validate(row.payload) for row in relationships],
             authority_events=[event.model_dump(mode="json") for event in event_list],
             sources=list(citations.values()),
+            levels={version.id: knowledge_level(version.candidate) for version in version_list},
             authority_states=project_authority(
                 event_list,
                 datetime.now(UTC).date(),

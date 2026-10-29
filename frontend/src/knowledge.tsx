@@ -29,6 +29,7 @@ import {
 import {
   date,
   assertionText,
+  levelLabel,
   externalUrl,
   label,
   semanticVersion,
@@ -39,6 +40,9 @@ import type { Concept, Provenance, Source, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
 
 export function Knowledge() {
+  const [level, setLevel] = useState(
+    new URLSearchParams(location.search).get("level") ?? "top_level",
+  );
   const [sourceId, setSourceId] = useState(
     new URLSearchParams(location.search).get("source_id") ?? "",
   );
@@ -47,7 +51,7 @@ export function Knowledge() {
     new URLSearchParams(location.search).get("q") ?? "",
   );
   const debounced = useDebounced(query);
-  const filterKey = `${sourceId}\0${debounced}`;
+  const filterKey = `${level}\0${sourceId}\0${debounced}`;
   const [pagination, setPagination] = useState<{
     query: string;
     cursors: (string | null)[];
@@ -55,7 +59,7 @@ export function Knowledge() {
   const cursors = pagination.query === filterKey ? pagination.cursors : [null];
   const cursor = cursors.at(-1);
   const resource = useResource<Concept[]>(
-    `/api/concepts?limit=50&q=${encodeURIComponent(debounced)}${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
+    `/api/concepts?limit=50&q=${encodeURIComponent(debounced)}${level ? `&level=${level}` : ""}${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
   );
   const rows = resource.data ?? [];
   return (
@@ -70,6 +74,21 @@ export function Knowledge() {
         description="Concise assertion candidates, linked to their original source passages."
       >
         <div className="toolbar">
+          <Filter
+            name="Architecture level"
+            value={level}
+            onChange={(value) => {
+              setLevel(value);
+              const params = new URLSearchParams(location.search);
+              params.set("level", value);
+              history.replaceState(null, "", `${location.pathname}?${params}`);
+            }}
+            options={[
+              ["top_level", "Goals & guidance"],
+              ["implementation", "Platform implementation"],
+              ["", "All levels"],
+            ]}
+          />
           <SearchBox
             value={query}
             onChange={(value) => {
@@ -108,9 +127,14 @@ export function Knowledge() {
           <span className="sr-only">Source document filters loaded</span>
         </LoadState>
         <p className="table-note">
-          One assertion per row. Source filters select evidenced versions, not
-          an unrelated latest interpretation. Browse 50 matches per page.
-          Rephrasing is a candidate summary, never a new policy obligation.
+          {level === "top_level" &&
+            "Showing goals and guidance. Choose Platform implementation for Azure baselines. "}
+          Goals and framework guidance describe intent. Explicitly
+          platform-scoped requirements describe implementation. This is a
+          presentation level, not authority or proof of coverage. One assertion
+          per row. Source filters select evidenced versions, not an unrelated
+          latest interpretation. Browse 50 matches per page. Rephrasing is a
+          candidate summary, never a new policy obligation.
         </p>
         <LoadState
           resource={{
@@ -123,6 +147,7 @@ export function Knowledge() {
             <TableHeader>
               <TableRow>
                 <TableHead className="statement-column">Assertion</TableHead>
+                <TableHead>Architecture level</TableHead>
                 <TableHead>Source document</TableHead>
                 <TableHead>Kind</TableHead>
                 <TableHead>Publisher maturity</TableHead>
@@ -145,6 +170,7 @@ export function Knowledge() {
                     source.version_ids.includes(version.id),
                 );
                 const params = new URLSearchParams();
+                params.set("level", level);
                 if (version) params.set("version_id", version.id);
                 if (sourceId) params.set("source_id", sourceId);
                 if (debounced) params.set("q", debounced);
@@ -171,6 +197,11 @@ export function Knowledge() {
                             : "Original wording · rephrasing pending"}
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {levelLabel(concept.levels?.[version?.id ?? ""])}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       {documents.length ? (
@@ -337,6 +368,13 @@ export function ConceptPage({
                 </a>
               </Button>
               <div className="tag-row">
+                <Badge variant="outline">
+                  {levelLabel(concept.data.levels?.[version.id])}
+                  {concept.data.levels?.[version.id] === "implementation" &&
+                  version.candidate.scope.platform
+                    ? ` · ${version.candidate.scope.platform}`
+                    : ""}
+                </Badge>
                 <Badge variant="secondary">
                   {label(version.candidate.kind)}
                 </Badge>
@@ -355,6 +393,7 @@ export function ConceptPage({
                 <p className="callout">{version.candidate.uncertainty}</p>
               )}
             </Panel>
+            <RelationshipGraph id={id} />
             <Tabs defaultValue="evidence" className="detail-tabs">
               <TabsList aria-label="Concept information">
                 <TabsTrigger value="evidence">Source evidence</TabsTrigger>
@@ -433,7 +472,6 @@ export function ConceptPage({
                 />
               </TabsContent>
               <TabsContent value="history">
-                <RelationshipGraph id={id} />
                 <Panel
                   title="Version history"
                   description="Publisher edition labels are not invented semantic versions."

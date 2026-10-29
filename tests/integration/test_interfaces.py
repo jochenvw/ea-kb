@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from textual.widgets import DataTable, Input, Static, TabbedContent
 
 from ekb.config import Settings
-from ekb.domain.models import AuthorityEvent, Scope
+from ekb.domain.models import AuthorityEvent, ConceptKind, Scope
 from ekb.interfaces.api import create_app
 from ekb.interfaces.mcp import create_server
 from ekb.interfaces.tui import KnowledgeApp
@@ -138,7 +138,11 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                         "semantic_version": SemanticVersion(major=1, minor=0, patch=0),
                         "recorded_at": now(),
                         "candidate": original.candidate.model_copy(
-                            update={"statement": "A later interpretation without this source."}
+                            update={
+                                "statement": "A later interpretation without this source.",
+                                "kind": ConceptKind.REQUIREMENT,
+                                "scope": Scope(platform="Azure"),
+                            }
                         ),
                     }
                 )
@@ -160,6 +164,16 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                 assert (
                     await client.get(f"/api/concepts?source_id={source_id}&q=A%20later")
                 ).json() == []
+                implementations = (await client.get("/api/concepts?level=implementation")).json()
+                implementation = next(
+                    row for row in implementations if row["id"] == item["concept_id"]
+                )
+                assert implementation["matching_version_id"] == str(later.id)
+                assert implementation["levels"][str(later.id)] == "implementation"
+                assert (
+                    await client.get(f"/api/concepts?level=implementation&source_id={source_id}")
+                ).json() == []
+                assert (await client.get("/api/concepts?level=invalid")).status_code == 422
                 assert (await client.get("/api/concepts?source_id=invalid")).status_code == 422
                 assert (await client.get(f"/api/concepts?source_id={uuid4()}")).json() == []
                 first_filtered = (

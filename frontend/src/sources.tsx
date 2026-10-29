@@ -37,6 +37,7 @@ import {
   assertionText,
   externalUrl,
   label,
+  levelLabel,
   semanticVersion,
   useResource,
 } from "@/lib/api";
@@ -332,7 +333,7 @@ export function SourcePage({ id }: { id: string }) {
                 <p className="callout">{data.source.error}</p>
               )}
               <Button variant="outline" size="sm" asChild>
-                <a href={`/knowledge?source_id=${id}`}>
+                <a href={`/knowledge?source_id=${id}&level=`}>
                   Filter knowledge by this source
                   <ArrowUpRight />
                 </a>
@@ -372,10 +373,13 @@ export function SourcePage({ id }: { id: string }) {
                         <TableCell>
                           <a
                             className="statement-link"
-                            href={`/concepts/${item.concept_id}?version_id=${item.version.id}&source_id=${id}`}
+                            href={`/concepts/${item.concept_id}?version_id=${item.version.id}&source_id=${id}&level=${item.level ?? ""}`}
                           >
                             {assertionText(item.version, id)}
                           </a>
+                          <span className="cell-caption">
+                            {levelLabel(item.level)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="secondary">

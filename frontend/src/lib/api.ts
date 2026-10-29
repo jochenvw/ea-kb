@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import type { SemanticVersion, Version } from "@/types";
 
+export function levelLabel(level: string | undefined | null) {
+  return level === "implementation"
+    ? "Platform implementation"
+    : level === "top_level"
+      ? "Goals & guidance"
+      : "Level not classified";
+}
+
 export function assertionText(
   version: Version | undefined,
   sourceId?: string | null,

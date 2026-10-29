@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from ekb import __version__
 from ekb.config import Settings
+from ekb.domain.models import KnowledgeLevel
 from ekb.interfaces.cli.evaluation import register as register_evaluation
 from ekb.interfaces.cli.workflow import register
 from ekb.runtime import Runtime
@@ -141,10 +142,11 @@ def concepts_list(
     query: str = "",
     limit: Annotated[int, typer.Option(min=1, max=200)] = 50,
     source_id: Annotated[UUID | None, typer.Option()] = None,
+    level: Annotated[KnowledgeLevel | None, typer.Option()] = None,
 ) -> None:
     async def execute():
         async with Runtime() as runtime:
-            return await runtime.knowledge.search(query, limit, source_id=source_id)
+            return await runtime.knowledge.search(query, limit, source_id=source_id, level=level)
 
     emit(asyncio.run(execute()))
 

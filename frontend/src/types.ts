@@ -73,6 +73,7 @@ export interface Concept {
     status: string;
   }[];
   matching_version_id?: string | null;
+  levels?: Record<string, "top_level" | "implementation">;
   sources?: {
     id: string;
     name: string;
@@ -171,19 +172,32 @@ export interface SourceInspection {
   segments: number;
   versions: number;
   occurrences: number;
-  items: { concept_id: string; version: Version; evidence_count: number }[];
+  items: {
+    concept_id: string;
+    version: Version;
+    evidence_count: number;
+    level?: string;
+  }[];
   next_cursor: string | null;
 }
 
 export interface KnowledgeGraph {
   root: string;
-  nodes: { id: string; label: string; kind: string; href: string }[];
+  nodes: {
+    id: string;
+    label: string;
+    kind: string;
+    href: string;
+    level?: string | null;
+  }[];
   edges: {
     source: string;
     target: string;
     kind: string;
     status: string;
     href: string;
+    evidence?: { excerpt: string; source_url: string } | null;
+    note?: string | null;
   }[];
   truncated: boolean;
 }

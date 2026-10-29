@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ekb.adapters.persistence.postgres.implementation_graph import implementation_context
 from ekb.adapters.persistence.postgres.models import (
     Base,
     ConceptRow,
@@ -33,7 +34,7 @@ from ekb.domain.inspection import (
     TableInfo,
     TablePage,
 )
-from ekb.domain.models import SourceRecord
+from ekb.domain.models import SourceRecord, knowledge_level
 from ekb.domain.resolution import Decision, Finding
 
 
@@ -151,6 +152,7 @@ class Inspection:
                     concept_id=row.concept_id,
                     version=row.to_domain(),
                     evidence_count=count,
+                    level=knowledge_level(row.to_domain().candidate),
                 )
                 for row, count in rows[:limit]
             ],
@@ -272,6 +274,10 @@ class Inspection:
                             href=f"/review?finding_id={finding.id}",
                         )
                     )
+        context_nodes, context_edges, context_truncated = await implementation_context(
+            self.session, concept_id
+        )
+        edges = [*context_edges, *edges]
         ids = {concept_id}
         retained = []
         for edge in edges:
@@ -303,13 +309,23 @@ class Inspection:
         nodes = [
             GraphNode(
                 id=version.concept_id,
-                label=(version.assertion.text if version.assertion else None)
-                or version.candidate.statement,
+                label=(
+                    f"{version.candidate.scope.platform} · "
+                    f"{version.candidate.source_key or 'implementation'}: "
+                    if knowledge_level(version.candidate).value == "implementation"
+                    else ""
+                )
+                + (
+                    (version.assertion.text if version.assertion else None)
+                    or version.candidate.statement
+                ),
                 kind=version.candidate.kind,
                 href=f"/concepts/{version.concept_id}",
+                level=knowledge_level(version.candidate),
             )
             for version in (row.to_domain() for row in versions)
         ]
+        nodes.extend(node for node in context_nodes if node.id in ids)
         sources = list(
             (
                 await self.session.execute(
@@ -347,5 +363,9 @@ class Inspection:
             root=concept_id,
             nodes=nodes,
             edges=retained,
-            truncated=len(relations) > 12 or len(findings) > 12 or len(sources) > 8 or truncated,
+            truncated=len(relations) > 12
+            or len(findings) > 12
+            or len(sources) > 8
+            or truncated
+            or context_truncated,
         )

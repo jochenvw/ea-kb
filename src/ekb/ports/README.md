@@ -2,7 +2,7 @@
 
 `__init__.py` defines small typed `Protocol` interfaces for sources, artifacts, parsing, inference,
 repositories and explicit units of work.
-Knowledge search supports exact-source filters and exclusive UUID cursors in stable identifier order.
+Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.
 `AssertionWriter` rephrases a version against its exact evidence; original candidates stay immutable.
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.
 `InspectionRepository` provides bounded source, graph, backlog and allowlisted table queries.

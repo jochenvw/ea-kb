@@ -8,15 +8,23 @@ import {
   SearchBox,
   Empty,
   Status,
+  Filter,
 } from "@/components/workspace";
-import { label, useDebounced, useResource } from "@/lib/api";
+import {
+  label,
+  levelLabel,
+  assertionText,
+  useDebounced,
+  useResource,
+} from "@/lib/api";
 import type { Concept, KnowledgeGraph } from "@/types";
 
 export function Explorer() {
+  const [level, setLevel] = useState("");
   const [query, setQuery] = useState("");
   const debounced = useDebounced(query);
   const matches = useResource<Concept[]>(
-    `/api/concepts?limit=20&q=${encodeURIComponent(debounced)}`,
+    `/api/concepts?limit=20&q=${encodeURIComponent(debounced)}${level ? `&level=${level}` : ""}`,
   );
   const selected = new URLSearchParams(location.search).get("concept");
   return (
@@ -36,6 +44,16 @@ export function Explorer() {
           value={query}
           onChange={setQuery}
         />
+        <Filter
+          name="Architecture level"
+          value={level}
+          onChange={setLevel}
+          options={[
+            ["", "All levels"],
+            ["top_level", "Goals & guidance"],
+            ["implementation", "Platform implementation"],
+          ]}
+        />
         <LoadState
           resource={{
             ...matches,
@@ -50,8 +68,22 @@ export function Explorer() {
                 aria-current={concept.id === selected ? "true" : undefined}
                 href={`/explore?concept=${concept.id}`}
               >
-                {concept.versions.at(-1)?.candidate.statement ??
-                  "Interpretation"}
+                <span>
+                  {assertionText(
+                    concept.versions.find(
+                      (v) => v.id === concept.matching_version_id,
+                    ) ?? concept.versions.at(-1),
+                  )}
+                  <small className="cell-caption">
+                    {levelLabel(
+                      concept.levels?.[
+                        concept.matching_version_id ??
+                          concept.versions.at(-1)?.id ??
+                          ""
+                      ],
+                    )}
+                  </small>
+                </span>
                 <ArrowUpRight size={14} />
               </a>
             ))}
@@ -85,47 +117,71 @@ function lines(text: string) {
 }
 
 export function RelationshipGraph({ id }: { id: string }) {
+  const [showProposals, setShowProposals] = useState(false);
   const resource = useResource<KnowledgeGraph>(
     `/api/concepts/${encodeURIComponent(id)}/graph`,
   );
   const marker = useId().replaceAll(":", "");
   const graph = resource.data;
-  const sources = graph?.nodes.filter((node) => node.kind === "source") ?? [];
-  const related =
-    graph?.nodes.filter(
-      (node) => node.kind !== "source" && node.id !== graph.root,
+  const edges =
+    graph?.edges.filter(
+      (edge) =>
+        showProposals || !["proposal", "proposed"].includes(edge.status),
     ) ?? [];
-  const height = Math.max(
-    280,
-    Math.max(sources.length, related.length) * 124 + 80,
+  const visible = new Set([
+    id,
+    ...edges.flatMap((edge) => [edge.source, edge.target]),
+  ]);
+  const nodes = graph?.nodes.filter((node) => visible.has(node.id)) ?? [];
+  const related = nodes.filter(
+    (node) => node.kind !== "source" && node.id !== graph?.root,
   );
-  const positions = new Map(
-    (graph?.nodes ?? []).map((node) => {
-      const column = node.kind === "source" ? sources : related;
-      return [
-        node.id,
-        {
-          x: node.kind === "source" ? 16 : node.id === graph?.root ? 368 : 720,
-          y:
-            node.id === graph?.root
-              ? height / 2 - 48
-              : 48 + column.indexOf(node) * 124,
-        },
-      ];
-    }),
-  );
+  const positions = new Map<string, { x: number; y: number }>();
+  let height = 0;
+  const lanes = [
+    { key: "top_level", title: "Goals & guidance" },
+    { key: "implementation", title: "Platform implementation" },
+    ...(nodes.some((node) => node.kind !== "source" && !node.level)
+      ? [{ key: "unknown", title: "Level not classified" }]
+      : []),
+    { key: "source", title: "Source evidence" },
+  ].map((lane) => {
+    const members = nodes.filter((node) =>
+      lane.key === "source"
+        ? node.kind === "source"
+        : node.kind !== "source" && (node.level ?? "unknown") === lane.key,
+    );
+    const y = height;
+    const size = Math.max(1, Math.ceil(members.length / 3)) * 132 + 52;
+    members.forEach((node, index) =>
+      positions.set(node.id, {
+        x: 32 + (index % 3) * 320,
+        y: y + 44 + Math.floor(index / 3) * 132,
+      }),
+    );
+    height += size + 24;
+    return { ...lane, y, size, empty: !members.length };
+  });
   return (
     <Panel
       title="Evidence & relationship map"
-      description="Concept-level navigation across retained versions, not proof for every version. Click sources for exact evidence or connected interpretations to recenter. Dashed links are proposals, not accepted identity or authority."
+      description="Concept-level context across retained versions, not proof for a selected version. Goals and guidance sit above platform implementations. Published mappings link whole controls, not clause coverage, equivalence, compliance or company alignment. Dashed proposals require review."
     >
       <LoadState resource={resource}>
         {graph && (
           <>
             <div className="graph-legend">
-              <span>Source evidence</span>
-              <span>Interpretations</span>
-              <span>Recorded links / dashed proposals</span>
+              <span>Intent above implementation</span>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-pressed={showProposals}
+                onClick={() => setShowProposals(!showProposals)}
+              >
+                {showProposals
+                  ? "Hide review proposals"
+                  : "Show review proposals"}
+              </Button>
             </div>
             <div
               className="graph-viewport"
@@ -151,50 +207,76 @@ export function RelationshipGraph({ id }: { id: string }) {
                     <path d="M 0 0 L 10 5 L 0 10 z" className="graph-arrow" />
                   </marker>
                 </defs>
-                {graph.edges.map((edge, index) => {
+                {lanes.map((lane) => (
+                  <g key={lane.key}>
+                    <rect
+                      x="12"
+                      y={lane.y}
+                      width="976"
+                      height={lane.size}
+                      className="graph-lane"
+                    />
+                    <text x="32" y={lane.y + 26} className="graph-lane-title">
+                      {lane.title}
+                    </text>
+                    {lane.empty && (
+                      <text x="32" y={lane.y + 80} className="graph-kind">
+                        {lane.key === "implementation"
+                          ? "No recorded platform implementation linked."
+                          : "No recorded nodes at this level."}
+                      </text>
+                    )}
+                  </g>
+                ))}
+                {edges.map((edge, index) => {
                   const from = positions.get(edge.source);
                   const to = positions.get(edge.target);
                   if (!from || !to) return null;
+                  const sameRow = from.y === to.y;
                   const forward = from.x < to.x;
-                  const x1 = from.x + (forward ? 264 : 0),
-                    x2 = to.x + (forward ? 0 : 264),
-                    y1 = from.y + 48,
-                    y2 = to.y + 48;
+                  const below = from.y < to.y;
+                  const x1 = sameRow
+                      ? from.x + (forward ? 264 : 0)
+                      : from.x + 132,
+                    x2 = sameRow ? to.x + (forward ? 0 : 264) : to.x + 132,
+                    y1 = sameRow ? from.y + 48 : from.y + (below ? 96 : 0),
+                    y2 = sameRow ? to.y + 48 : to.y + (below ? 0 : 96);
+                  const curve = sameRow
+                    ? `M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`
+                    : `M ${x1} ${y1} V ${y1 + (below ? 12 : -12)} H ${956 + (index % 6) * 5} V ${y2 + (below ? -12 : 12)} H ${x2} V ${y2}`;
                   return (
                     <a
                       key={index}
                       href={edge.href}
                       aria-label={`Inspect ${label(edge.kind)} ${label(edge.status)} link`}
                     >
+                      <title>
+                        {label(edge.kind)} · {label(edge.status)}
+                      </title>
                       <path
-                        d={`M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`}
+                        d={curve}
                         className={`graph-edge ${["proposal", "proposed"].includes(edge.status) ? "is-proposal" : ""}`}
                         markerEnd={`url(#${marker})`}
                       />
-                      <text
-                        x={(x1 + x2) / 2}
-                        y={(y1 + y2) / 2 - 8}
-                        textAnchor="middle"
-                        className="graph-edge-label"
-                      >
-                        {label(edge.kind).slice(0, 20)}
-                      </text>
                     </a>
                   );
                 })}
-                {graph.nodes.map((node) => {
+                {nodes.map((node) => {
                   const position = positions.get(node.id)!;
                   const href =
-                    node.kind === "source" || node.id === graph.root
+                    ["source", "framework_control"].includes(node.kind) ||
+                    node.id === graph.root
                       ? node.href
                       : `/explore?concept=${node.id}`;
                   return (
                     <a
                       key={`${node.kind}-${node.id}`}
                       href={href}
-                      aria-label={`${node.kind === "source" ? "Browse source" : node.id === graph.root ? "Inspect interpretation" : "Explore"} ${node.label}`}
+                      aria-label={`${node.kind === "source" ? "Browse source" : node.kind === "framework_control" ? "Browse native control" : node.id === graph.root ? "Inspect interpretation" : "Explore"} ${node.label}`}
                     >
-                      <title>{node.label}</title>
+                      <title>
+                        {levelLabel(node.level)}: {node.label}
+                      </title>
                       <rect
                         x={position.x}
                         y={position.y}
@@ -232,24 +314,41 @@ export function RelationshipGraph({ id }: { id: string }) {
             </div>
             {!related.length && (
               <p className="table-note">
-                No connected interpretations are recorded in this neighborhood.
-                Unresolved targets are not invented as nodes.
+                No implementation or alignment link is recorded in this
+                neighborhood. Missing goal alignments and unresolved targets are
+                not invented.
               </p>
             )}
             {graph.truncated && (
               <p className="callout">
-                This is a bounded neighborhood: up to 12 related interpretations
-                and 8 source documents. More records exist; follow a node or
-                inspect the ledger.
+                This is a bounded neighborhood: up to 12 related records and 8
+                source documents. More records exist; follow a node or inspect
+                the ledger.
               </p>
             )}
             <div className="graph-links" aria-label="Relationship evidence">
-              {graph.edges.map((edge, index) => (
-                <a key={index} href={edge.href}>
-                  <span>{label(edge.kind)}</span>
-                  <Status value={edge.status} />
-                  <ArrowUpRight size={14} />
-                </a>
+              {edges.map((edge, index) => (
+                <div className="graph-record" key={index}>
+                  <a key={index} href={edge.href}>
+                    <span>
+                      {label(edge.kind)}
+                      {edge.evidence
+                        ? ` · ${nodes.find((node) => node.id === edge.target)?.label ?? ""}`
+                        : ""}
+                    </span>
+                    <Status value={edge.status} />
+                    <ArrowUpRight size={14} />
+                  </a>
+                  {(edge.note || edge.evidence) && (
+                    <details className="mapping-evidence">
+                      <summary>Link basis & evidence</summary>
+                      {edge.note && <p>{edge.note}</p>}
+                      {edge.evidence && (
+                        <blockquote>{edge.evidence.excerpt}</blockquote>
+                      )}
+                    </details>
+                  )}
+                </div>
               ))}
             </div>
             <div className="heading-actions">

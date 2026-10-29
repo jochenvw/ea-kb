@@ -1,7 +1,7 @@
 # Shared application services
 
 - `knowledge.py` exposes concept, provenance, lineage, related-requirement and usage queries.
-  Search forwards bounded UUID-cursor pages rather than loading the full corpus for the browser.
+  Search forwards source/level-filtered UUID-cursor pages without loading the complete corpus.
 - `assertions.py` phrases existing versions with bounded model workers and replay caching;
   it never changes original candidates, occurrences, identities or authority.
 - `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.

@@ -4,6 +4,7 @@
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters and text search match the same evidenced version, not an unrelated latest one.
+- Level filters use that same version; `implementation_graph.py` joins current, exact native mappings.
 - `concept_versions.assertion` is a replaceable phrasing cache; original version payloads stay immutable.
 - `Postgres` creates units of work; uncommitted changes roll back on exit.
 - `reset` locks and clears only EKB tables transactionally; active scans/leases block fresh starts.

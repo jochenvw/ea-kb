@@ -36,6 +36,11 @@ class ConceptKind(StrEnum):
     REQUIREMENT = "requirement"
 
 
+class KnowledgeLevel(StrEnum):
+    TOP_LEVEL = "top_level"
+    IMPLEMENTATION = "implementation"
+
+
 class Modality(StrEnum):
     MANDATED = "mandated"
     RECOMMENDED = "recommended"
@@ -295,6 +300,12 @@ class Candidate(Model):
         return self
 
 
+def knowledge_level(candidate: Candidate) -> KnowledgeLevel:
+    if candidate.kind == ConceptKind.REQUIREMENT and (candidate.scope.platform or "").strip():
+        return KnowledgeLevel.IMPLEMENTATION
+    return KnowledgeLevel.TOP_LEVEL
+
+
 class ProposedRelationship(Model):
     from_index: int = Field(ge=0)
     to_index: int = Field(ge=0)
@@ -418,6 +429,7 @@ class ConceptDetail(Model):
     authority_states: list[AuthorityState] = Field(default_factory=list)
     sources: list[ConceptSource] = Field(default_factory=list)
     matching_version_id: UUID | None = None
+    levels: dict[UUID, KnowledgeLevel] = Field(default_factory=dict)
 
 
 class Provenance(Model):

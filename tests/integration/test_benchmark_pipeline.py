@@ -37,6 +37,7 @@ pytestmark = pytest.mark.integration
 
 async def test_native_mapping_resolution_requires_exact_catalog_revision_and_published_label(
     database,
+    tmp_path,
 ):
     parser, inference = StructuredParser(), RulesInference()
     expected = {}
@@ -89,6 +90,60 @@ async def test_native_mapping_resolution_requires_exact_catalog_revision_and_pub
         assert await uow.benchmarks.native_controls("nist-sp-800-53", "5", "SC-7") == []
         assert await uow.benchmarks.native_controls("nist-sp-800-53", "3", "SC-7(5)") == []
         assert await uow.benchmarks.native_controls("nist-csf", "5", "SC-7(5)") == []
+    body = (
+        "# Synthetic benchmark\n\n## NS-6: Protect applications\n\n"
+        "### Security principle\n\nProtect applications with a firewall.\n\n"
+        "### NS-6.1: Configure a firewall\n\nChoose Application Gateway or Front Door.\n\n"
+        "### Control mapping\n\n- **NIST SP800-53 Rev.5:** SC-7(5), SC-7\n"
+    )
+    artifacts = FilesystemArtifactStore(tmp_path / "artifacts")
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=body))
+    ) as client:
+        connector = MicrosoftLearnBenchmarkConnector(artifacts, client=client)
+        await connector._sync_asset(
+            _asset("mcsb-v2", LEARN + "mcsb-v2-network-security", "domain", domain="NS"), Counter()
+        )
+        report = await IngestionPipeline(database, artifacts, parser, inference).scan([connector])
+        assert report.failed == 0
+    async with database() as uow:
+        record = (await uow.benchmarks.documents("mcsb-v2", "NS-6"))[0]
+        parent, child = record.concept_ids["NS-6"], record.concept_ids["NS-6.1"]
+        graph = await uow.inspection.graph(parent)
+        assert graph
+        references = [node for node in graph.nodes if node.kind == "framework_control"]
+        assert len(references) == 1 and "SC-7(5)" in references[0].label
+        mappings = [edge for edge in graph.edges if edge.kind == "MAPS_TO"]
+        assert len(mappings) == 1 and mappings[0].status == "published"
+        assert mappings[0].evidence == record.document.controls[0].mappings[0].evidence
+        assert next(node for node in graph.nodes if node.id == parent).level == "implementation"
+        native = await uow.inspection.graph(expected["5"][0])
+        assert native and any(
+            edge.source == parent and edge.kind == "MAPS_TO" for edge in native.edges
+        )
+        assert any(edge.kind == "part_of_control" for edge in native.edges)
+        legacy = await uow.inspection.graph(expected["4"][0])
+        assert legacy and not any(edge.kind == "MAPS_TO" for edge in legacy.edges)
+        detail = await uow.inspection.graph(child)
+        assert detail and any(
+            edge.source == child and edge.target == parent and edge.kind == "implementation_detail"
+            for edge in detail.edges
+        )
+        assert not any(edge.source == child and edge.kind == "MAPS_TO" for edge in detail.edges)
+        source = await uow.sources.get(targets[0].source_id)
+        assert source
+        replacement = SourceRevision(
+            id=uuid4(),
+            source_id=source.item.id,
+            content_hash=content_hash(b"new catalog"),
+            artifact_key="test",
+        )
+        await uow.sources.save_revision(replacement)
+        await uow.sources.save(source.model_copy(update={"revision_id": replacement.id}))
+        await uow.commit()
+    async with database() as uow:
+        stale = await uow.inspection.graph(parent)
+        assert stale and not any(edge.kind == "MAPS_TO" for edge in stale.edges)
 
 
 async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_calls(

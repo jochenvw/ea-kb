@@ -29,6 +29,7 @@ const source = {
 };
 const concept = {
   id,
+  levels: { [id]: "top_level" },
   versions: [
     {
       id,
@@ -137,12 +138,14 @@ async function fixture(page: Page, governance = false) {
             id,
             label: statement,
             kind: "requirement",
+            level: "top_level",
             href: `/concepts/${id}`,
           },
           {
             id: relatedId,
             label: "An associated security objective.",
             kind: "objective",
+            level: "top_level",
             href: `/concepts/${relatedId}`,
           },
           {
@@ -968,6 +971,8 @@ test("visual exploration recenters connected interpretations and separates propo
       name: "Navigable evidence and relationship map",
     }),
   ).toBeVisible();
+  await expect(page.locator(".graph-edge.is-proposal")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show review proposals" }).click();
   await expect(page.locator(".graph-edge.is-proposal")).toHaveCount(1);
   await expect(
     page.getByRole("link", { name: "Inspect Alias Proposal link" }),
@@ -985,6 +990,127 @@ test("visual exploration recenters connected interpretations and separates propo
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("knowledge levels separate platform implementation and persist the selection", async ({
+  page,
+}) => {
+  const platform = {
+    ...concept,
+    levels: { [id]: "implementation" },
+    versions: [
+      {
+        ...concept.versions[0],
+        candidate: {
+          ...concept.versions[0].candidate,
+          statement: "Configure Azure Firewall for inspected traffic.",
+          scope: { platform: "Azure" },
+        },
+      },
+    ],
+  };
+  await page.route("**/api/concepts?**", (route) => {
+    const level = new URL(route.request().url()).searchParams.get("level");
+    return route.fulfill({
+      json: level === "implementation" ? [platform] : [concept],
+    });
+  });
+  await page.goto("/knowledge");
+  const filter = page.getByRole("combobox", { name: "Architecture level" });
+  await expect(filter).toHaveValue("top_level");
+  await expect(page.locator(".statement-link")).toHaveText(statement);
+  await filter.selectOption("implementation");
+  await expect(page.locator(".statement-link")).toHaveText(
+    "Configure Azure Firewall for inspected traffic.",
+  );
+  await expect(page.locator("tbody")).toContainText("Platform implementation");
+  await expect(page).toHaveURL(/level=implementation/);
+  await page.reload();
+  await expect(filter).toHaveValue("implementation");
+});
+
+test("published control mappings link top-level guidance above implementation without invented alignment", async ({
+  page,
+}) => {
+  await page.route(`**/api/concepts/${id}/graph`, (route) =>
+    route.fulfill({
+      json: {
+        root: id,
+        nodes: [
+          {
+            id,
+            label: "Azure mcsb-v2:NS-6: Protect web applications.",
+            kind: "requirement",
+            level: "implementation",
+            href: `/concepts/${id}`,
+          },
+          {
+            id: sourceId,
+            label: "NIST SP800-53 Rev.5 / SC-7",
+            kind: "framework_control",
+            level: "top_level",
+            href: `/sources/${sourceId}`,
+          },
+          {
+            id: relatedId,
+            label: "A company objective awaiting alignment.",
+            kind: "objective",
+            level: "top_level",
+            href: `/concepts/${relatedId}`,
+          },
+        ],
+        edges: [
+          {
+            source: id,
+            target: sourceId,
+            kind: "MAPS_TO",
+            status: "published",
+            href: "/benchmarks?reference=mcsb-v2:NS-6",
+            evidence: {
+              excerpt: "NIST SP800-53 Rev.5: SC-7",
+              source_url: "https://example.com/benchmark",
+            },
+            note: "Published control-level mapping, not company alignment.",
+          },
+          {
+            source: id,
+            target: relatedId,
+            kind: "SUPPORTS",
+            status: "proposal",
+            href: `/review?finding_id=${findingId}`,
+          },
+        ],
+        truncated: false,
+      },
+    }),
+  );
+  await page.goto(`/explore?concept=${id}`);
+  const native = page.getByRole("link", {
+    name: "Browse native control NIST SP800-53 Rev.5 / SC-7",
+  });
+  const platform = page.getByRole("link", {
+    name: "Inspect interpretation Azure mcsb-v2:NS-6: Protect web applications.",
+  });
+  await expect(native).toBeVisible();
+  expect(Number(await native.locator("rect").getAttribute("y"))).toBeLessThan(
+    Number(await platform.locator("rect").getAttribute("y")),
+  );
+  await expect(
+    page.getByRole("link", {
+      name: /Explore A company objective awaiting alignment/,
+    }),
+  ).toHaveCount(0);
+  await page.getByText("Link basis & evidence", { exact: true }).click();
+  await expect(page.locator(".graph-record blockquote")).toHaveText(
+    "NIST SP800-53 Rev.5: SC-7",
+  );
+  await expect(native).toHaveAttribute("href", `/sources/${sourceId}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
 });

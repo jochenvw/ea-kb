@@ -14,9 +14,11 @@ from ekb.domain.models import (
     ConceptVersion,
     Extraction,
     InferenceResult,
+    KnowledgeLevel,
     ProcessingTask,
     ProposedRelationship,
     RelationshipKind,
+    Scope,
     Segment,
     SemanticVersion,
     SourceItem,
@@ -65,6 +67,49 @@ async def test_unit_of_work_requires_explicit_commit(database):
         await uow.sources.save(SourceRecord(item=item))
     async with database() as uow:
         assert await uow.sources.get(item.id) is None
+
+
+async def test_levels_preserve_goals_and_filter_platform_requirements_before_paging(database):
+    segment = await seed(database)
+    candidates = [
+        Candidate(
+            kind=kind,
+            scope=Scope(platform=platform),
+            statement="Users must authenticate.",
+            excerpt="Users must authenticate.",
+            source_key=f"level-{index}",
+        )
+        for index, (kind, platform) in enumerate(
+            (
+                (ConceptKind.REQUIREMENT, "Azure"),
+                (ConceptKind.REQUIREMENT, None),
+                (ConceptKind.REQUIREMENT, " "),
+                (ConceptKind.REQUIREMENT, "\t\n"),
+                (ConceptKind.OBJECTIVE, "Azure"),
+            )
+        )
+    ]
+    async with database() as uow:
+        ids = await uow.knowledge.persist(
+            segment,
+            InferenceResult(
+                extraction=Extraction(candidates=candidates),
+                model_id="test",
+                prompt_version="levels",
+            ),
+        )
+        await uow.commit()
+    async with database() as uow:
+        platform = await uow.knowledge.search(level=KnowledgeLevel.IMPLEMENTATION)
+        assert [row.id for row in platform] == [ids[0]]
+        first = await uow.knowledge.search(level=KnowledgeLevel.TOP_LEVEL, limit=1)
+        remaining = await uow.knowledge.search(level=KnowledgeLevel.TOP_LEVEL, after=first[0].id)
+        assert {row.id for row in first + remaining} == set(ids[1:])
+        for row in platform + first + remaining:
+            assert row.matching_version_id
+            assert row.levels[row.matching_version_id] == (
+                KnowledgeLevel.IMPLEMENTATION if row.id == ids[0] else KnowledgeLevel.TOP_LEVEL
+            )
 
 
 async def test_repository_evidence_contract_and_idempotency(database):

@@ -254,6 +254,16 @@ Knowledge search combines text and exact-source constraints on the same version;
 that version and its source documents. Details retain exact quotes, their surrounding section and
 adjacent passages from the same revision/parser; section labels distinguish neighboring material.
 
+Knowledge levels are derived read projections, not new semantic identities or authority states.
+Objectives remain top-level; requirements with explicit platform scope are implementations.
+Other requirements stay in goals/guidance; absent scope is not evidence of universal applicability.
+Source, text and level filters constrain the same version before paging. Original payloads stay intact.
+Graphs place goals/guidance above implementations and keep source evidence separate. Benchmark links
+resolve current, exact framework/revision/control identifiers into native control nodes, not arbitrary
+clauses. Published `MAPS_TO` carries its original mapping quote; subcontrols stay implementation details.
+These links establish neither equivalence, clause coverage, compliance nor company-goal alignment.
+Missing or ambiguous mappings are not drawn; review proposals are opt-in and dashed.
+
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
 The web scan task is asynchronous and cancelable on shutdown; durable database checkpoints survive
 process loss. The separate worker periodically scans configured connectors using the same pipeline.

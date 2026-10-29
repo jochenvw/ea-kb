@@ -7,6 +7,7 @@
 - `reconciliation.py` types comparisons, grounded judgments and explicit structural-only proposals.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit, aliases and issue lifecycle.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
+- Knowledge levels separate goals/guidance from explicit platform requirements; they grant no authority.
 - Objectives and requirements remain candidates until an explicit authority decision.
 - `assertions.py` guards concise phrasing, qualifiers and source-bound replay fingerprints.
 

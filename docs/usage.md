@@ -307,6 +307,19 @@ context, section/page and revision metadata. Quotes and context are rendered as 
 When a quote spans its whole segment, adjacent retained passages provide context where available;
 their section headings are shown explicitly. Missing context is disclosed, never reconstructed.
 
+**Architecture level** defaults to **Goals & guidance**: company objectives and requirements without
+recorded platform scope, including native NIST guidance. Select **Platform implementation** for
+explicitly platform-scoped requirements such as Azure security baselines, or **All levels** to compare.
+Level, text and source filters select the same version; CLI/API also accept `--level implementation`
+and `level=implementation`. Unknown scope remains unknown, not universal applicability.
+
+Concept details, benchmark controls and the visual explorer show goals/guidance above implementation.
+For example, `mcsb-v2:NS-6` links to its resolved native NIST controls with exact published mapping
+evidence. Click a control to browse its native source, or a connected implementation to recenter.
+Mappings refer to whole controls, not proof that every clause is implemented. No company-goal
+alignment, adoption, equivalence or compliance is inferred. Review proposals are hidden by default;
+**Show review proposals** reveals them as dashed links. Unresolved mappings remain in benchmark details.
+
 Assertions use one standalone sentence: **supported subject + action/outcome + necessary qualifiers**.
 Aim for 8–25 words; preserve intent, scope, negation, exceptions, numerical targets, units, deadlines
 and original must/should/goal language. Do not invent a subject or turn a publisher's aim into policy.

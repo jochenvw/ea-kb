@@ -24,6 +24,7 @@ import {
 } from "@/components/workspace";
 import { externalUrl, label, semanticVersion, useResource } from "@/lib/api";
 import type { Comparison, Control } from "@/types";
+import { RelationshipGraph } from "@/network";
 
 export function Benchmarks() {
   const query = new URLSearchParams(location.search);
@@ -89,6 +90,9 @@ export function Benchmarks() {
               description={context.edition.edition}
             >
               <div className="tag-row">
+                <Badge variant="secondary">
+                  Platform implementation · Azure
+                </Badge>
                 <Badge variant="outline">
                   Edition maturity:{" "}
                   {label(context.edition.publication.publication_status)}
@@ -125,6 +129,7 @@ export function Benchmarks() {
                 </Button>
               )}
             </Panel>
+            {context.concept && <RelationshipGraph id={context.concept.id} />}
             <Tabs defaultValue="mappings" className="detail-tabs">
               <TabsList aria-label="Control information">
                 <TabsTrigger value="mappings">Published mappings</TabsTrigger>

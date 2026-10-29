@@ -164,6 +164,18 @@ pre {
   fill: var(--cp-surface);
   stroke: var(--cp-border-strong);
 }
+.graph-lane {
+  fill: var(--cp-bg-elevated);
+  stroke: var(--cp-border);
+}
+.graph-lane-title {
+  fill: var(--cp-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+.graph-record {
+  max-width: 100%;
+}
 .graph-node.is-root {
   fill: var(--cp-accent-soft);
   stroke: var(--cp-accent);

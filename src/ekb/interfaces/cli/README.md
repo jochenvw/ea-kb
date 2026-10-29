@@ -4,6 +4,7 @@
 
 - `init` migrates; `scan` ingests/resumes; inspection commands return persisted knowledge.
 - `concepts phrase` caches concise assertions using the configured model; `--source-id` restricts inputs.
+- `concepts list --level implementation` separates platform requirements from goals/guidance.
 - `sources sync microsoft-security-benchmark` downloads and normalizes actual published assets.
 - `compare` persists review-only comparisons; `lineage` accepts UUIDs or `mcsb-v2:NS-6`.
 - `workflow.py` adds `pipeline run/status/resume`, `reconcile`, `issues` and strict `knowledge` groups.

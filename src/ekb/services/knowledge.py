@@ -1,6 +1,13 @@
 from uuid import UUID
 
-from ekb.domain.models import ConceptDetail, ConceptKind, Model, ProcessingTask, Provenance
+from ekb.domain.models import (
+    ConceptDetail,
+    ConceptKind,
+    KnowledgeLevel,
+    Model,
+    ProcessingTask,
+    Provenance,
+)
 from ekb.ports import UnitOfWorkFactory
 
 
@@ -31,9 +38,12 @@ class KnowledgeService:
         *,
         after: UUID | None = None,
         source_id: UUID | None = None,
+        level: KnowledgeLevel | None = None,
     ) -> list[ConceptDetail]:
         async with self.uow() as uow:
-            return await uow.knowledge.search(query, limit, after=after, source_id=source_id)
+            return await uow.knowledge.search(
+                query, limit, after=after, source_id=source_id, level=level
+            )
 
     async def get(self, concept_id: UUID) -> ConceptDetail | None:
         async with self.uow() as uow:

@@ -14,7 +14,14 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from ekb.config import Settings
-from ekb.domain.models import ConceptDetail, ProcessingTask, Provenance, ScanReport, SourceRecord
+from ekb.domain.models import (
+    ConceptDetail,
+    KnowledgeLevel,
+    ProcessingTask,
+    Provenance,
+    ScanReport,
+    SourceRecord,
+)
 from ekb.domain.reconciliation import (
     BenchmarkLineage,
     ComparisonReport,
@@ -137,8 +144,11 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         after: UUID | None = None,
         source_id: UUID | None = None,
+        level: KnowledgeLevel | None = None,
     ):
-        return await active(request).knowledge.search(q, limit, after=after, source_id=source_id)
+        return await active(request).knowledge.search(
+            q, limit, after=after, source_id=source_id, level=level
+        )
 
     @app.get("/api/concepts/{concept_id}", response_model=ConceptDetail)
     async def concept(request: Request, concept_id: UUID):

@@ -21,6 +21,7 @@ from ekb.domain.models import (
     ConceptVersion,
     FetchResult,
     InferenceResult,
+    KnowledgeLevel,
     ProcessingTask,
     Provenance,
     PublicationMetadata,
@@ -116,6 +117,7 @@ class KnowledgeRepository(Protocol):
         *,
         after: UUID | None = None,
         source_id: UUID | None = None,
+        level: KnowledgeLevel | None = None,
     ) -> list[ConceptDetail]: ...
     async def save_assertion(self, version_id: UUID, assertion: Assertion) -> None: ...
     async def get(self, concept_id: UUID) -> ConceptDetail | None: ...
