@@ -69,6 +69,21 @@ The application targets ports, but one concrete dependency remains: the pipeline
 `SourceMissingError` from the source adapter. This is a boundary limitation, not a fully isolated
 provider-independent error contract.
 
+### Evaluations and frugal provider selection
+
+`evaluation\dataset.py` derives versioned extraction, comparison and retrieval cases from attributed
+teacher annotations, with document-family train/validation/test isolation. `distillation.py` exports
+only training labels; `frugal.py` runs actual providers without sending expected answers and applies
+grounding, quality, latency, token and priced-cost gates. `suite.py` combines the existing code tests
+and evaluation results into one persisted report/exit status. Offline safety success is explicitly
+not live model qualification; teacher labels are provisional. See `evaluation.md`.
+
+Generic semantic enrichment unions lexical candidates with independently retrieved cosine neighbors
+from a bounded assertion pool. It reuses existing PostgreSQL vector/judgment caches behind the
+embedding/verifier ports; no vector database or extra semantic primitive is introduced.
+`infra\main.bicep` describes minimal Entra-only Foundry model resources, with an optional teacher
+disabled by default. Configuration/deployment does not establish provider quality.
+
 ## Ingestion and inspection flows
 
 1. `ekb scan` constructs `Runtime` and connectors. Discovery yields stable identifiers, locations,
@@ -179,7 +194,8 @@ including substring offsets. Relationship proposals carry their own evidence occ
 Candidate status is independent of explicitly recorded promotion or withdrawal.
 
 Exact identity uses normalized statement, kind, modality and scope. No embedding-based merging.
-Related-candidate retrieval uses bounded lexical similarity without promoting or merging matches.
+Inspection uses bounded lexical similarity; optional enrichment also uses cached embedding neighbors.
+Neither path promotes or merges matches.
 Stable concept identities, immutable versions, source occurrences and authority events preserve
 history. Explicit version additions require a caller-supplied semantic version and predecessor;
 automatic semantic version classification and promotion are intentionally absent.

@@ -31,6 +31,9 @@ Use `uv run ekb --help` for other commands.
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
 - [Architecture](docs/architecture.md) and [plugin contracts](docs/plugins.md).
 - [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).
+- [Teacher datasets, frugal model qualification and unified tests](docs/evaluation.md).
+  `uv run ekb test` combines code tests and offline evals; [Foundry Bicep](infra/README.md)
+  provisions configurable student/embedding models with no teacher deployment by default.
 - [Codebase map](docs/codebase/README.md) and [agent coding standards](AGENTS.md).
   Short folder READMEs explain local responsibilities and entry points.
 

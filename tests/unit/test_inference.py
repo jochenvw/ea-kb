@@ -74,6 +74,40 @@ async def test_invalid_model_output_is_rejected_after_bounded_attempts():
     assert calls == 2
 
 
+async def test_reasoning_model_can_omit_temperature_and_select_completion_budget():
+    def handle(request):
+        body = json.loads(request.content)
+        assert body["max_completion_tokens"] == 1024
+        assert "max_tokens" not in body and "temperature" not in body
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": output(segment().text)}}]}
+        )
+
+    settings = Settings(
+        model_id="configured-reasoning-deployment",
+        model_temperature=None,
+        model_max_token_parameter="max_completion_tokens",
+        model_max_output_tokens=1024,
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        await OpenAIInference(settings, client=client).extract(segment())
+
+
+async def test_null_temperature_environment_and_verifier_cache_identity(monkeypatch):
+    from ekb.adapters.inference.reconciliation import OpenAISemanticVerifier
+
+    monkeypatch.setenv("EKB_MODEL_TEMPERATURE", "null")
+    assert Settings().model_temperature is None
+    settings = Settings(reconciliation_model_id="configured", model_temperature=0)
+    original = OpenAISemanticVerifier(settings)
+    changed = OpenAISemanticVerifier(settings.model_copy(update={"model_temperature": None}))
+    try:
+        assert original.fingerprint != changed.fingerprint
+    finally:
+        await original.close()
+        await changed.close()
+
+
 async def test_debug_is_opt_in_and_payloads_are_separate_from_telemetry(tmp_path):
     def handle(request):
         assert request.headers["authorization"] == "Bearer test-secret"

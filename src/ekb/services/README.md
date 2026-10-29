@@ -9,6 +9,7 @@
 - CLI, terminal, web and MCP presentation reuse these services.
 - `knowledge_resolver.py` strictly resolves accepted identities, scope, dates and canonical authority.
 - `reconciliation_service.py` and `issue_service.py` share audited decisions and issue lifecycle.
+- `retrieval.py` supplies validated, bounded cosine-neighbor retrieval shared by enrichment and evals.
 
 Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.
 Do not silently expand bounded inspection into whole-corpus analytics.

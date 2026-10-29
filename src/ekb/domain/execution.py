@@ -14,6 +14,8 @@ class CheckOptions(Model):
     similarity_threshold: float = Field(default=0.85, ge=0, le=1)
     threshold: int = Field(default=10, ge=0)
     max_candidates: int = Field(default=500, ge=1, le=10000)
+    embedding_pool_size: int = Field(default=128, ge=2, le=1024)
+    embedding_neighbors: int = Field(default=5, ge=1, le=20)
     auto_accept_exact: bool = False
     parameters: dict[str, Any] = Field(default_factory=dict)
 

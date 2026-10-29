@@ -1,0 +1,13 @@
+{
+  "version": "frugal-v1",
+  "minimum_precision": 0.9,
+  "minimum_recall": 0.85,
+  "minimum_scope_accuracy": 0.9,
+  "minimum_pair_accuracy": 0.85,
+  "minimum_retrieval_recall": 0.9,
+  "minimum_mrr": 0.75,
+  "maximum_p95_ms": 15000,
+  "maximum_tokens": 100000,
+  "maximum_estimated_cost": 1.0,
+  "retrieval_k": 3
+}

@@ -413,9 +413,11 @@ async def test_api_authorization_shared_reviews_resolver_and_tui(database, tmp_p
         await runtime.__aexit__()
 
 
+@pytest.mark.parametrize("embedding_only", [False, True])
 async def test_optional_semantic_provider_uses_durable_cache_and_preserves_proposals(
     database,
     tmp_path,
+    embedding_only,
 ):
     from ekb.domain.models import Usage
     from ekb.domain.reconciliation import EmbeddingResult, SemanticJudgment, Verification
@@ -451,7 +453,10 @@ async def test_optional_semantic_provider_uses_durable_cache_and_preserves_propo
                 ),
             )
 
-    runtime, _, config = await prepare(database, tmp_path)
+    runtime, directory, config = await prepare(database, tmp_path)
+    if embedding_only:
+        (directory / "one.md").write_text("Operators must encrypt records.")
+        (directory / "two.md").write_text("Teams shall cipher documents.")
     try:
         verifier = Verifier()
         embeddings = Embeddings()
@@ -482,7 +487,9 @@ async def test_optional_semantic_provider_uses_durable_cache_and_preserves_propo
             e.processor_id == "enrichment/semantic_duplicate" and e.status == "done"
             for e in repeated.executions
         )
-        concept = (await runtime.knowledge.search("public web"))[0]
+        concept = (
+            await runtime.knowledge.search("encrypt records" if embedding_only else "public web")
+        )[0]
         assert not (await runtime.resolver.resolve_concept(concept.id)).authoritative
     finally:
         await runtime.__aexit__()

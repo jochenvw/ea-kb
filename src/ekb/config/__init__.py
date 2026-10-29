@@ -14,7 +14,12 @@ from ekb.domain.execution import PipelineConfiguration
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="EKB_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="EKB_",
+        env_file=".env",
+        extra="ignore",
+        env_parse_none_str="null",
+    )
 
     database_url: SecretStr = SecretStr("postgresql+asyncpg://ekb:ekb@localhost:5432/ekb")
     data_dir: Path = Path("data")
@@ -27,8 +32,11 @@ class Settings(BaseSettings):
     model_structured_output: bool = False
     model_context_tokens: int = Field(default=32768, ge=512)
     model_max_output_tokens: int = Field(default=2048, ge=128, le=32768)
+    model_max_token_parameter: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    model_temperature: float | None = Field(default=0, ge=0, le=2)
     model_input_price: float | None = Field(default=None, ge=0)
     model_output_price: float | None = Field(default=None, ge=0)
+    embedding_input_price: float | None = Field(default=None, ge=0)
     model_managed_identity: bool = False
     model_retries: int = Field(default=2, ge=0, le=5)
     scan_concurrency: int = Field(default=4, ge=1, le=32)

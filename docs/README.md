@@ -5,6 +5,7 @@
 - `plugins.md`: connector/provider contracts and rules for future adapters.
 - `benchmark-evaluation.md`: actual-source metrics, acceptance evidence and measurement limits.
 - `phase3.md`: durable plugins, reconciliation/resolution contracts and actual-corpus demonstration.
+- `evaluation.md`: source-grounded teacher datasets, distillation, model gates and combined suite.
 - `decisions`: short architecture decision records and their rationale.
 - `codebase`: source-backed stack, structure, conventions, integrations, tests and concerns.
 

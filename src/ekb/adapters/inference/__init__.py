@@ -135,9 +135,10 @@ class OpenAIInference:
         payload: dict[str, Any] = {
             "model": self.capabilities.model_id,
             "messages": messages,
-            "temperature": 0,
-            "max_tokens": self.settings.model_max_output_tokens,
+            self.settings.model_max_token_parameter: self.settings.model_max_output_tokens,
         }
+        if self.settings.model_temperature is not None:
+            payload["temperature"] = self.settings.model_temperature
         if self.capabilities.structured_output:
             payload["response_format"] = {
                 "type": "json_schema",

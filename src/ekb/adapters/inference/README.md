@@ -9,6 +9,8 @@
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
 - Neither an embedding match nor a model answer merges concepts or promotes authority.
+- Chat payloads support explicit completion-token fields and omitted temperature; config affects
+  inference/verifier replay identity. Configure per-token prices for measured qualification cost.
 
 Configure capabilities explicitly; do not add autonomous tool loops.
 See `tests\unit\test_inference.py`, `tests\golden\dataset.json` and `docs\plugins.md`.

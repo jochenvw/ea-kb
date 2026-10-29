@@ -7,6 +7,7 @@
 - `compare` persists review-only comparisons; `lineage` accepts UUIDs or `mcsb-v2:NS-6`.
 - `workflow.py` adds `pipeline run/status/resume`, `reconcile`, `issues` and strict `knowledge` groups.
 - `eval workflow` demonstrates retained real sources and explicitly simulated isolated governance.
+- `evaluation.py` adds `test`, `eval qualify/verify-corpus/distill`; live calls require explicit opt-in.
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.
 - Async use cases enter `Runtime`; keep `asyncio.run` at this synchronous process boundary.
 

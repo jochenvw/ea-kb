@@ -111,6 +111,10 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
   setup described in `docs\usage.md`; skipped database tests are not evidence of database correctness.
 - Keep unit tests offline and deterministic. Do not introduce paid inference or live cloud calls
   into default verification. Report offline contracts separately from live integration results.
+- Every changed capability needs matching tests/evals. Use `uv run ekb test` for combined verification;
+  model/prompt/retrieval changes also need source-grounded, split-isolated qualification cases.
+  Keep strong-teacher labels provisional, export only training data, and require measured live
+  quality plus priced cost/latency gates before calling a cheap model qualified. See `docs\evaluation.md`.
 - Run the existing quality gates for code changes:
 
   ```powershell

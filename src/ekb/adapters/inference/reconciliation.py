@@ -47,6 +47,8 @@ class OpenAISemanticVerifier:
             structured=settings.model_structured_output,
             context=settings.model_context_tokens,
             output=settings.model_max_output_tokens,
+            temperature=settings.model_temperature,
+            token_parameter=settings.model_max_token_parameter,
         )
 
     async def verify(self, old: ControlView, new: ControlView) -> Verification:
@@ -117,6 +119,16 @@ class OpenAISemanticVerifier:
                 output_tokens=tokens_out,
                 validation_failures=failures,
                 latency_ms=(time.monotonic() - started) * 1000,
+                cost=(
+                    (
+                        tokens_in * settings.model_input_price
+                        + tokens_out * settings.model_output_price
+                    )
+                    / 1_000_000
+                    if settings.model_input_price is not None
+                    and settings.model_output_price is not None
+                    else None
+                ),
             ),
         )
 

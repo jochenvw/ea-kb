@@ -11,6 +11,10 @@ read-only Model Context Protocol (MCP) interfaces share the same application ser
 credentials and makes no paid calls. Configure a real model before assessing model quality.
 Candidates and source wording are not approved enterprise policy or a compliance conclusion.
 
+`uv run ekb test` combines code tests and source-grounded offline evals; the full profile requires
+`EKB_TEST_DATABASE_URL`. See [evaluation and distillation](evaluation.md) for teacher datasets,
+train-only exports, live quality/cost gates and [minimal Foundry infrastructure](../infra/README.md).
+
 ## Quick start (PowerShell)
 
 Prerequisites: Python 3.13, [uv](https://docs.astral.sh/uv/), Docker with a running Linux engine.

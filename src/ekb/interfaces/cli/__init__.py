@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from ekb import __version__
 from ekb.config import Settings
+from ekb.interfaces.cli.evaluation import register as register_evaluation
 from ekb.interfaces.cli.workflow import register
 from ekb.runtime import Runtime
 
@@ -49,6 +50,7 @@ def emit(value: Any) -> None:
 
 
 register(app, emit)
+register_evaluation(app, eval_app, emit)
 
 
 @app.command()

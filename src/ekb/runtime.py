@@ -113,6 +113,8 @@ class Runtime:
                         parser=self.parser.version,
                         inference=self.inference.prompt_version,
                         model=self.inference.capabilities.model_id,
+                        temperature=self.settings.model_temperature,
+                        token_parameter=self.settings.model_max_token_parameter,
                     ),
                 )
             )
@@ -144,6 +146,8 @@ class Runtime:
                 structured=self.settings.model_structured_output,
                 context=self.settings.model_context_tokens,
                 output_tokens=self.settings.model_max_output_tokens,
+                temperature=self.settings.model_temperature,
+                token_parameter=self.settings.model_max_token_parameter,
             ),
         )
 

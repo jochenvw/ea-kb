@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
 
 from ekb.domain.benchmarks import BenchmarkControl, BenchmarkPassage
 from ekb.domain.models import RelationshipKind, Usage, fingerprint
@@ -10,12 +9,13 @@ from ekb.observability import tracer
 from ekb.ports import UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.services.reconciliation import BenchmarkService
-from ekb.stages.enrichment import Check, evidence, finding, pairs, semantic_duplicates
+from ekb.services.retrieval import cosine, vector_pairs
+from ekb.stages.enrichment import Check, current, evidence, finding, pairs, semantic_duplicates
 
 
 def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Check:
     provider_version = fingerprint(
-        implementation="generic-semantic-v1",
+        implementation="generic-semantic-v2",
         verifier=service.verifier.fingerprint if service.verifier else None,
         embeddings=service.embeddings.fingerprint if service.embeddings else None,
     )
@@ -31,50 +31,85 @@ def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Ch
                 }
             )
         candidates = await asyncio.to_thread(lambda: list(pairs(candidate_context)))
+        pool = (
+            sorted(current(context), key=lambda cv: str(cv[1].id))[
+                : context.options.embedding_pool_size
+            ]
+            if service.embeddings
+            else []
+        )
+        assertions = {v.id: (c, v) for c, v in pool}
+        for left, old, right, new, _ in candidates:
+            assertions.update({old.id: (left, old), new.id: (right, new)})
         views = {}
         # This projection reuses the grounded verifier, never creating synthetic benchmark records.
         async with database() as uow:
-            for left, old, right, new, _ in candidates:
-                for concept, version in ((left, old), (right, new)):
-                    if version.id in views:
-                        continue
-                    provenance = await uow.knowledge.provenance(concept.id)
-                    source = next(
-                        (p for p in provenance if p.occurrence.concept_version_id == version.id),
-                        None,
-                    )
-                    if source is None:
-                        continue
-                    occurrence = source.occurrence
-                    passage = BenchmarkPassage(
-                        source_id=source.revision.source_id,
-                        source_url=source.revision.source_location or source.source.item.location,
-                        content_hash=source.revision.content_hash,
-                        section="Source assertion",
-                        excerpt=occurrence.excerpt,
-                        start=occurrence.start,
-                        end=occurrence.end,
-                    )
-                    views[version.id] = ControlView(
-                        snapshot_id=occurrence.id,
-                        revision_id=source.revision.id,
-                        segment_id=source.segment.id,
-                        retrieved_at=source.revision.recorded_at,
-                        scope=version.candidate.scope,
-                        control=BenchmarkControl(
-                            benchmark="source-assertion",
-                            edition="knowledge",
-                            publisher_version=version.publication.publisher_version or "",
-                            domain=version.candidate.kind,
-                            control_id=str(version.id),
-                            title=version.candidate.statement,
-                            security_principle=occurrence.excerpt,
-                            evidence=passage,
-                        ),
-                    )
+            for concept, version in assertions.values():
+                if version.id in views:
+                    continue
+                provenance = await uow.knowledge.provenance(concept.id)
+                source = next(
+                    (p for p in provenance if p.occurrence.concept_version_id == version.id),
+                    None,
+                )
+                if source is None:
+                    continue
+                occurrence = source.occurrence
+                passage = BenchmarkPassage(
+                    source_id=source.revision.source_id,
+                    source_url=source.revision.source_location or source.source.item.location,
+                    content_hash=source.revision.content_hash,
+                    section="Source assertion",
+                    excerpt=occurrence.excerpt,
+                    start=occurrence.start,
+                    end=occurrence.end,
+                )
+                views[version.id] = ControlView(
+                    snapshot_id=occurrence.id,
+                    revision_id=source.revision.id,
+                    segment_id=source.segment.id,
+                    retrieved_at=source.revision.recorded_at,
+                    scope=version.candidate.scope,
+                    control=BenchmarkControl(
+                        benchmark="source-assertion",
+                        edition="knowledge",
+                        publisher_version=version.publication.publisher_version or "",
+                        domain=version.candidate.kind,
+                        control_id=str(version.id),
+                        title=version.candidate.statement,
+                        security_principle=occurrence.excerpt,
+                        evidence=passage,
+                    ),
+                )
         vectors, embedding_calls, embedding_tokens = await service.assertion_vectors(
-            list(views.values())
+            [views[v.id] for _, v in pool if v.id in views]
         )
+        if service.embeddings:
+            by_version = {
+                v.id: vectors[("knowledge", str(v.id))]
+                for _, v in pool
+                if ("knowledge", str(v.id)) in vectors
+            }
+            retrieved = await asyncio.to_thread(
+                vector_pairs,
+                by_version,
+                context.options.embedding_neighbors,
+                context.options.max_candidates,
+            )
+            unique = {
+                tuple(sorted((old.id, new.id), key=str)): (left, old, right, new, score)
+                for left, old, right, new, score in candidates
+            }
+            for old_id, new_id, score in retrieved:
+                left, old = assertions[old_id]
+                right, new = assertions[new_id]
+                if left.id != right.id and old.candidate.kind == new.candidate.kind:
+                    key = (old_id, new_id)
+                    if key not in unique:
+                        unique[key] = (left, old, right, new, score)
+            candidates = sorted(unique.values(), key=lambda c: (-c[4], str(c[1].id), str(c[3].id)))[
+                : context.options.max_candidates
+            ]
 
         def rank():
             ranked = []
@@ -88,8 +123,7 @@ def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Ch
                         raise ValueError("Embedding provider changed vector dimensions")
                     score = max(
                         score,
-                        sum(x * y for x, y in zip(a, b, strict=True))
-                        / math.sqrt(sum(x * x for x in a) * sum(y * y for y in b)),
+                        cosine(a, b),
                     )
                 if score >= context.options.similarity_threshold:
                     ranked.append((score, candidate))
