@@ -7,6 +7,8 @@
 - `/scans` starts one application-owned task using server-configured sources, not arbitrary paths.
 - `/api/benchmarks` exposes editions, controls, comparisons and evidence chains; `/benchmarks` graphs NS-6.
 - Benchmark inspection is read-only: cached results or structural previews, never model calls.
+- `governance.py` exposes strict resolution, issues, audit and `/review` through shared services.
+- Mutations require configured Basic token authentication, same origin and HTTPS or loopback.
 
 Keep handlers thin and cancel owned work on shutdown. Origin checks are not enterprise authentication;
 keep this service local/private. See `tests\integration\test_interfaces.py`.

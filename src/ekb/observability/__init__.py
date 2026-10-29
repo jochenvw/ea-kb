@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from opentelemetry import metrics as otel_metrics
 from opentelemetry import trace
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -20,6 +23,7 @@ from opentelemetry.trace import Status, StatusCode
 from structlog.typing import EventDict
 
 from ekb.config import Settings
+from ekb.observability.metrics import JSONLMetricExporter
 
 
 class ApplicationTracer:
@@ -40,6 +44,7 @@ tracer = ApplicationTracer()
 log = structlog.get_logger("ekb")
 _provider: TracerProvider | None = None
 _log_provider: Any = None
+_meter_provider: MeterProvider | None = None
 
 
 class JSONLSpanExporter(SpanExporter):
@@ -71,7 +76,7 @@ def correlate(_: object, __: str, event: EventDict) -> EventDict:
 
 
 def configure(settings: Settings) -> None:
-    global _provider, _log_provider
+    global _provider, _log_provider, _meter_provider
     if _provider is not None:
         return
     directory = settings.data_dir / "telemetry"
@@ -96,6 +101,13 @@ def configure(settings: Settings) -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
     )
     provider = TracerProvider(resource=Resource.create({"service.name": "ekb"}))
+    readers = [
+        PeriodicExportingMetricReader(
+            JSONLMetricExporter(
+                directory / "metrics.jsonl", settings.log_max_bytes, settings.log_backups
+            )
+        )
+    ]
     provider.add_span_processor(
         BatchSpanProcessor(
             JSONLSpanExporter(
@@ -106,7 +118,16 @@ def configure(settings: Settings) -> None:
     if settings.azure_monitor_connection_string.get_secret_value():
         from azure.monitor.opentelemetry.exporter import (
             AzureMonitorLogExporter,
+            AzureMonitorMetricExporter,
             AzureMonitorTraceExporter,
+        )
+
+        readers.append(
+            PeriodicExportingMetricReader(
+                AzureMonitorMetricExporter(
+                    connection_string=settings.azure_monitor_connection_string.get_secret_value()
+                )
+            )
         )
         from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
         from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
@@ -129,6 +150,10 @@ def configure(settings: Settings) -> None:
         logger.addHandler(LoggingHandler(logger_provider=_log_provider))
     trace.set_tracer_provider(provider)
     _provider = provider
+    _meter_provider = MeterProvider(
+        resource=Resource.create({"service.name": "ekb"}), metric_readers=readers
+    )
+    otel_metrics.set_meter_provider(_meter_provider)
 
 
 def flush() -> None:
@@ -136,3 +161,5 @@ def flush() -> None:
         _provider.force_flush()
     if _log_provider:
         _log_provider.force_flush()
+    if _meter_provider:
+        _meter_provider.force_flush()

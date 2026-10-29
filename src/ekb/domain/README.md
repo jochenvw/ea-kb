@@ -5,6 +5,7 @@
 - `grounding.py` checks exact evidence substrings and relationship candidate references.
 - `benchmarks.py` defines source/control/mapping/policy records, not additional semantic primitives.
 - `reconciliation.py` types comparisons, grounded judgments and explicit structural-only proposals.
+- `execution.py`, `resolution.py`, `issues.py` define durable runs, audit, aliases and issue lifecycle.
 - Objectives and requirements remain candidates until an explicit authority decision.
 
 Keep this layer deterministic and independent of persistence, transport, cloud and model SDKs.

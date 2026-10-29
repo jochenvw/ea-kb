@@ -5,8 +5,8 @@ original documents live in content-addressed filesystem or Azure Blob artifacts.
 
 ## Scope and design drivers
 
-This describes the implementation through commit `9ea2a35`, not every capability requested in
-`goal.md` or `goal2.md`. The system extracts objective and requirement candidates while retaining
+This describes implemented ingestion, benchmarks and governed reconciliation, not every capability
+requested in `goal.md` or `goal2.md`. The system extracts objective and requirement candidates while retaining
 the evidence needed to inspect each interpretation. Documents, interpretations and enterprise
 approval are separate concerns.
 
@@ -23,6 +23,7 @@ testing and concerns reference. Coding rules live in `AGENTS.md`; extension cont
 | `domain` | Immutable schemas, identity, scope, modality, evidence validation | SQLAlchemy, web, UI, cloud or model SDK |
 | `ports` | Small typed Protocol contracts | Concrete adapters |
 | `pipeline` / `services` | Ingestion, transactions, knowledge queries | ORM rows |
+| `orchestration` / `stages` | Durable ordering, compatible artifacts and independent checks | Transport-specific governance |
 | `adapters` | Connectors, parsing, inference, artifacts, PostgreSQL | Transport interfaces |
 | `interfaces` | CLI, Textual, FastAPI/Jinja2/HTMX, read-only MCP | Direct ORM queries (except database health checks) |
 | `runtime.py` | Explicit dependency injection and resource lifetimes | Nothing implicit or global for business state |
@@ -38,6 +39,13 @@ Benchmarks have a deterministic route: explicit synchronization discovers/downlo
 structured assets into the artifact port; normal scans read the validated cache, persist exact
 segments and typed benchmark snapshots, and materialize requirements without generic parsing or AI.
 Snapshots/mappings/policy definitions are records, not additional semantic primitives.
+
+`PipelineOrchestrator` composes `indexing -> enrichment -> issues`; indexing invokes this same
+ingestion engine. Versioned stage/check contracts and input/configuration fingerprints control
+incrementality. A renewable 120-second lease fences concurrent runs; heartbeat failure cancels work.
+Successful upstream artifacts are checked for matching contracts, source revision and producer
+configuration before partial runs. Independent checks persist their own execution/cache records.
+See `phase3.md` for plugin registration and the actual-corpus vertical slice.
 
 ## Components and runtime composition
 
@@ -154,6 +162,9 @@ neither a graph database nor a vector index is required.
 | `benchmark_documents` | Immutable normalized publisher records, exact passages and semantic occurrence bindings |
 | `benchmark_comparisons` | Source-bound review-only comparisons, published MAPS_TO records and candidate semantic lineage |
 | `benchmark_embeddings`, `benchmark_match_cache` | Provider/input-keyed vector and valid grounded-judgment replay |
+| `pipeline_executions`, `pipeline_leases` | Pipeline/stage/check attempts, artifacts and renewable ownership |
+| `enrichment_findings`, `reconciliation_decisions`, `concept_aliases` | Evidence-bound proposals and append-only reversible identity decisions |
+| `knowledge_issues`, `issue_events` | Deduplicated issues, observation history and human resolution audit |
 
 Artifact publication and database commits are not a distributed transaction. An interruption
 between publishing an original and committing its revision can leave an unreferenced artifact.
@@ -187,7 +198,16 @@ assessments retain detector/parser history. Document metadata is not sent for se
 Scoped authority projections distinguish review/approval from canonical promotion, apply effective
 periods, and never infer authority from a source's final/approved status. See
 `docs\decisions\0003-publication-and-semver.md` for migration and evidence decisions.
-There is still no end-user approval/version-management workflow.
+Reconciliation now provides minimal CLI, TUI and authenticated HTTP review. Accepted aliases,
+canonical adoption and authority events commit atomically under an advisory lock with optimistic
+decision heads. Reversal appends history rather than deleting occurrences.
+
+`KnowledgeResolver` is independent of stage execution. Its canonical default requires accepted
+reconciliation, applicable approved authority and source evidence; no candidate fallback exists.
+`best_available` explicitly labels candidates, `historical` uses an explicit valid-time date, and
+`all` retains drafts and superseded history without implying authority. Accepted aliases group
+source occurrences; accepted source mappings add traceable native provenance. There is no
+transaction-time reconstruction, exception-approval backend or enterprise role system.
 
 ## Interfaces and observability
 
@@ -200,7 +220,9 @@ Application OpenTelemetry spans cover scans, discovery, comparison, download, pa
 OCR, segmentation, inference, validation, transactions, concept/relationship persistence and retries.
 Exception type/status is recorded, never exception messages containing document text or SQL
 parameters. Logs carry trace/span correlation. JSONL files rotate by configured size and retention.
-Azure adds Application Insights trace and log exporters to the same instrumentation.
+Azure adds Application Insights trace, log and metric exporters to the same instrumentation.
+Pipeline, check, reconciliation, resolution and issue spans retain run/finding correlation;
+rotating `metrics.jsonl` captures run/check/finding/issue/resolution counters.
 
 Usage records cover committed validated calls and persist across resume. Token counts are provider
 reported; unavailable counts stay zero, not estimated. Failed/uncommitted calls can incur provider
@@ -218,12 +240,15 @@ Restrict the debug/data directory with operating-system ACLs, especially on Wind
 | Typer CLI | Migration, doctor, scan/resume/dry-run, inventory, concept/provenance/lineage inspection, evaluation and process launch |
 | Textual terminal UI (TUI) | Responsive inventory/progress, concepts, provenance, relationships and usage; invokes the same pipeline |
 | FastAPI/Jinja2/HTMX | JSON inspection and server-rendered pages; scan submission starts an application-owned async task |
-| Model Context Protocol (MCP) | Stdio, read-only `search_concepts`, `get_concept`, `trace_provenance` and `find_related_requirements` |
+| Model Context Protocol (MCP) | Twelve read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
 | Periodic worker | Runs the same pipeline with configured connectors; not a separate implementation or broker consumer |
 
 The web scan form accepts configured sources, not arbitrary browser-supplied filesystem paths.
 Its same-origin checks and single in-process scan slot are not enterprise authentication or
 distributed scheduling. The task is cancelled on shutdown; durable checkpoints support later runs.
+Governance mutations are separately disabled until `EKB_GOVERNANCE_TOKEN` is configured. HTTP
+Basic identifies a local operator and requires HTTPS or loopback plus same-origin mutation checks.
+Read endpoints remain local/private; this is not enterprise authentication or tenant authorization.
 
 ## Deployment and configuration
 
@@ -267,7 +292,8 @@ once per process; changing settings is not a hot-reload mechanism.
   image-only segments are not sent to a text model.
 - OCR is selective and opt-in. Tesseract/language data are needed on the host; the container includes
   English Tesseract. Cancellation can wait for an already-running blocking parser thread to finish.
-- Embedding retrieval and small-model verification are opt-in benchmark capabilities, not
+- Embedding retrieval and small-model verification reuse benchmark caches for optional generic
+  enrichment as well as benchmark comparison. Candidate budgets are bounded, not
   exhaustive cross-corpus discovery. No autonomous compliance decisions, semantic merges
   or exception-management workflow.
 - Source manifests can change upstream; original bytes/hashes are retained, but upstream URLs are not
@@ -277,6 +303,9 @@ once per process; changing settings is not a hot-reload mechanism.
 - Actual benchmark synchronization, structured ingestion, mappings/policy retrieval, native NIST
   resolution and review-only comparisons are implemented. Structural proposals are not verified
   semantic decisions; source gaps and unresolved references remain explicit.
+- Reconciliation snapshots explicitly fail beyond 20,000 rows per workspace table; partitioning is
+  required at that point. Parsed interpretations of unchanged bytes remain in candidate history;
+  strict explicit canonical decisions, not parser recency, establish authority.
 
 ## Evidence
 

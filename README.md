@@ -6,6 +6,8 @@ inputs. Built with async Python 3.13, PostgreSQL and replaceable adapters.
 
 Inspect results through the command line, terminal UI, web interface or read-only
 Model Context Protocol (MCP) server.
+Durable indexing, enrichment and issue stages support audited reconciliation and strict scoped
+canonical resolution without automatically approving candidates.
 
 ## Quick start
 
@@ -28,9 +30,11 @@ Use `uv run ekb --help` for other commands.
 
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
 - [Architecture](docs/architecture.md) and [plugin contracts](docs/plugins.md).
+- [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).
 - [Codebase map](docs/codebase/README.md) and [agent coding standards](AGENTS.md).
   Short folder READMEs explain local responsibilities and entry points.
 
-**Local/private MVP:** no enterprise authentication. Extraction defaults to limited offline rules
+**Local/private MVP:** token-protected HTTP governance, no enterprise identity or access roles.
+Extraction defaults to limited offline rules
 with no paid calls; configure a model before assessing model quality. Candidates are not approved
 policy or compliance conclusions. Live model inference and Azure deployment remain unverified.

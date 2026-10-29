@@ -2,7 +2,8 @@
 
 - `runtime.py` constructs providers, shared services and resource lifetimes.
 - `domain` and `ports` define values, invariants and interchangeable contracts.
-- `pipeline` and `services` coordinate ingestion and inspection.
+- `pipeline` adapts ingestion; `orchestration` orders durable, replaceable `stages`.
+- `services` shares inspection, reconciliation, strict resolution and issue review.
 - `adapters` implement infrastructure; `interfaces` expose CLI, terminal, web and MCP workflows.
 - `config`, `observability` and `evaluation` own their respective cross-cutting concerns.
 

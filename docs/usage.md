@@ -235,8 +235,9 @@ $env:EKB_INFERENCE = "agent-framework"
 # Set the same endpoint, actual model ID and credentials/capabilities as above.
 ```
 
-No model is advertised as optimal without a real evaluation. Embeddings and separate expensive
-deduplication/relationship model passes are deliberately deferred.
+No model is advertised as optimal without a real evaluation. Optional reconciliation/embedding
+providers also serve bounded generic enrichment; both remain disabled by default.
+See `phase3.md` for durable pipeline configuration, review and strict canonical queries.
 
 ## Tests and evaluation
 
@@ -278,7 +279,7 @@ inference and plugin contracts are tested without cloud credentials. Without
 
 ## Telemetry and debugging
 
-Application logs and traces are JSONL in `data\telemetry`, correlated by trace/span IDs.
+Application logs, traces and metrics are JSONL in `data\telemetry`, correlated by trace/span IDs.
 `EKB_LOG_MAX_BYTES` and `EKB_LOG_BACKUPS` control rotation. Source text, raw SQL parameters,
 authorization headers and exception messages are not emitted by application spans.
 
@@ -288,7 +289,7 @@ Windows ACLs and retention. It is off by default and never includes authorizatio
 
 For Azure exporters, install `uv sync --extra azure`, set
 `EKB_AZURE_MONITOR_CONNECTION_STRING`, and select `config\azure.yaml`. The same application spans
-and correlated logs then also export to Application Insights. No live Azure export or managed
+and correlated logs/metrics then also export to Application Insights. No live Azure export or managed
 identity deployment is implied by offline tests.
 
 ## Containers and Azure foundation

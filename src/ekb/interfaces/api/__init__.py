@@ -21,6 +21,7 @@ from ekb.domain.reconciliation import (
     ControlContext,
     EditionView,
 )
+from ekb.interfaces.api.governance import register as register_governance
 from ekb.observability import log
 from ekb.runtime import Runtime
 from ekb.services.knowledge import LineageResult, Statistics
@@ -54,6 +55,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     def active(request: Request) -> Runtime:
         return request.app.state.runtime
+
+    register_governance(app, active, templates)
 
     @app.get("/health")
     async def health(request: Request) -> dict[str, str]:

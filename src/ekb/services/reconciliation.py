@@ -39,6 +39,12 @@ class BenchmarkService:
     ):
         self.database, self.verifier, self.embeddings = database, verifier, embeddings
 
+    async def verify_assertions(self, old: ControlView, new: ControlView) -> Verification:
+        return await self._verify(old, new, False)
+
+    async def assertion_vectors(self, views: list[ControlView]):
+        return await self._vectors(views, False)
+
     async def edition(self, edition: str) -> EditionView:
         async with self.database() as uow:
             documents = await uow.benchmarks.documents(edition, role="overview", limit=1)

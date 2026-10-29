@@ -3,6 +3,7 @@
 - `templates` contains Jinja2 pages and HTMX partials.
 - `static` contains local theme CSS and pinned HTMX with its license.
 - The sibling API package owns routing, runtime lifespan and scan submission.
+- `/review` presents issues, side-by-side proposals, canonical choices and append-only decision history.
 
 There is no Node.js frontend build or separate client-side domain model.
 Keep presentation consistent with shared knowledge/provenance services and the Clawpilot theme.

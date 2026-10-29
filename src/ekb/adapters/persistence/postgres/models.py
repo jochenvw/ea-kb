@@ -198,3 +198,75 @@ class BenchmarkMatchRow(Base):
     __tablename__ = "benchmark_match_cache"
     id: Mapped[UUID] = mapped_column(primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class ExecutionRow(Base):
+    __tablename__ = "pipeline_executions"
+    __table_args__ = (
+        CheckConstraint("kind IN ('pipeline','stage','check')"),
+        CheckConstraint("status IN ('running','done','failed','cancelled','skipped')"),
+        Index("ix_execution_cache", "processor_id", "fingerprint", "status"),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    parent_id: Mapped[UUID | None] = mapped_column(ForeignKey("pipeline_executions.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    processor_id: Mapped[str] = mapped_column(String(100))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class WorkflowLeaseRow(Base):
+    __tablename__ = "pipeline_leases"
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    owner: Mapped[UUID]
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class FindingRow(Base):
+    __tablename__ = "enrichment_findings"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    check_id: Mapped[str] = mapped_column(String(100), index=True)
+    input_revision: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class DecisionRow(Base):
+    __tablename__ = "reconciliation_decisions"
+    __table_args__ = (
+        CheckConstraint("outcome IN ('accepted','rejected','deferred','reversed')"),
+        UniqueConstraint("finding_id", "previous_id"),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    finding_id: Mapped[UUID] = mapped_column(ForeignKey("enrichment_findings.id"), index=True)
+    previous_id: Mapped[UUID | None] = mapped_column(ForeignKey("reconciliation_decisions.id"))
+    outcome: Mapped[str] = mapped_column(String(20))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class AliasRow(Base):
+    __tablename__ = "concept_aliases"
+    __table_args__ = (CheckConstraint("alias_id <> target_id"),)
+    decision_id: Mapped[UUID] = mapped_column(
+        ForeignKey("reconciliation_decisions.id"), primary_key=True
+    )
+    alias_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+    target_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+
+
+class IssueRow(Base):
+    __tablename__ = "knowledge_issues"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    check_id: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(30), index=True)
+    issue_type: Mapped[str] = mapped_column(String(100), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class IssueEventRow(Base):
+    __tablename__ = "issue_events"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    issue_id: Mapped[UUID] = mapped_column(ForeignKey("knowledge_issues.id"), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)

@@ -1,20 +1,26 @@
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from ekb.domain.models import ConceptDetail, Provenance
+from ekb.domain.issues import Issue, IssueStatus
+from ekb.domain.models import ConceptDetail, Provenance, Scope
 from ekb.domain.reconciliation import (
     BenchmarkLineage,
     ComparisonReport,
     ControlContext,
     EditionView,
 )
+from ekb.domain.resolution import Decision, Resolution, ResolutionProfile
 from ekb.runtime import Runtime
+from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
+from ekb.services.knowledge_resolver import KnowledgeResolver
 from ekb.services.reconciliation import BenchmarkService
+from ekb.services.reconciliation_service import ReconciliationService
 
 
 def create_server(
@@ -23,14 +29,28 @@ def create_server(
     @asynccontextmanager
     async def lifespan(server: FastMCP):
         if service:
-            yield {"knowledge": service, "benchmarks": benchmarks or BenchmarkService(service.uow)}
+            yield {
+                "knowledge": service,
+                "benchmarks": benchmarks or BenchmarkService(service.uow),
+                "resolver": KnowledgeResolver(service.uow),
+                "issues": IssueService(service.uow),
+                "reconciliation": ReconciliationService(service.uow),
+            }
         else:
             async with Runtime() as runtime:
-                yield {"knowledge": runtime.knowledge, "benchmarks": runtime.comparisons}
+                yield {
+                    "knowledge": runtime.knowledge,
+                    "benchmarks": runtime.comparisons,
+                    "resolver": runtime.resolver,
+                    "issues": runtime.issues,
+                    "reconciliation": runtime.reconciliation,
+                }
 
     server = FastMCP(
         "Enterprise Knowledge Base",
-        instructions="Read-only evidence-grounded candidates. Not approved compliance conclusions.",
+        instructions="Use resolve_knowledge or resolve_requirement for authoritative answers; "
+        "their default is strict canonical with no candidate fallback. Legacy search/get and "
+        "benchmark tools are explicitly research views, not approved compliance conclusions.",
         lifespan=lifespan,
     )
 
@@ -83,5 +103,49 @@ def create_server(
     async def trace_benchmark_lineage(reference: str, ctx: Context) -> BenchmarkLineage:
         """Trace published mappings/succession separately from review-only semantic proposals."""
         return await benchmark(ctx).lineage(reference)
+
+    @server.tool()
+    async def resolve_knowledge(
+        concept_id: UUID,
+        ctx: Context,
+        scope: Scope | None = None,
+        profile: ResolutionProfile = "canonical",
+        as_of: date | None = None,
+    ) -> Resolution:
+        """Resolve accepted identities and scoped authority; no silent draft/candidate fallback."""
+        resolver: KnowledgeResolver = ctx.request_context.lifespan_context["resolver"]
+        return await resolver.resolve_concept(concept_id, scope, profile, as_of)
+
+    @server.tool()
+    async def resolve_requirement(
+        query: str,
+        ctx: Context,
+        scope: Scope | None = None,
+        profile: ResolutionProfile = "canonical",
+    ) -> tuple[Resolution, ...]:
+        """Literal-text requirement search with deduplication and strict canonical defaults."""
+        resolver: KnowledgeResolver = ctx.request_context.lifespan_context["resolver"]
+        return await resolver.resolve_requirement(query, scope, profile)
+
+    @server.tool()
+    async def list_knowledge_issues(
+        ctx: Context,
+        status: IssueStatus | None = None,
+        limit: Annotated[int, Field(ge=1, le=1000)] = 100,
+    ) -> list[Issue]:
+        """Inspect the prioritized issue registry; detection does not grant authority."""
+        issues: IssueService = ctx.request_context.lifespan_context["issues"]
+        return await issues.list(status=status, limit=limit)
+
+    @server.tool()
+    async def get_reconciliation_history(
+        ctx: Context,
+        finding_id: UUID | None = None,
+    ) -> list[Decision]:
+        """Read immutable accepted/rejected/deferred/reversed governance decisions."""
+        reconciliation: ReconciliationService = ctx.request_context.lifespan_context[
+            "reconciliation"
+        ]
+        return await reconciliation.history(finding_id)
 
     return server

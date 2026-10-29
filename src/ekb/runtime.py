@@ -18,10 +18,18 @@ from ekb.adapters.sources.benchmarks import MicrosoftLearnBenchmarkConnector
 from ekb.config import Settings
 from ekb.domain.models import fingerprint
 from ekb.observability import configure, flush
+from ekb.orchestration import PipelineOrchestrator, StageRegistry
 from ekb.pipeline import IngestionPipeline
 from ekb.ports import ArtifactStore, InferencePort, SourceConnector
+from ekb.ports.workflow import CheckContext, CheckResult
+from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
+from ekb.services.knowledge_resolver import KnowledgeResolver
 from ekb.services.reconciliation import BenchmarkService
+from ekb.services.reconciliation_service import ReconciliationService
+from ekb.stages.enrichment import enrichment_stage
+from ekb.stages.indexing import IndexingStage
+from ekb.stages.issues import issues_stage
 
 
 class Runtime:
@@ -68,6 +76,49 @@ class Runtime:
         self._connectors: list[SourceConnector] = []
         self._connector_cache: dict[tuple[str, str], list[SourceConnector]] = {}
         self._benchmarks: MicrosoftLearnBenchmarkConnector | None = None
+
+    @property
+    def resolver(self) -> KnowledgeResolver:
+        return KnowledgeResolver(self.database)
+
+    @property
+    def reconciliation(self) -> ReconciliationService:
+        return ReconciliationService(self.database)
+
+    @property
+    def issues(self) -> IssueService:
+        return IssueService(self.database)
+
+    def orchestrator(self, registry: StageRegistry | None = None) -> PipelineOrchestrator:
+        if registry is None:
+            registry = StageRegistry()
+
+            async def index(context: CheckContext) -> CheckResult:
+                config = context.stage_configuration
+                report = await self.pipeline().scan(
+                    self.connectors(
+                        Path(config.directory) if config.directory else None,
+                        Path(config.manifest) if config.manifest else None,
+                    )
+                )
+                if report.failed:
+                    raise RuntimeError(f"Indexing had {report.failed} failed sources")
+                return CheckResult(candidates=report.concepts)
+
+            registry.register(
+                IndexingStage(
+                    self.database,
+                    index,
+                    fingerprint(
+                        parser=self.parser.version,
+                        inference=self.inference.prompt_version,
+                        model=self.inference.capabilities.model_id,
+                    ),
+                )
+            )
+            registry.register(enrichment_stage(self.database, self.comparisons))
+            registry.register(issues_stage(self.database))
+        return PipelineOrchestrator(self.database, registry)
 
     def benchmarks(self) -> MicrosoftLearnBenchmarkConnector:
         if self._benchmarks is None:

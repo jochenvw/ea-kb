@@ -1,0 +1,41 @@
+{
+  "description": "Entirely synthetic enterprise architecture examples; not Microsoft or NIST mandates.",
+  "facts": [
+    {
+      "id": "public-endpoint",
+      "statement": "Public endpoints must protect application traffic against application-layer attacks.",
+      "scope": {"organization": "Synthetic demonstration"}
+    },
+    {
+      "id": "azure-waf",
+      "statement": "Azure public web applications should use an appropriate web application firewall.",
+      "scope": {"organization": "Synthetic demonstration", "platform": "Azure"}
+    },
+    {
+      "id": "solution-decision",
+      "statement": "The demonstration storefront should use Azure Front Door WAF for its public endpoint.",
+      "scope": {
+        "organization": "Synthetic demonstration",
+        "platform": "Azure",
+        "application": "demonstration-storefront"
+      }
+    },
+    {
+      "id": "approved-exception",
+      "statement": "The legacy demonstration storefront must retain its approved compensating gateway.",
+      "scope": {
+        "organization": "Synthetic demonstration",
+        "platform": "Azure",
+        "application": "legacy-demonstration-storefront"
+      }
+    }
+  ],
+  "exception": {
+    "guideline": "azure-waf",
+    "evidence": "approved-exception",
+    "solution": "legacy-demonstration-storefront",
+    "approved": true,
+    "effective_from": "2020-01-01",
+    "effective_until": "2099-12-31"
+  }
+}

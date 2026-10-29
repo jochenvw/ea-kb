@@ -89,6 +89,10 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "get_benchmark_edition",
             "compare_benchmark_editions",
             "trace_benchmark_lineage",
+            "resolve_knowledge",
+            "resolve_requirement",
+            "list_knowledge_issues",
+            "get_reconciliation_history",
         }
         assert all(tool.inputSchema and tool.outputSchema for tool in tools.tools)
         result = await session.call_tool("search_concepts", {"query": "logging", "limit": 10})
@@ -101,6 +105,12 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
         item = provenance.structuredContent["result"][0]
         assert item["occurrence"]["excerpt"] in item["segment"]["text"]
         assert UUID(concept_id)
+        strict = await session.call_tool("resolve_knowledge", {"concept_id": concept_id})
+        assert not strict.isError and strict.structuredContent
+        resolution = strict.structuredContent
+        assert resolution["status"] == "not_established"
+        assert not resolution["authoritative"] and not resolution["versions"]
+        assert resolution["provenance"] and resolution["explanation"]
         invalid = await session.call_tool("get_concept", {"concept_id": "not-a-uuid"})
         assert invalid.isError
     await runtime.__aexit__()

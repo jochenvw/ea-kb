@@ -17,7 +17,8 @@ from textual.widgets import (
     TabPane,
 )
 
-from ekb.domain.models import SourceItem
+from ekb.domain.models import Scope, SourceItem
+from ekb.domain.resolution import Decision
 from ekb.runtime import Runtime
 
 
@@ -66,6 +67,25 @@ class KnowledgeApp(App):
                 with Horizontal():
                     yield Button("Inspect lineage", id="benchmark-lineage")
                     yield Button("Compare (read-only)", id="benchmark-compare")
+            with TabPane("Review", id="review-pane"):
+                yield DataTable(id="issues", cursor_type="row")
+                yield Input(placeholder="Finding / issue UUID", id="review-id")
+                yield Input(placeholder="Actor (local trusted operator)", id="review-actor")
+                yield Input(placeholder="Rationale", id="review-rationale")
+                yield Input(placeholder="Previous decision UUID, if any", id="review-previous")
+                yield Input(placeholder="Concept UUID", id="resolve-id")
+                yield Input(placeholder="Version UUID for canonical proposal", id="review-version")
+                yield Input(value="{}", placeholder="JSON applicability scope", id="review-scope")
+                yield Checkbox("Explicit limited-scope prerelease", id="review-prerelease")
+                with Horizontal():
+                    yield Button("Accept", id="review-accept")
+                    yield Button("Reject", id="review-reject")
+                    yield Button("Reverse", id="review-reverse")
+                    yield Button("Dismiss issue", id="review-dismiss")
+                with Horizontal():
+                    yield Button("Proposals / audit", id="review-history")
+                    yield Button("Propose canonical", id="review-canonical")
+                    yield Button("Resolve canonical", id="review-resolve")
         yield Static("", id="statistics", markup=False)
         with VerticalScroll(id="detail"):
             yield Static(
@@ -84,6 +104,7 @@ class KnowledgeApp(App):
             "Started", "Status", "Processed", "Skipped", "Failed"
         )
         self.query_one("#tasks", DataTable).add_columns("Task", "Status", "Attempts", "Error")
+        self.query_one("#issues", DataTable).add_columns("Severity", "Type", "Status", "Observed")
         await self.action_reload()
         self.set_interval(3, self.action_reload)
 
@@ -140,6 +161,17 @@ class KnowledgeApp(App):
             f"Configured cost: {stats.configured_cost} | "
             f"Validation failures: {stats.validation_failures}"
         )
+        issues = await self.runtime.issues.list()
+        issue_table = self.query_one("#issues", DataTable)
+        issue_table.clear()
+        for issue in issues:
+            issue_table.add_row(
+                issue.severity,
+                issue.issue_type,
+                issue.status,
+                str(issue.observed),
+                key=str(issue.id),
+            )
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "benchmark-reference":
@@ -148,12 +180,73 @@ class KnowledgeApp(App):
         await self.action_reload()
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id in {"benchmark-lineage", "benchmark-compare"}:
+        if event.button.id and event.button.id.startswith("review-"):
+            self.action_review(event.button.id.removeprefix("review-"))
+        elif event.button.id in {"benchmark-lineage", "benchmark-compare"}:
             self.action_benchmark(compare=event.button.id == "benchmark-compare")
         elif event.button.id == "scan":
             self.action_scan()
         else:
             await self.action_reload()
+
+    @work(exclusive=True, group="review")
+    async def action_review(self, action: str) -> None:
+        try:
+            actor = self.query_one("#review-actor", Input).value
+            rationale = self.query_one("#review-rationale", Input).value
+            scope = Scope.model_validate_json(self.query_one("#review-scope", Input).value)
+            if action == "history":
+                result = {
+                    "findings": [
+                        f.model_dump(mode="json")
+                        for f in await self.runtime.reconciliation.findings()
+                    ],
+                    "decisions": [
+                        d.model_dump(mode="json")
+                        for d in await self.runtime.reconciliation.history()
+                    ],
+                }
+                self.query_one("#evidence", Static).update(json.dumps(result, indent=2))
+                return
+            if action == "resolve":
+                result_model = await self.runtime.resolver.resolve_concept(
+                    UUID(self.query_one("#resolve-id", Input).value), scope
+                )
+            elif action == "canonical":
+                if not actor:
+                    raise ValueError("A local actor is required")
+                result_model = await self.runtime.reconciliation.propose_canonical(
+                    UUID(self.query_one("#resolve-id", Input).value),
+                    UUID(self.query_one("#review-version", Input).value),
+                    scope,
+                    self.query_one("#review-prerelease", Checkbox).value,
+                    actor,
+                )
+            elif action == "dismiss":
+                result_model = await self.runtime.issues.review(
+                    UUID(self.query_one("#review-id", Input).value), "dismissed", actor, rationale
+                )
+            else:
+                previous = self.query_one("#review-previous", Input).value
+                result_model = await self.runtime.reconciliation.decide(
+                    Decision.model_validate(
+                        {
+                            "finding_id": self.query_one("#review-id", Input).value,
+                            "outcome": {
+                                "accept": "accepted",
+                                "reject": "rejected",
+                                "reverse": "reversed",
+                            }[action],
+                            "actor": actor,
+                            "rationale": rationale,
+                            "previous_id": previous or None,
+                        }
+                    )
+                )
+            self.query_one("#evidence", Static).update(result_model.model_dump_json(indent=2))
+            await self.action_reload()
+        except ValueError as error:
+            self.query_one("#status", Static).update(str(error))
 
     @work(exclusive=True, group="benchmark")
     async def action_benchmark(self, compare: bool = False) -> None:
@@ -194,6 +287,31 @@ class KnowledgeApp(App):
             self.query_one("#status", Static).update(f"Scan failed: {type(error).__name__}")
 
     async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.data_table.id == "issues":
+            issue_id = UUID(str(event.row_key.value))
+            self.query_one("#review-id", Input).value = str(issue_id)
+            detail = await self.runtime.issues.get(issue_id)
+            proposals = [
+                f
+                for fid in (detail.issue.finding_ids[:10] if detail else ())
+                if (f := await self.runtime.reconciliation.get(fid))
+            ]
+            comparisons = [
+                c.model_dump(mode="json")
+                for cid in dict.fromkeys(cid for f in proposals for cid in f.concept_ids)
+                if (c := await self.runtime.knowledge.get(cid))
+            ]
+            self.query_one("#evidence", Static).update(
+                json.dumps(
+                    {
+                        "issue": detail.model_dump(mode="json") if detail else None,
+                        "findings": [f.model_dump(mode="json") for f in proposals],
+                        "competing_concepts": comparisons,
+                    },
+                    indent=2,
+                )
+            )
+            return
         if event.data_table.id != "concepts":
             return
         concept_id = UUID(str(event.row_key.value))

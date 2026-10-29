@@ -29,6 +29,7 @@ from ekb.domain.reconciliation import (
     EmbeddingResult,
     Verification,
 )
+from ekb.ports.workflow import IssueRepository, ResolutionRepository, WorkflowRepository
 
 
 class SourceConnector(Protocol):
@@ -142,6 +143,12 @@ class BenchmarkRepository(Protocol):
 
 
 class UnitOfWork(Protocol):
+    @property
+    def workflow(self) -> WorkflowRepository: ...
+    @property
+    def resolution(self) -> ResolutionRepository: ...
+    @property
+    def issues(self) -> IssueRepository: ...
     @property
     def sources(self) -> SourceRepository: ...
     @property

@@ -4,6 +4,7 @@
 telemetry privacy, evaluation, corpus downloads and folder-guide coverage.
 `test_benchmarks.py` covers structured benchmark evidence, historical workbook formats, bounded
 cache-only discovery, resumable downloads, parser replay and corruption rejection without network.
+`test_workflow_domain.py` covers plugin configuration, scope/conflict rules and bounded comparisons.
 
 Use `uv run pytest -q tests\unit`; HTTP/model/Azure behavior is mocked or injected.
 `test_folder_readmes.py` uses Git's tracked/new non-ignored inventory to catch missing guides,

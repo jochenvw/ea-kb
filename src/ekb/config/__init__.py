@@ -10,6 +10,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
+from ekb.domain.execution import PipelineConfiguration
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EKB_", env_file=".env", extra="ignore")
@@ -45,6 +47,8 @@ class Settings(BaseSettings):
     worker_interval: float = Field(default=60, ge=1)
     manifest: Path = Path("sources/public.yaml")
     source_directory: Path | None = None
+    pipeline: PipelineConfiguration = Field(default_factory=PipelineConfiguration)
+    governance_token: SecretStr = SecretStr("")
 
     @classmethod
     def settings_customise_sources(

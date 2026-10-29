@@ -37,13 +37,31 @@ and exact source evidence before persistence. Inference has bounded concurrency,
 bounded schema retries and replayable results. The supplied optional Agent Framework adapter uses
 a chat client, not an autonomous agent.
 
-Extraction currently also proposes directly evidenced local relationships. No separate relationship,
-deduplication or embedding model is invoked unnecessarily; introduce task-specific providers when
-those deferred tasks have evaluated implementations.
+Extraction also proposes directly evidenced local relationships. Enrichment independently runs
+bounded deterministic checks; optional `SemanticVerifier` / `EmbeddingPort` implementations reuse
+the benchmark service's provider/input-keyed caches. Registration never enables a paid provider.
+
+## Pipeline stages and checks
+
+`ports\workflow.py` declares `PipelineStage`, `KnowledgeCheck`, execution/resolution/issue repositories
+and typed contexts/results. `ProcessorSpec` declares identity, version, dependencies, input/output
+contracts, capability/evidence requirements and configuration schema.
+
+Register stages explicitly with `StageRegistry.register(stage)` and inject the registry through
+`Runtime.orchestrator(registry)`. A replacement stage must preserve source evidence and return an
+`ArtifactReference` compatible with its dependants. Stages run in dependency order; partial runs
+require current successful compatible upstream artifacts. No external scheduler is introduced.
+
+Add a check to a stage's `checks` tuple. `stages.enrichment.Check` wraps an async evaluation and an
+optional typed `parameters` model; custom implementations may implement `KnowledgeCheck` directly.
+Check dependencies must be registered in execution order; invalid/disabled prerequisites fail
+validation. Version/provider/configuration changes trigger targeted check replay. Relevant evidence
+determines proposal identity, preserving human decisions across unrelated corpus or check changes.
+See `phase3.md` for a concrete example and configuration.
 
 ## Repositories, artifacts and future adapters
 
-`UnitOfWork` owns small source, knowledge, lineage and processing repositories. Explicit commits
+`UnitOfWork` owns source, knowledge, lineage, processing, workflow, resolution and issue repositories. Explicit commits
 are required. Never return ORM rows outside the PostgreSQL adapter. A future Neo4j implementation
 must pass the same contract tests and preserve transaction/checkpoint/evidence semantics; the
 relational design does not require Neo4j.
@@ -56,8 +74,10 @@ grant the identity only needed blob permissions. No Azure resource provisioning 
 
 Future ArchiMate exchange and Bizzdesign integrations should map original element identifiers
 to stable source references without inventing evidence. `DeviationReference` reserves a typed
-association to a specific concept revision and scope. Deviation approvals, counts and lifecycle
-management remain out of scope.
+association to a specific concept revision and scope. `Deviation` and
+`ResolutionRepository.deviations(as_of)` support an independently replaceable approved-deviation
+count detector. The default repository returns no approved exceptions; approval/storage lifecycle
+management remains out of scope. The synthetic demonstration exercises the detector explicitly.
 
 ## Verification
 

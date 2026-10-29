@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from ekb import __version__
 from ekb.config import Settings
+from ekb.interfaces.cli.workflow import register
 from ekb.runtime import Runtime
 
 app = typer.Typer(help="Enterprise Knowledge Base: incremental, grounded knowledge.")
@@ -27,6 +28,17 @@ app.add_typer(concepts_app, name="concepts")
 app.add_typer(eval_app, name="eval")
 
 
+@eval_app.command("workflow")
+def evaluate_workflow(
+    fixture: Annotated[Path, typer.Option()] = Path("tests/fixtures/enterprise.json"),
+    output: Annotated[Path, typer.Option()] = Path("data/phase3-demonstration.json"),
+) -> None:
+    """Run retained real sources and simulated governance in the persistent demo schema."""
+    from ekb.evaluation.workflow import demonstrate_workflow
+
+    emit(asyncio.run(demonstrate_workflow(Settings(), fixture, output)))
+
+
 def emit(value: Any) -> None:
     def encode(item: Any) -> Any:
         if isinstance(item, BaseModel):
@@ -34,6 +46,9 @@ def emit(value: Any) -> None:
         return str(item)
 
     typer.echo(json.dumps(value, default=encode, indent=2))
+
+
+register(app, emit)
 
 
 @app.command()
