@@ -3,6 +3,7 @@
 - `models.py` defines frozen schemas, identity/fingerprint helpers, scope, versions and provenance.
 - `publication.py` assesses evidenced maturity and projects time/scoped authority independently.
 - `grounding.py` checks exact evidence substrings and relationship candidate references.
+- `benchmarks.py` defines source/control/mapping/policy records, not additional semantic primitives.
 - Objectives and requirements remain candidates until an explicit authority decision.
 
 Keep this layer deterministic and independent of persistence, transport, cloud and model SDKs.

@@ -2,6 +2,7 @@
 
 `__init__.py` defines small typed `Protocol` interfaces for sources, artifacts, parsing, inference,
 repositories and explicit units of work.
+`ArtifactStore` separates immutable content-addressed originals from named corpus views/checkpoints.
 
 These contracts use domain values; do not import concrete adapters or provider/transport SDKs.
 Add or extend a port only for a real interchangeable boundary, not every helper.

@@ -13,6 +13,7 @@ from ekb.adapters.sources import (
     manifest_connector,
     read_manifest,
 )
+from ekb.adapters.sources.benchmarks import MicrosoftLearnBenchmarkConnector
 from ekb.config import Settings
 from ekb.domain.models import fingerprint
 from ekb.observability import configure, flush
@@ -36,7 +37,13 @@ class Runtime:
                 self.settings.blob_account_url, self.settings.blob_container
             )
         else:
-            self.artifacts = FilesystemArtifactStore(self.settings.data_dir / "artifacts")
+            self.artifacts = FilesystemArtifactStore(
+                self.settings.data_dir / "artifacts",
+                document_directory=self.settings.data_dir
+                / "test-corpus"
+                / "public"
+                / "microsoft_security_benchmark",
+            )
         self.inference: InferencePort
         match self.settings.inference:
             case "openai":
@@ -51,6 +58,17 @@ class Runtime:
         self.knowledge = KnowledgeService(self.database)
         self._connectors: list[SourceConnector] = []
         self._connector_cache: dict[tuple[str, str], list[SourceConnector]] = {}
+        self._benchmarks: MicrosoftLearnBenchmarkConnector | None = None
+
+    def benchmarks(self) -> MicrosoftLearnBenchmarkConnector:
+        if self._benchmarks is None:
+            self._benchmarks = MicrosoftLearnBenchmarkConnector(
+                self.artifacts,
+                self.settings.max_document_bytes,
+                concurrency=min(self.settings.scan_concurrency, 16),
+            )
+            self._connectors.append(self._benchmarks)
+        return self._benchmarks
 
     def pipeline(self) -> IngestionPipeline:
         return IngestionPipeline(

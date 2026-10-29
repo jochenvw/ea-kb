@@ -82,7 +82,34 @@ Public sites can move or deny automated requests. Fetch failures remain visible 
 historical evidence. Original content hashes preserve the retrieved edition; mutable upstream URLs
 are not a substitute for an archival citation.
 
-### Downloadable parser-test corpus
+### Microsoft security benchmark downloads
+
+```powershell
+uv run ekb sources sync microsoft-security-benchmark
+uv run ekb sources sync microsoft-security-benchmark --versions mcsb-v1,mcsb-v2 --domains NS
+uv run python scripts\download_test_corpus.py --benchmark --domains NS
+```
+
+Synchronization discovers linked domain articles and published workbooks, downloads actual linked
+Azure Policy JSON for Network Security, and preserves originals, normalized evidence and per-asset
+checkpoints through the artifact port. Local output is under
+`data\test-corpus\public\microsoft_security_benchmark`; Azure Blob uses equivalent object keys.
+NIST/ISO/CIS mapping projections retain exact namespaces, revisions and unresolved target IDs.
+Microsoft Learn and SecurityBenchmarks source URLs and CC-BY 4.0 attribution remain attached.
+
+Repeated sync uses conditional requests only after checking cached hashes, skips unchanged parsing,
+and replays changed parsers. Failed refreshes preserve earlier valid artifacts. Focused runs retain
+other cached editions/domains. Download, skipped-parse and replay counts describe separate stages.
+Run a single sync writer per corpus; database ingestion has separate ownership fencing.
+The current official repository has no MCSB v2 workbook. The v1 workbook describes itself as a private
+preview: its maturity is not inherited from the web edition. Absence of a preview marker is unknown,
+not evidence of final publication or enterprise approval.
+
+This checkpoint exposes synchronization and cache-only connector operations. Dedicated database
+ingestion/comparison is still being implemented; benchmark manifest entries are disabled in generic
+HTTP ingestion rather than sending structured controls through generic model extraction.
+
+### Additional downloadable parser-test corpus
 
 The supplied corpus downloader retrieves additional real PDFs, a Word assessment template,
 the complete NIST OSCAL catalog, and public overview/regulatory HTML when publishers permit it:

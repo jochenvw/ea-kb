@@ -32,6 +32,7 @@ dependencies = [
   "opentelemetry-instrumentation-fastapi>=0.60b0,<1",
   "azure-storage-blob>=12.27,<13",
   "azure-identity>=1.25,<2",
+  "openpyxl>=3.1,<4",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,10 @@ dev = [
   "basedpyright>=1.37,<2",
 ]
 
+[[tool.uv.index]]
+url = "https://packagefeedproxy.microsoft.io/pypi/simple"
+default = true
+
 [project.scripts]
 ekb = "ekb.interfaces.cli:app"
 
@@ -54,6 +59,7 @@ ekb = "ekb.interfaces.cli:app"
 filesystem = "ekb.adapters.sources:FilesystemConnector"
 http = "ekb.adapters.sources:HTTPConnector"
 oscal = "ekb.adapters.sources:HTTPConnector"
+microsoft-security-benchmark = "ekb.adapters.sources.benchmarks:MicrosoftLearnBenchmarkConnector"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ekb"]

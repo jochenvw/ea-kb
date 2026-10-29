@@ -3,6 +3,7 @@
 `app` in `__init__.py` is registered as the `ekb` console script by `pyproject.toml`.
 
 - `init` migrates; `scan` ingests/resumes; inspection commands return persisted knowledge.
+- `sources sync microsoft-security-benchmark` downloads and normalizes actual published assets.
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.
 - Async use cases enter `Runtime`; keep `asyncio.run` at this synchronous process boundary.
 

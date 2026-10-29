@@ -167,6 +167,30 @@ async def download(
 
 async def run(args: argparse.Namespace) -> int:
     manifest = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
+    if args.benchmark:
+        benchmark = manifest["benchmark"]
+        if args.dry_run:
+            print(
+                json.dumps(
+                    {
+                        "provider": benchmark["provider"],
+                        "versions": benchmark["versions"],
+                        "network": False,
+                        "writes": False,
+                    },
+                    indent=2,
+                )
+            )
+            return 0
+        from ekb.config import Settings
+        from ekb.runtime import Runtime
+
+        async with Runtime(Settings(scan_concurrency=args.concurrency)) as runtime:
+            report = await runtime.benchmarks().sync(
+                benchmark["versions"], args.domains.split(",") if args.domains else None
+            )
+        print(report.model_dump_json(indent=2))
+        return int(report.failed > 0)
     items = manifest["sources"]
     index = read_index()
     old = index.get("items", {})
@@ -216,9 +240,21 @@ def main() -> int:
         "--dry-run", action="store_true", help="show destination paths without network access"
     )
     parser.add_argument("--concurrency", type=int, default=3)
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Use the application's resumable Microsoft benchmark downloader instead",
+    )
+    parser.add_argument("--domains", help="Benchmark domain IDs, comma separated, e.g. NS")
     args = parser.parse_args()
     if not 1 <= args.concurrency <= 16:
         parser.error("--concurrency must be between 1 and 16")
+    if args.domains and not args.benchmark:
+        parser.error("--domains requires --benchmark")
+    if args.force and args.benchmark:
+        parser.error(
+            "--force applies to the legacy corpus; benchmark sync checks revisions each run"
+        )
     return asyncio.run(run(args))
 
 

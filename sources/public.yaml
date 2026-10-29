@@ -1,5 +1,39 @@
 # Official source locations verified during implementation. Never redistribute licensed ISO texts.
 sources:
+  - id: asb-v2
+    publisher: Microsoft
+    name: Azure Security Benchmark v2
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2
+    format: md
+    category: microsoft-security-benchmark
+    retrieval: microsoft-security-benchmark
+    enabled: false
+    publisher_version: v2
+    access_notes: Official Microsoft Learn and linked MicrosoftDocs SecurityBenchmarks sources; preserve originals and CC-BY 4.0 attribution. Sync explicitly with ekb sources sync microsoft-security-benchmark.
+    intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate. The dedicated cached-source ingestion route is being implemented.
+  - id: mcsb-v1
+    publisher: Microsoft
+    name: Microsoft Cloud Security Benchmark v1
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview-mcsb-v1
+    format: md
+    category: microsoft-security-benchmark
+    retrieval: microsoft-security-benchmark
+    enabled: false
+    publisher_version: v1
+    access_notes: Official Learn articles and linked MicrosoftDocs workbook; preserve originals and CC-BY 4.0 attribution. Workbook self-describes as a private preview independently of web-article maturity.
+    intended_scope: Earlier MCSB edition, with source-specific publication maturity; no automatic enterprise adoption. Use the explicit sync command.
+  - id: mcsb-v2
+    publisher: Microsoft
+    name: Microsoft Cloud Security Benchmark v2 (preview)
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview
+    format: md
+    category: microsoft-security-benchmark
+    retrieval: microsoft-security-benchmark
+    enabled: false
+    publisher_version: v2
+    publication_status: preview
+    access_notes: Official Learn content and published Azure Policy JSON links. No v2 workbook is fabricated; preserve original URLs, hashes and publisher notices.
+    intended_scope: Preview edition explicitly superseding MCSB v1; mappings are publisher assertions, not full coverage, semantic equivalence, or approved enterprise requirements. Use explicit sync.
   - id: shell-annual-2025
     publisher: Shell plc
     name: Shell Annual Report and Accounts 2025 (selected strategy pages)

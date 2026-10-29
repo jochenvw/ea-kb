@@ -79,6 +79,37 @@ def sources_list() -> None:
     emit(asyncio.run(execute()))
 
 
+@sources_app.command("sync")
+def sources_sync(
+    provider: str,
+    versions: Annotated[str | None, typer.Option(help="Comma-separated edition keys.")] = None,
+    domains: Annotated[
+        str | None, typer.Option(help="Comma-separated domain IDs, e.g. NS.")
+    ] = None,
+) -> None:
+    """Download and normalize official benchmark content; preserve originals and resumable state."""
+    if provider != "microsoft-security-benchmark":
+        raise typer.BadParameter("Supported provider: microsoft-security-benchmark")
+
+    async def execute():
+        from ekb.observability import tracer
+
+        async with Runtime() as runtime:
+            with tracer.start_as_current_span("benchmark.sync"):
+                return await runtime.benchmarks().sync(
+                    [value.strip() for value in versions.split(",")] if versions else None,
+                    [value.strip() for value in domains.split(",")] if domains else None,
+                )
+
+    try:
+        report = asyncio.run(execute())
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
+    emit(report)
+    if report.failed:
+        raise typer.Exit(1)
+
+
 @scans_app.command("list")
 def scans_list() -> None:
     async def execute():

@@ -90,9 +90,45 @@ async def test_failed_sources_are_recorded_in_index_without_fake_downloads(downl
     )
     client = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(403)))
     monkeypatch.setattr(downloader.httpx, "AsyncClient", lambda **kwargs: client)
-    status = await downloader.run(argparse.Namespace(concurrency=1, force=False, dry_run=False))
+    status = await downloader.run(
+        argparse.Namespace(
+            concurrency=1,
+            force=False,
+            dry_run=False,
+            benchmark=False,
+            domains=None,
+        )
+    )
     index = json.loads(downloader.INDEX.read_text(encoding="utf-8"))
     assert status == 1
     assert index["items"] == {}
     assert index["failures"]["public-overview"]["status"] == "failed"
     assert "403" in index["failures"]["public-overview"]["error"]
+
+
+async def test_benchmark_dry_run_does_not_create_runtime_or_download(
+    downloader, monkeypatch, capsys
+):
+    downloader.MANIFEST.write_text(
+        downloader.yaml.safe_dump(
+            {"benchmark": {"provider": "microsoft-security-benchmark", "versions": ["mcsb-v2"]}}
+        ),
+        encoding="utf-8",
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Dry-run must not initialize a client or runtime")
+
+    monkeypatch.setattr(downloader.httpx, "AsyncClient", forbidden)
+    status = await downloader.run(
+        argparse.Namespace(
+            concurrency=1,
+            force=False,
+            dry_run=True,
+            benchmark=True,
+            domains="NS",
+        )
+    )
+    result = json.loads(capsys.readouterr().out)
+    assert status == 0 and result["network"] is False and result["writes"] is False
+    assert not downloader.OUT.exists()

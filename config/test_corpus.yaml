@@ -1,6 +1,9 @@
 # EKB realistic ingestion test corpus; URLs from official publishers.
 # These sources are NOT assertions that regulations apply to a specific company.
 # Download only where permitted; ISO full texts require authorized copies.
+benchmark:
+  provider: microsoft-security-benchmark
+  versions: [asb-v2, mcsb-v1, mcsb-v2]
 sources:
   - id: shell-annual-2025
     title: Shell Annual Report and Accounts 2025

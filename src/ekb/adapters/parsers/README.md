@@ -1,6 +1,8 @@
 # Deterministic document parsing
 
 `StructuredParser` in `__init__.py` converts PDF, Office, OSCAL/JSON, XML, HTML and text into segments.
+`benchmarks.py` deterministically extracts benchmark controls, original framework revisions,
+workbook-specific maturity and actual policy definitions with exact normalized-text offsets.
 
 - Preserve hierarchy and source locations; exact offsets refer to persisted parsed text.
 - Blocking libraries run through `asyncio.to_thread`; OCR is selective and opt-in.
