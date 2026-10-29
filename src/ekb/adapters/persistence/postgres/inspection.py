@@ -21,6 +21,7 @@ from ekb.adapters.persistence.postgres.models import (
     SourceRow,
     VersionRow,
 )
+from ekb.adapters.persistence.postgres.source_groups import source_group
 from ekb.domain.inspection import (
     BacklogItem,
     BacklogPage,
@@ -109,9 +110,16 @@ class Inspection:
         self, source_id: UUID, limit: int = 50, *, after: UUID | None = None
     ) -> SourceInspection | None:
         source = await self.session.get(SourceRow, source_id)
+        group = None
         if source is None:
-            return None
-        revisions = select(RevisionRow.id).where(RevisionRow.source_id == source_id)
+            group = await source_group(self.session, source_id)
+            if group is None:
+                return None
+            record = group.documents[0]
+        else:
+            record = SourceRecord.model_validate(source.payload)
+        members = [document.item.id for document in group.documents] if group else [source_id]
+        revisions = select(RevisionRow.id).where(RevisionRow.source_id.in_(members))
         segments = select(SegmentRow.id).where(SegmentRow.revision_id.in_(revisions))
         own_versions = (
             select(OccurrenceRow.concept_version_id)
@@ -142,7 +150,8 @@ class Inspection:
             query = query.where(VersionRow.id > after)
         rows = list((await self.session.execute(query.limit(limit + 1))).all())
         return SourceInspection(
-            source=SourceRecord.model_validate(source.payload),
+            source=record,
+            group=group,
             revisions=counts[0],
             segments=counts[1],
             versions=counts[2],

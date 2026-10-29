@@ -6,6 +6,8 @@
 - Browser routes serve the prebuilt React/shadcn shell; `/health` checks PostgreSQL.
 - `/api/ui/config` exposes only governance-enabled and scan-running booleans, never credentials.
 - `/api/concepts` accepts `after`, `source_id` and `level`; constraints select the same version.
+- `/api/source-groups` consolidates benchmark editions; source drill-down/search accept group or document IDs.
+- `/api/sources` remains the original document inventory for compatibility and exact provenance.
 - `inspection.py` serves source drill-down, graphs, outstanding proposals and read-only table/log pages.
 - Inspection permits EKB-owned tables only, not arbitrary SQL, files, raw traces or mutations.
 - `/scans` starts one application-owned task using server-configured sources, not arbitrary paths.

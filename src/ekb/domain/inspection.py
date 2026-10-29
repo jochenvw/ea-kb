@@ -7,6 +7,7 @@ from pydantic import JsonValue
 from ekb.domain.benchmarks import BenchmarkPassage
 from ekb.domain.models import ConceptVersion, KnowledgeLevel, Model, SourceRecord
 from ekb.domain.resolution import Decision, Finding
+from ekb.domain.sources import SourceGroup
 
 
 class SourceExtraction(Model):
@@ -18,6 +19,7 @@ class SourceExtraction(Model):
 
 class SourceInspection(Model):
     source: SourceRecord
+    group: SourceGroup | None = None
     revisions: int
     segments: int
     versions: int

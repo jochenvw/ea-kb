@@ -28,6 +28,7 @@ from ekb.domain.reconciliation import (
     ControlContext,
     EditionView,
 )
+from ekb.domain.sources import SourceGroup, source_groups
 from ekb.interfaces.api.governance import register as register_governance
 from ekb.interfaces.api.inspection import register as register_inspection
 from ekb.observability import log
@@ -77,6 +78,11 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     async def sources(request: Request):
         async with active(request).database() as uow:
             return await uow.sources.list()
+
+    @app.get("/api/source-groups", response_model=list[SourceGroup])
+    async def logical_sources(request: Request):
+        async with active(request).database() as uow:
+            return source_groups(await uow.sources.list())
 
     @app.get("/api/scans", response_model=list[ScanReport])
     async def scans(request: Request):
@@ -181,7 +187,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     async def source_page(request: Request, source_id: UUID):
         async with active(request).database() as uow:
             if await uow.sources.get(source_id) is None:
-                raise HTTPException(404, "Source not found")
+                if await uow.inspection.source(source_id, 1) is None:
+                    raise HTTPException(404, "Source not found")
         return templates.TemplateResponse(request=request, name="index.html")
 
     @app.get("/concepts/{concept_id}", response_class=HTMLResponse)

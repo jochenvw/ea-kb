@@ -41,17 +41,18 @@ import {
   semanticVersion,
   useResource,
 } from "@/lib/api";
-import type { Source, SourceInspection } from "@/types";
+import type { SourceGroup, SourceInspection } from "@/types";
 
 export function Sources() {
-  const resource = useResource<Source[]>("/api/sources");
+  const resource = useResource<SourceGroup[]>("/api/source-groups");
   const [query, setQuery] = useState("");
   const [format, setFormat] = useState("");
-  const [selected, setSelected] = useState<Source | null>(null);
+  const [selected, setSelected] = useState<SourceGroup | null>(null);
+  const overview = selected?.documents[0];
   const items = (resource.data ?? []).filter(
     (source) =>
-      (!format || source.item.format === format) &&
-      `${source.item.name} ${source.item.location} ${String(source.item.metadata.publisher ?? "")}`
+      (!format || source.documents.some((doc) => doc.item.format === format)) &&
+      `${source.name} ${source.publisher ?? ""} ${source.edition ?? ""} ${source.documents.map((doc) => `${doc.item.name} ${doc.item.location}`).join(" ")}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -61,11 +62,11 @@ export function Sources() {
       <Heading
         eyebrow="SOURCE REGISTRY"
         title="Know where it came from."
-        description="Inspect registered sources, retrieval state and publication metadata. Originals remain in the configured artifact store."
+        description="One source per benchmark edition. Its pages, workbooks, mappings and policies remain individual evidence documents."
       />
       <Panel
         title="Registered sources"
-        description="Includes historical, fixture and metadata-only records; not just the latest ingestion."
+        description="Editions stay separate. Original document identities, retrieval history and exact evidence are preserved."
       >
         <div className="toolbar">
           <SearchBox
@@ -88,7 +89,9 @@ export function Sources() {
               ["", "All formats"],
               ...[
                 ...new Set(
-                  (resource.data ?? []).map((source) => source.item.format),
+                  (resource.data ?? []).flatMap((source) =>
+                    source.documents.map((doc) => doc.item.format),
+                  ),
                 ),
               ]
                 .sort()
@@ -107,9 +110,9 @@ export function Sources() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="statement-column">Source</TableHead>
-                  <TableHead>Format</TableHead>
+                  <TableHead>Documents</TableHead>
                   <TableHead>Retrieval state</TableHead>
-                  <TableHead>Publisher maturity</TableHead>
+                  <TableHead>Reference document maturity</TableHead>
                   <TableHead>
                     <span className="sr-only">Details</span>
                   </TableHead>
@@ -117,31 +120,53 @@ export function Sources() {
               </TableHeader>
               <TableBody>
                 {rows.map((source) => (
-                  <TableRow key={source.item.id}>
+                  <TableRow key={source.id}>
                     <TableCell>
                       <a
                         className="statement-link"
-                        href={`/sources/${source.item.id}`}
+                        href={`/sources/${source.id}`}
                       >
-                        {source.item.name}
+                        {source.name}
                       </a>
                       <span className="cell-caption truncate-location">
-                        {source.item.location}
+                        {source.publisher ?? "Unknown publisher"}
+                        {source.edition ? ` · ${source.edition}` : ""}
                       </span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">
-                        {source.item.format.toUpperCase()}
+                        {source.documents.length}{" "}
+                        {source.documents.length === 1
+                          ? "document"
+                          : "documents"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Status value={source.status} />
-                      {source.item.metadata.metadata_only === true && (
-                        <span className="cell-caption">Metadata only</span>
+                      <span>
+                        {
+                          source.documents.filter(
+                            (doc) => doc.status === "available",
+                          ).length
+                        }{" "}
+                        / {source.documents.length} available
+                      </span>
+                      {source.documents.some(
+                        (doc) => doc.status === "error",
+                      ) && (
+                        <span className="cell-caption">
+                          Retrieval errors in documents
+                        </span>
                       )}
+                      {source.documents.every(
+                        (doc) => doc.item.metadata.metadata_only === true,
+                      ) && <span className="cell-caption">Metadata only</span>}
                     </TableCell>
                     <TableCell>
-                      <Status value={source.publication.publication_status} />
+                      <Status
+                        value={
+                          source.documents[0].publication.publication_status
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       <SheetTrigger asChild>
@@ -149,7 +174,7 @@ export function Sources() {
                           variant="outline"
                           size="sm"
                           onClick={() => setSelected(source)}
-                          aria-label={`Inspect source ${source.item.name}`}
+                          aria-label={`Inspect source ${source.name}`}
                         >
                           Inspect
                         </Button>
@@ -163,64 +188,61 @@ export function Sources() {
               <SheetHeader>
                 <SheetTitle>Source details</SheetTitle>
                 <SheetDescription>
-                  Retrieval and publication are distinct from enterprise
-                  adoption.
+                  Metadata describes the overview or first retained document,
+                  not every member or enterprise adoption.
                 </SheetDescription>
               </SheetHeader>
-              {selected && (
+              {selected && overview && (
                 <div className="sheet-body">
-                  <h2>{selected.item.name}</h2>
+                  <h2>{selected.name}</h2>
                   <Button asChild>
-                    <a href={`/sources/${selected.item.id}`}>
+                    <a href={`/sources/${selected.id}`}>
                       Browse extracted things
                       <ArrowUpRight />
                     </a>
                   </Button>
                   <div className="tag-row">
-                    <Status value={selected.status} />
                     <Badge variant="outline">
-                      {selected.item.format.toUpperCase()}
+                      {selected.documents.length} evidence documents
                     </Badge>
                   </div>
                   <dl className="metadata">
                     <div>
                       <dt>Publisher</dt>
-                      <dd>
-                        {String(selected.item.metadata.publisher ?? "Unknown")}
-                      </dd>
+                      <dd>{selected.publisher ?? "Unknown"}</dd>
                     </div>
                     <div>
-                      <dt>Last checked</dt>
-                      <dd>{date(selected.checked_at)}</dd>
+                      <dt>Reference document checked</dt>
+                      <dd>{date(overview.checked_at)}</dd>
                     </div>
                     <div>
-                      <dt>Publisher maturity</dt>
-                      <dd>{selected.publication.publication_status}</dd>
+                      <dt>Reference document maturity</dt>
+                      <dd>{overview.publication.publication_status}</dd>
                     </div>
                     <div>
                       <dt>Publisher version</dt>
                       <dd>
-                        {selected.publication.publisher_version ?? "Unknown"}
+                        {overview.publication.publisher_version ?? "Unknown"}
                       </dd>
                     </div>
                     <div>
                       <dt>Semantic version</dt>
                       <dd>
-                        {semanticVersion(selected.publication.semantic_version)}
+                        {semanticVersion(overview.publication.semantic_version)}
                       </dd>
                     </div>
                     <div>
                       <dt>Location</dt>
-                      <dd>{selected.item.location}</dd>
+                      <dd>{overview.item.location}</dd>
                     </div>
                   </dl>
-                  {selected.error && (
-                    <p className="callout">{selected.error}</p>
+                  {overview.error && (
+                    <p className="callout">{overview.error}</p>
                   )}
-                  {externalUrl(selected.item.location) && (
+                  {externalUrl(overview.item.location) && (
                     <Button asChild variant="outline">
                       <a
-                        href={externalUrl(selected.item.location)}
+                        href={externalUrl(overview.item.location)}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -251,6 +273,7 @@ export function SourcePage({ id }: { id: string }) {
     `/api/sources/${encodeURIComponent(id)}?limit=50${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
   );
   const data = resource.data;
+  const documents = usePage(data?.group?.documents ?? [], 10);
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="back-link">
@@ -261,7 +284,7 @@ export function SourcePage({ id }: { id: string }) {
       </Button>
       <Heading
         eyebrow="REFERENCE / SOURCE"
-        title={data?.source.item.name ?? "Source detail"}
+        title={data?.group?.name ?? data?.source.item.name ?? "Source detail"}
         description="Follow this source into its extracted interpretations, exact evidence and relationships."
       >
         {data && externalUrl(data.source.item.location) && (
@@ -303,8 +326,10 @@ export function SourcePage({ id }: { id: string }) {
               />
             </div>
             <Panel
-              title="Source context"
-              description="Retrieval and publisher maturity do not establish enterprise authority."
+              title={
+                data.group ? "Reference document context" : "Document context"
+              }
+              description="Retrieval and publisher maturity describe this document, not every member or enterprise authority."
             >
               <div className="tag-row">
                 <Status value={data.source.status} />
@@ -339,12 +364,62 @@ export function SourcePage({ id }: { id: string }) {
                 </a>
               </Button>
               <Button variant="outline" size="sm" asChild>
-                <a href={`/data?table=sources&record=${id}`}>
+                <a href={`/data?table=sources&record=${data.source.item.id}`}>
                   Inspect stored source record
                   <ArrowUpRight />
                 </a>
               </Button>
             </Panel>
+            {data.group && (
+              <Panel
+                title="Evidence documents"
+                description={`${data.group.documents.length} original documents belong to this edition. Open a document for its own retrieval state, extracted versions and exact evidence.`}
+              >
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Format</TableHead>
+                      <TableHead>Retrieval</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.rows.map((document) => {
+                      const asset = document.item.metadata.benchmark_asset as
+                        { role?: string } | undefined;
+                      return (
+                        <TableRow key={document.item.id}>
+                          <TableCell>
+                            <a
+                              className="statement-link"
+                              href={`/sources/${document.item.id}`}
+                            >
+                              {document.item.name}
+                            </a>
+                          </TableCell>
+                          <TableCell>
+                            {label(asset?.role ?? "document")}
+                          </TableCell>
+                          <TableCell>
+                            {document.item.format.toUpperCase()}
+                          </TableCell>
+                          <TableCell>
+                            <Status value={document.status} />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <Pager
+                  page={documents.page}
+                  count={data.group.documents.length}
+                  size={10}
+                  onChange={documents.setPage}
+                />
+              </Panel>
+            )}
             <Panel
               title="Extracted things"
               description="Each row is a version actually evidenced in this source, including historical revisions. Drill down to its original passages."
@@ -375,7 +450,12 @@ export function SourcePage({ id }: { id: string }) {
                             className="statement-link"
                             href={`/concepts/${item.concept_id}?version_id=${item.version.id}&source_id=${id}&level=${item.level ?? ""}`}
                           >
-                            {assertionText(item.version, id)}
+                            {assertionText(
+                              item.version,
+                              data.group
+                                ? data.group.documents.map((doc) => doc.item.id)
+                                : id,
+                            )}
                           </a>
                           <span className="cell-caption">
                             {levelLabel(item.level)}

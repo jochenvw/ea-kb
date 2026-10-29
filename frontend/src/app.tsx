@@ -38,7 +38,7 @@ import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Activity } from "@/activity";
 import { Benchmarks } from "@/benchmarks";
-import type { Issue, Pipeline, Source } from "@/types";
+import type { Issue, Pipeline, SourceGroup } from "@/types";
 
 const navigation = [
   { href: "/", name: "Overview", icon: LayoutDashboard, group: "Workspace" },
@@ -237,7 +237,7 @@ export function App() {
 }
 
 function Overview() {
-  const sources = useResource<Source[]>("/api/sources");
+  const sources = useResource<SourceGroup[]>("/api/source-groups");
   const issues = useResource<Issue[]>("/api/issues?status=open&limit=1000");
   const pipeline = useResource<Pipeline | null>("/api/pipeline/status");
   const stats = useResource<{
@@ -271,7 +271,7 @@ function Overview() {
         <Metric
           title="Registered sources"
           value={sources.data?.length}
-          detail="Includes historical and metadata-only records"
+          detail={`${sources.data?.reduce((count, group) => count + group.documents.length, 0) ?? "…"} evidence documents; one source per edition`}
         />
         <Metric
           title="Open issues"

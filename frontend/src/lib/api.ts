@@ -1,5 +1,26 @@
 import { useEffect, useState } from "react";
-import type { SemanticVersion, Version } from "@/types";
+import type { SemanticVersion, SourceGroup, Version } from "@/types";
+
+export function sourceMembers(
+  groups: SourceGroup[] | null,
+  sourceId: string | null,
+): string[] {
+  if (!sourceId) return [];
+  return (
+    groups
+      ?.find((group) => group.id === sourceId)
+      ?.documents.map((doc) => doc.item.id) ?? [sourceId]
+  );
+}
+
+export function assertionMatches(
+  version: Version | undefined,
+  members: string[],
+) {
+  return (
+    !members.length || members.includes(version?.assertion?.source_id ?? "")
+  );
+}
 
 export function levelLabel(level: string | undefined | null) {
   return level === "implementation"
@@ -11,10 +32,11 @@ export function levelLabel(level: string | undefined | null) {
 
 export function assertionText(
   version: Version | undefined,
-  sourceId?: string | null,
+  sourceId?: string | string[] | null,
 ) {
   return (
-    (sourceId && version?.assertion?.source_id !== sourceId
+    (sourceId &&
+    !assertionMatches(version, Array.isArray(sourceId) ? sourceId : [sourceId])
       ? null
       : version?.assertion?.text) ??
     version?.candidate.statement.replace(/\s+/g, " ").trim() ??

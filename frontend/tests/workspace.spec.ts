@@ -27,6 +27,13 @@ const source = {
   error: null,
   publication,
 };
+const sourceGroup = {
+  id: sourceId,
+  name: source.item.name,
+  publisher: "Example publisher",
+  edition: null,
+  documents: [source],
+};
 const concept = {
   id,
   levels: { [id]: "top_level" },
@@ -108,6 +115,7 @@ async function fixture(page: Page, governance = false) {
     if (path === "/api/ui/config")
       data = { governance_enabled: governance, scan_running: false };
     else if (path === "/api/sources") data = [source];
+    else if (path === "/api/source-groups") data = [sourceGroup];
     else if (path === `/api/sources/${sourceId}`)
       data = {
         source,
@@ -518,7 +526,7 @@ test("source filtering keeps the evidenced assertion and resets pagination", asy
     .poll(() => requests.at(-1)?.searchParams.has("after"))
     .toBe(true);
   await page
-    .getByRole("combobox", { name: "Source document" })
+    .getByRole("combobox", { name: "Source", exact: true })
     .selectOption(sourceId);
   await expect
     .poll(() => requests.at(-1)?.searchParams.get("source_id"))
@@ -535,14 +543,169 @@ test("source filtering keeps the evidenced assertion and resets pagination", asy
   );
   await page.reload();
   await expect(
-    page.getByRole("combobox", { name: "Source document" }),
+    page.getByRole("combobox", { name: "Source", exact: true }),
   ).toHaveValue(sourceId);
   await page
-    .getByRole("combobox", { name: "Source document" })
+    .getByRole("combobox", { name: "Source", exact: true })
     .selectOption("");
   await expect
     .poll(() => requests.at(-1)?.searchParams.has("source_id"))
     .toBe(false);
+});
+
+test("logical editions consolidate documents and preserve exact-source navigation", async ({
+  page,
+}) => {
+  const secondDocument = {
+    ...source,
+    item: { ...source.item, id: relatedId, name: "Example policy definitions" },
+  };
+  const group = {
+    ...sourceGroup,
+    id: findingId,
+    name: "Example security benchmark v1",
+    edition: "example-v1",
+    documents: [source, secondDocument],
+  };
+  const next = {
+    ...sourceGroup,
+    id: "55555555-5555-4555-8555-555555555555",
+    name: "Example security benchmark v2",
+    edition: "example-v2",
+    documents: [
+      {
+        ...source,
+        item: { ...source.item, id: "66666666-6666-4666-8666-666666666666" },
+      },
+    ],
+  };
+  const phrase = "Teams must retain audit logs for investigations.";
+  const version = {
+    ...concept.versions[0],
+    assertion: { text: phrase, source_id: sourceId },
+  };
+  const item = {
+    ...concept,
+    matching_version_id: id,
+    versions: [version],
+    sources: [
+      {
+        id: sourceId,
+        name: source.item.name,
+        publisher: "Example publisher",
+        version_ids: [id],
+        evidence_counts: { [id]: 1 },
+      },
+    ],
+  };
+  await page.route("**/api/source-groups", (route) =>
+    route.fulfill({ json: [group, next] }),
+  );
+  await page.route(`**/api/sources/${findingId}?*`, (route) =>
+    route.fulfill({
+      json: {
+        source,
+        group,
+        revisions: 2,
+        segments: 2,
+        versions: 1,
+        occurrences: 2,
+        items: [{ concept_id: id, version, evidence_count: 2 }],
+        next_cursor: null,
+      },
+    }),
+  );
+  await page.route("**/api/concepts?**", (route) =>
+    route.fulfill({ json: [item] }),
+  );
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({ json: item }),
+  );
+  await page.goto("/sources");
+  await expect(
+    page.getByRole("link", { name: group.name, exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: next.name, exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByText("2 documents", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: group.name, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: group.name, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: secondDocument.item.name, exact: true }),
+  ).toHaveAttribute("href", `/sources/${relatedId}`);
+  await expect(
+    page.getByRole("link", { name: phrase, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Filter knowledge by this source" })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Source", exact: true }),
+  ).toHaveValue(findingId);
+  await expect(
+    page.getByRole("combobox", { name: "Evidence document" }),
+  ).toHaveValue("");
+  await page.getByRole("link", { name: phrase, exact: true }).click();
+  await expect(page.locator(".concept-statement").first()).toHaveText(phrase);
+  await expect(page.locator("blockquote")).toHaveText(excerpt);
+  await page.getByRole("link", { name: "Knowledge library" }).click();
+  await page
+    .getByRole("combobox", { name: "Evidence document" })
+    .selectOption(sourceId);
+  await expect(page).toHaveURL(new RegExp(`source_id=${sourceId}`));
+  await page.reload();
+  await expect(
+    page.getByRole("combobox", { name: "Source", exact: true }),
+  ).toHaveValue(findingId);
+  await expect(
+    page.getByRole("combobox", { name: "Evidence document" }),
+  ).toHaveValue(sourceId);
+  await page
+    .getByRole("combobox", { name: "Evidence document" })
+    .selectOption("");
+  await expect(page).toHaveURL(new RegExp(`source_id=${findingId}`));
+});
+
+test("logical-source filters reject phrasing cached against another edition", async ({
+  page,
+}) => {
+  const group = {
+    ...sourceGroup,
+    id: findingId,
+    edition: "example-v1",
+  };
+  const version = {
+    ...concept.versions[0],
+    assertion: {
+      text: "A summary from another edition.",
+      source_id: relatedId,
+    },
+  };
+  const item = { ...concept, versions: [version] };
+  await page.route("**/api/source-groups", (route) =>
+    route.fulfill({ json: [group] }),
+  );
+  await page.route("**/api/concepts?**", (route) =>
+    route.fulfill({ json: [item] }),
+  );
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({ json: item }),
+  );
+  await page.goto(`/knowledge?source_id=${findingId}`);
+  await expect(
+    page.getByRole("link", { name: statement, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("A summary from another edition.", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("link", { name: statement, exact: true }).click();
+  await expect(page.locator(".concept-statement").first()).toHaveText(
+    statement,
+  );
+  await expect(page.locator("blockquote")).toHaveText(excerpt);
 });
 
 test("quote context respects Unicode offsets and renders untrusted markup as text", async ({
@@ -645,7 +808,7 @@ test("source details retain unknown versions and publisher attribution", async (
     .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByText("Example publisher", { exact: true }),
+    page.getByRole("dialog").getByText("Example publisher", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Unknown", { exact: true })).toBeVisible();
   await expect(
@@ -811,12 +974,17 @@ test("known structured semantic versions retain prerelease and build identifiers
   await expect(
     page.getByText("SemVer: 2.3.4-rc.1+audit", { exact: true }),
   ).toBeVisible();
-  await page.route("**/api/sources", (route) =>
+  await page.route("**/api/source-groups", (route) =>
     route.fulfill({
       json: [
         {
-          ...source,
-          publication: { ...publication, semantic_version: version },
+          ...sourceGroup,
+          documents: [
+            {
+              ...source,
+              publication: { ...publication, semantic_version: version },
+            },
+          ],
         },
       ],
     }),

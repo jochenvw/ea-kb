@@ -300,8 +300,16 @@ The [Bold Wikipedia preset](https://tweakcn.com/r/themes/cmlmpb3qp000004l5go47hz
 both palettes, compact corners, typography and shadows. Inter is self-hosted with the application;
 no font/CDN requests are needed. Semantic shadcn variables also drive the custom reference views.
 
-The knowledge table filters by **Source document**, including individual reports and framework
-editions. Each row names its source and opens the version actually evidenced there; filters persist
+The source registry consolidates each benchmark edition into one source: MCSB v1 and MCSB v2 stay
+separate. Their pages, mappings, workbooks and policies appear as **Evidence documents** underneath;
+original document identifiers and history are unchanged. Overview counts now distinguish logical
+sources from their evidence documents. The raw physical inventory remains at `/api/sources`;
+`/api/source-groups` exposes the logical registry.
+
+The knowledge table filters by **Source**, including individual reports and whole benchmark
+editions. Choose **Evidence document** to narrow an edition to one original file or page.
+API/CLI search `source_id` / `--source-id` accept either a logical edition ID or an original document ID.
+Each row names its source and opens the version actually evidenced there; filters persist
 in the URL and reset paging. Details show the **Original quote**, highlighted surrounding source
 context, section/page and revision metadata. Quotes and context are rendered as text, never HTML.
 When a quote spans its whole segment, adjacent retained passages provide context where available;

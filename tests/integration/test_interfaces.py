@@ -194,6 +194,84 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
         await runtime.__aexit__()
 
 
+async def test_logical_sources_consolidate_editions_and_keep_exact_document_filters(
+    database, tmp_path
+):
+    runtime = await prepared(database, tmp_path)
+    async with database() as uow:
+        records = await uow.sources.list()
+        assert len(records) == 3
+        for index, record in enumerate(records):
+            await uow.sources.save(
+                record.model_copy(
+                    update={
+                        "item": record.item.model_copy(
+                            update={
+                                "metadata": {
+                                    **record.item.metadata,
+                                    "publisher": "Example publisher",
+                                    "benchmark_edition": "example-v1"
+                                    if index < 2
+                                    else "example-v2",
+                                    "benchmark_asset": {
+                                        "role": "overview" if index != 1 else "domain"
+                                    },
+                                }
+                            }
+                        )
+                    }
+                )
+            )
+        await uow.commit()
+    app = create_app(runtime)
+    try:
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                originals = (await client.get("/api/sources")).json()
+                groups = (await client.get("/api/source-groups")).json()
+                assert {group["edition"] for group in groups} == {"example-v1", "example-v2"}
+                first = next(group for group in groups if group["edition"] == "example-v1")
+                second = next(group for group in groups if group["edition"] == "example-v2")
+                assert len(first["documents"]) == 2 and len(second["documents"]) == 1
+                assert first["id"] != second["id"]
+                for group in groups:
+                    group_id = group["id"]
+                    assert (await client.get(f"/sources/{group_id}")).status_code == 200
+                    detail = (await client.get(f"/api/sources/{group_id}")).json()
+                    assert detail["group"]["id"] == group_id
+                    documents = [
+                        (await client.get(f"/api/sources/{doc['item']['id']}")).json()
+                        for doc in group["documents"]
+                    ]
+                    version_ids = {
+                        item["version"]["id"] for doc in documents for item in doc["items"]
+                    }
+                    assert detail["versions"] == len(version_ids)
+                    assert detail["occurrences"] == sum(doc["occurrences"] for doc in documents)
+                    seen = []
+                    after = ""
+                    while True:
+                        page = (await client.get(f"/api/sources/{group_id}?limit=1{after}")).json()
+                        seen.extend(item["version"]["id"] for item in page["items"])
+                        if not page["next_cursor"]:
+                            break
+                        after = f"&after={page['next_cursor']}"
+                    assert len(seen) == len(set(seen)) == len(version_ids)
+                    assert set(seen) == version_ids
+                    expected = {item["concept_id"] for doc in documents for item in doc["items"]}
+                    filtered = (await client.get(f"/api/concepts?source_id={group_id}")).json()
+                    assert {item["id"] for item in filtered} == expected
+                    assert all(item["matching_version_id"] in version_ids for item in filtered)
+                    assert (
+                        await client.get(f"/api/concepts?source_id={group_id}&q=absent-marker")
+                    ).json() == []
+                assert (await client.get("/api/sources")).json() == originals
+    finally:
+        await runtime.__aexit__()
+
+
 async def test_table_inspection_only_exposes_owned_tables_with_stable_readonly_links(
     database, tmp_path
 ):

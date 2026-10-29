@@ -40,6 +40,7 @@ from ekb.adapters.persistence.postgres.models import (
     VersionRow,
     WorkflowLeaseRow,
 )
+from ekb.adapters.persistence.postgres.source_groups import source_ids
 from ekb.adapters.persistence.postgres.workflow import ResolutionStore, Workflow
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
@@ -331,11 +332,12 @@ class Knowledge:
                 )
             )
         if source_id is not None:
+            members = await source_ids(self.session, source_id)
             own = (
                 select(OccurrenceRow.concept_version_id)
                 .join(SegmentRow, OccurrenceRow.segment_id == SegmentRow.id)
                 .join(RevisionRow, SegmentRow.revision_id == RevisionRow.id)
-                .where(RevisionRow.source_id == source_id)
+                .where(RevisionRow.source_id.in_(members))
             )
             matches = matches.where(VersionRow.id.in_(own))
         matched = matches.subquery()

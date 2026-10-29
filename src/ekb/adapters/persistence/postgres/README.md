@@ -4,6 +4,7 @@
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters and text search match the same evidenced version, not an unrelated latest one.
+- `source_groups.py` resolves edition-level source IDs to original document IDs without rewriting rows.
 - Level filters use that same version; `implementation_graph.py` joins current, exact native mappings.
 - `concept_versions.assertion` is a replaceable phrasing cache; original version payloads stay immutable.
 - `Postgres` creates units of work; uncommitted changes roll back on exit.

@@ -168,6 +168,7 @@ export interface Decision {
 
 export interface SourceInspection {
   source: Source;
+  group?: SourceGroup | null;
   revisions: number;
   segments: number;
   versions: number;
@@ -179,6 +180,14 @@ export interface SourceInspection {
     level?: string;
   }[];
   next_cursor: string | null;
+}
+
+export interface SourceGroup {
+  id: string;
+  name: string;
+  publisher: string | null;
+  edition: string | null;
+  documents: Source[];
 }
 
 export interface KnowledgeGraph {

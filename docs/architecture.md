@@ -254,6 +254,14 @@ Knowledge search combines text and exact-source constraints on the same version;
 that version and its source documents. Details retain exact quotes, their surrounding section and
 adjacent passages from the same revision/parser; section labels distinguish neighboring material.
 
+Logical sources are read projections over explicit benchmark-edition metadata, not destructive merges.
+Each publisher/connector/edition has a stable group ID; v1 and v2 remain distinct. Ordinary documents
+retain their existing source IDs. Member pages, workbooks, mappings and policies keep every original
+source, revision, segment and occurrence. Group drill-down counts distinct evidenced versions and
+aggregates passages across its members; knowledge filters constrain that same member-evidenced version
+before paging. Assertion caches are reused only when their physical source belongs to the selection.
+`/api/source-groups` serves the logical registry; `/api/sources` retains physical retrieval records.
+
 Knowledge levels are derived read projections, not new semantic identities or authority states.
 Objectives remain top-level; requirements with explicit platform scope are implementations.
 Other requirements stay in goals/guidance; absent scope is not evidence of universal applicability.
