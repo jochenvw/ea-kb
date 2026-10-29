@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from ekb.adapters.persistence.postgres.benchmarks import Benchmarks
 from ekb.adapters.persistence.postgres.models import (
     AuthorityRow,
     ConceptRow,
@@ -682,6 +683,7 @@ class PostgresUnitOfWork:
         self.knowledge = Knowledge(self.session)
         self.lineage = Lineage(self.session)
         self.processing = Processing(self.session)
+        self.benchmarks = Benchmarks(self.session)
 
     async def __aenter__(self) -> PostgresUnitOfWork:
         return self

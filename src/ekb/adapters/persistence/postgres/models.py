@@ -162,3 +162,18 @@ class ParseRow(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     revision_id: Mapped[UUID] = mapped_column(ForeignKey("source_revisions.id"))
     parser_fingerprint: Mapped[str] = mapped_column(String(64))
+
+
+class BenchmarkDocumentRow(Base):
+    __tablename__ = "benchmark_documents"
+    __table_args__ = (UniqueConstraint("revision_id", "parser_version", "extractor_version"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    source_id: Mapped[UUID] = mapped_column(ForeignKey("sources.id"), index=True)
+    revision_id: Mapped[UUID] = mapped_column(ForeignKey("source_revisions.id"), index=True)
+    segment_id: Mapped[UUID] = mapped_column(ForeignKey("segments.id"), index=True)
+    edition: Mapped[str] = mapped_column(String(30), index=True)
+    role: Mapped[str] = mapped_column(String(30))
+    parser_version: Mapped[str] = mapped_column(String(64))
+    extractor_version: Mapped[str] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)

@@ -88,6 +88,7 @@ are not a substitute for an archival citation.
 uv run ekb sources sync microsoft-security-benchmark
 uv run ekb sources sync microsoft-security-benchmark --versions mcsb-v1,mcsb-v2 --domains NS
 uv run python scripts\download_test_corpus.py --benchmark --domains NS
+uv run ekb scan
 ```
 
 Synchronization discovers linked domain articles and published workbooks, downloads actual linked
@@ -105,9 +106,13 @@ The current official repository has no MCSB v2 workbook. The v1 workbook describ
 preview: its maturity is not inherited from the web edition. Absence of a preview marker is unknown,
 not evidence of final publication or enterprise approval.
 
-This checkpoint exposes synchronization and cache-only connector operations. Dedicated database
-ingestion/comparison is still being implemented; benchmark manifest entries are disabled in generic
-HTTP ingestion rather than sending structured controls through generic model extraction.
+After sync, no-argument `scan` uses the benchmark cache unless a source directory is configured.
+Structured ingestion bypasses generic parsing/model extraction, validates source/segment bindings,
+and commits complete benchmark records with requirement candidates. Unchanged scans skip all work;
+parser changes preserve earlier records without duplicating concepts or inventing semantic versions.
+An oversized semantic statement remains complete in its typed record and is listed in
+`unmaterialized_controls`, never silently truncated. Mappings retain unresolved targets until exact
+namespace/revision resolution. Comparison/reconciliation is still being implemented.
 
 ### Additional downloadable parser-test corpus
 

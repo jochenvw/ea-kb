@@ -34,6 +34,11 @@ Independent discovery producers feed a bounded queue. Worker count limits source
 separate semaphores bound blocking parsers/OCR and inference. Blocking Office/PDF libraries run
 in threads. HTTPX and SQLAlchemy sessions perform asynchronous I/O.
 
+Benchmarks have a deterministic route: explicit synchronization discovers/downloads official
+structured assets into the artifact port; normal scans read the validated cache, persist exact
+segments and typed benchmark snapshots, and materialize requirements without generic parsing or AI.
+Snapshots/mappings/policy definitions are records, not additional semantic primitives.
+
 ## Components and runtime composition
 
 | Component | Implementation | Role |
@@ -83,6 +88,7 @@ to the preserved document; each revision snapshots its historical source locatio
 The standalone `scripts\download_test_corpus.py` is a download utility, not another ingestion
 service. Its `config\test_corpus.yaml` and retrieval index do not replace the pipeline's
 `sources\public.yaml` manifest or PostgreSQL checkpoints.
+Its `--benchmark` mode delegates to the same application synchronization connector.
 
 ## Execution and concurrency
 

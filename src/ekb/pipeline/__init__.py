@@ -5,10 +5,16 @@ from collections.abc import Callable
 from uuid import UUID, uuid4
 
 from ekb.adapters.sources import SourceMissingError
+from ekb.domain.benchmarks import (
+    BenchmarkAsset,
+    NormalizedBenchmarkDocument,
+    StoredBenchmarkDocument,
+)
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
     ProcessingTask,
     ScanReport,
+    Segment,
     SourceItem,
     SourceRecord,
     SourceRevision,
@@ -28,6 +34,7 @@ from ekb.ports import (
     SourceConnector,
     UnitOfWorkFactory,
 )
+from ekb.services.benchmarks import BENCHMARK_EXTRACTOR_VERSION, benchmark_extraction
 from ekb.services.retry import retry
 
 
@@ -61,6 +68,14 @@ class IngestionPipeline:
         self.progress = progress or (lambda item, status: None)
 
     def _processing_fingerprint(self, content: str, item: SourceItem) -> str:
+        if "benchmark_asset" in item.metadata:
+            asset = BenchmarkAsset.model_validate(item.metadata["benchmark_asset"])
+            return fingerprint(
+                content=content,
+                parser=asset.parser_version,
+                normalized=asset.normalized_sha256,
+                extractor=BENCHMARK_EXTRACTOR_VERSION,
+            )
         return fingerprint(
             content=content,
             parser=parsing_fingerprint(self.parser.version, item),
@@ -342,6 +357,8 @@ class IngestionPipeline:
         owner: UUID,
         task_id: UUID,
     ) -> tuple[int, Usage]:
+        if "benchmark_asset" in item.metadata:
+            return await self._execute_benchmark(item, revision, owner, task_id)
         async with self.uow() as uow:
             segments = await uow.sources.segments(
                 revision.id, parsing_fingerprint(self.parser.version, item)
@@ -421,3 +438,67 @@ class IngestionPipeline:
             validation_failures=sum(u.validation_failures for u in usages),
         )
         return count, usage
+
+    async def _execute_benchmark(
+        self,
+        item: SourceItem,
+        revision: SourceRevision,
+        owner: UUID,
+        task_id: UUID,
+    ) -> tuple[int, Usage]:
+        asset = BenchmarkAsset.model_validate(item.metadata["benchmark_asset"])
+        if not asset.normalized_key or not asset.normalized_sha256 or not asset.retrieved_at:
+            raise ValueError("Benchmark ingestion requires an explicitly synchronized asset")
+        raw = await self.artifacts.get_named(asset.normalized_key)
+        if content_hash(raw) != asset.normalized_sha256:
+            raise ValueError("Normalized benchmark document failed its integrity check")
+        document = await asyncio.to_thread(NormalizedBenchmarkDocument.model_validate_json, raw)
+        if (
+            document.asset_id != item.id
+            or document.content_hash != revision.content_hash
+            or document.parser_version != asset.parser_version
+        ):
+            raise ValueError("Normalized benchmark identity does not match the stored original")
+        segment = Segment(
+            id=document.segment_id,
+            revision_id=revision.id,
+            ordinal=0,
+            text=document.text,
+            heading=document.title,
+            quality="structured_benchmark",
+            location={"benchmark_edition": asset.edition, "role": asset.role},
+        )
+        result, keys, unmaterialized = benchmark_extraction(document)
+        self.progress(item, "persisting structured benchmark evidence")
+        with tracer.start_as_current_span(
+            "benchmark.persistence",
+            attributes={
+                "benchmark.edition": asset.edition,
+                "benchmark.controls": len(document.controls),
+            },
+        ):
+            async with self.uow() as uow:
+                await uow.processing.heartbeat(task_id, owner)
+                await uow.sources.save_segments(revision.id, [segment], document.parser_version)
+                await uow.sources.save_publication(
+                    revision.id,
+                    document.publication,
+                    fingerprint(parser=document.parser_version, normalized=asset.normalized_sha256),
+                )
+                ids = await uow.knowledge.persist(segment, result)
+                await uow.benchmarks.save(
+                    StoredBenchmarkDocument(
+                        id=stable_id(document.segment_id, BENCHMARK_EXTRACTOR_VERSION),
+                        source_id=item.id,
+                        revision_id=revision.id,
+                        edition=asset.edition,
+                        role=asset.role,
+                        retrieved_at=asset.retrieved_at,
+                        extractor_version=BENCHMARK_EXTRACTOR_VERSION,
+                        document=document,
+                        concept_ids=dict(zip(keys, ids, strict=True)),
+                        unmaterialized_controls=unmaterialized,
+                    )
+                )
+                await uow.commit()
+        return len(set(ids)), Usage()

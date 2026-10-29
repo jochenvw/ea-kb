@@ -5,6 +5,8 @@
 - `Postgres` creates units of work; uncommitted changes roll back on exit.
 - Processing claims use owner IDs and renewable leases; segment commits must fence stale workers.
 - Publication assessments are immutable; semantic versions may be unknown and authority is scoped.
+- `benchmarks.py` stores immutable typed benchmark snapshots and validates exact source bindings.
+- `documents(control_id=...)` selects matching whole documents, not a trimmed control list.
 
 Preserve immutable revisions, exact occurrences and idempotent checkpoints.
 Schema changes require `migrations` updates; verification starts with

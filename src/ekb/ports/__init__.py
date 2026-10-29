@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol, Self
 from uuid import UUID
 
+from ekb.domain.benchmarks import BenchmarkRole, StoredBenchmarkDocument
 from ekb.domain.models import (
     AuthorityEvent,
     Capabilities,
@@ -97,6 +98,19 @@ class ProcessingRepository(Protocol):
     async def cache(self, segment_id: UUID, fingerprint: str, result: InferenceResult) -> None: ...
 
 
+class BenchmarkRepository(Protocol):
+    async def save(self, document: StoredBenchmarkDocument) -> None: ...
+    async def documents(
+        self,
+        edition: str | None = None,
+        control_id: str | None = None,
+        *,
+        role: BenchmarkRole | None = None,
+        history: bool = False,
+        limit: int = 250,
+    ) -> list[StoredBenchmarkDocument]: ...
+
+
 class UnitOfWork(Protocol):
     @property
     def sources(self) -> SourceRepository: ...
@@ -106,6 +120,8 @@ class UnitOfWork(Protocol):
     def lineage(self) -> LineageRepository: ...
     @property
     def processing(self) -> ProcessingRepository: ...
+    @property
+    def benchmarks(self) -> BenchmarkRepository: ...
 
     async def __aenter__(self) -> Self: ...
     async def __aexit__(self, *args: object) -> None: ...

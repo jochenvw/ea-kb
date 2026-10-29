@@ -99,17 +99,45 @@ class Runtime:
         if key in self._connector_cache:
             cached = self._connector_cache[key]
             if manifest:
+                manifest_sources = read_manifest(manifest)
                 for connector in cached:
-                    if isinstance(connector, HTTPConnector):
-                        connector.sources = read_manifest(manifest)
+                    if isinstance(connector, HTTPConnector) and not isinstance(
+                        connector, MicrosoftLearnBenchmarkConnector
+                    ):
+                        connector.sources = [
+                            source
+                            for source in manifest_sources
+                            if source.retrieval != "microsoft-security-benchmark"
+                        ]
+                benchmark_enabled = any(
+                    source.enabled and source.retrieval == "microsoft-security-benchmark"
+                    for source in manifest_sources
+                )
+                if benchmark_enabled and not any(
+                    isinstance(connector, MicrosoftLearnBenchmarkConnector) for connector in cached
+                ):
+                    cached.append(self.benchmarks())
+                elif not benchmark_enabled:
+                    cached[:] = [
+                        connector
+                        for connector in cached
+                        if not isinstance(connector, MicrosoftLearnBenchmarkConnector)
+                    ]
             return cached
         if directory is not None:
             connectors.append(FilesystemConnector(directory, self.settings.max_document_bytes))
         if manifest is not None:
             connectors.append(manifest_connector(manifest, self.settings.max_document_bytes))
+            if any(
+                source.enabled and source.retrieval == "microsoft-security-benchmark"
+                for source in read_manifest(manifest)
+            ):
+                connectors.append(self.benchmarks())
         if not connectors:
-            raise ValueError("Provide a source directory or --manifest")
-        self._connectors.extend(connectors)
+            connectors.append(self.benchmarks())
+        self._connectors.extend(
+            connector for connector in connectors if connector not in self._connectors
+        )
         self._connector_cache[key] = connectors
         return connectors
 

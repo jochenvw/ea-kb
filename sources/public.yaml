@@ -7,10 +7,9 @@ sources:
     format: md
     category: microsoft-security-benchmark
     retrieval: microsoft-security-benchmark
-    enabled: false
     publisher_version: v2
     access_notes: Official Microsoft Learn and linked MicrosoftDocs SecurityBenchmarks sources; preserve originals and CC-BY 4.0 attribution. Sync explicitly with ekb sources sync microsoft-security-benchmark.
-    intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate. The dedicated cached-source ingestion route is being implemented.
+    intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate. Sync explicitly before cached structured ingestion.
   - id: mcsb-v1
     publisher: Microsoft
     name: Microsoft Cloud Security Benchmark v1
@@ -18,7 +17,6 @@ sources:
     format: md
     category: microsoft-security-benchmark
     retrieval: microsoft-security-benchmark
-    enabled: false
     publisher_version: v1
     access_notes: Official Learn articles and linked MicrosoftDocs workbook; preserve originals and CC-BY 4.0 attribution. Workbook self-describes as a private preview independently of web-article maturity.
     intended_scope: Earlier MCSB edition, with source-specific publication maturity; no automatic enterprise adoption. Use the explicit sync command.
@@ -29,7 +27,6 @@ sources:
     format: md
     category: microsoft-security-benchmark
     retrieval: microsoft-security-benchmark
-    enabled: false
     publisher_version: v2
     publication_status: preview
     access_notes: Official Learn content and published Azure Policy JSON links. No v2 workbook is fabricated; preserve original URLs, hashes and publisher notices.

@@ -126,3 +126,63 @@ async def test_conditional_headers_are_not_reused_for_a_different_source_locatio
         old = item.model_copy(update={"location": "https://example.test/old"})
         previous = SourceRecord(item=old, revision_id=uuid4(), etag='"old-etag"')
         assert (await connector.fetch(item, previous)).content == b"source"
+
+
+async def test_runtime_keeps_benchmark_activation_separate_from_http_manifest_refresh(tmp_path):
+    import yaml
+
+    from ekb.adapters.sources.benchmarks import MicrosoftLearnBenchmarkConnector
+    from ekb.config import Settings
+    from ekb.runtime import Runtime
+
+    path = tmp_path / "sources.yaml"
+    benchmark = specification().model_copy(
+        update={
+            "id": "mcsb-v1",
+            "retrieval": "microsoft-security-benchmark",
+        }
+    )
+
+    def write(enabled):
+        path.write_text(
+            yaml.safe_dump(
+                {
+                    "sources": [
+                        specification().model_dump(mode="json"),
+                        benchmark.model_copy(update={"enabled": enabled}).model_dump(mode="json"),
+                    ],
+                }
+            )
+        )
+
+    write(True)
+    async with Runtime(
+        Settings(
+            data_dir=tmp_path / "runtime",
+            inference="rules",
+            source_directory=None,
+            artifact_backend="filesystem",
+        )
+    ) as runtime:
+        connectors = runtime.connectors(manifest=path)
+        regular = next(
+            connector
+            for connector in connectors
+            if isinstance(connector, HTTPConnector)
+            and not isinstance(connector, MicrosoftLearnBenchmarkConnector)
+        )
+        assert [source.id for source in regular.sources] == ["test"]
+        assert any(
+            isinstance(connector, MicrosoftLearnBenchmarkConnector) for connector in connectors
+        )
+        write(False)
+        assert not any(
+            isinstance(connector, MicrosoftLearnBenchmarkConnector)
+            for connector in runtime.connectors(manifest=path)
+        )
+        write(True)
+        assert any(
+            isinstance(connector, MicrosoftLearnBenchmarkConnector)
+            for connector in runtime.connectors(manifest=path)
+        )
+        assert runtime.connectors() == [runtime.benchmarks()]

@@ -11,7 +11,7 @@ that every listed risk has produced a failure.
 | High for policy use | Limited offline baseline; candidates are not approved policy | `RulesInference` | Incomplete/misclassified interpretations | Evaluate a model and retain review |
 | Medium | Model completion and checkpoint commit are separate | Pipeline `_execute` | Crash can repeat billable calls | Preserve idempotence; allow for at-least-once calls |
 | Medium | Separate artifact/database durability | Artifacts, pipeline `_process` | Orphans or incomplete restore | Retain/migrate both stores |
-| Medium | Benchmark reconciliation absent | `goal2.md`, domain/ORM models | No benchmark extraction/comparison yet | Treat those requirements as planned behavior |
+| Medium | Benchmark reconciliation pending | `goal2.md`, benchmark domain/persistence | Extraction and history work; semantic comparison is pending | Retain unresolved references and review proposals |
 
 ## 2) Technical Debt
 

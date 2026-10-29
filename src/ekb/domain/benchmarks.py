@@ -149,6 +149,20 @@ class NormalizedBenchmarkDocument(Model):
     notes: tuple[str, ...] = ()
 
 
+class StoredBenchmarkDocument(Model):
+    id: UUID
+    source_id: UUID
+    revision_id: UUID
+    edition: str
+    role: BenchmarkRole
+    retrieved_at: datetime
+    recorded_at: datetime = Field(default_factory=now)
+    extractor_version: str
+    document: NormalizedBenchmarkDocument
+    concept_ids: dict[str, UUID] = Field(default_factory=dict)
+    unmaterialized_controls: tuple[str, ...] = ()
+
+
 class BenchmarkManifest(Model):
     format_version: int = 1
     updated_at: datetime = Field(default_factory=now)

@@ -2,6 +2,8 @@
 
 - `knowledge.py` exposes concept, provenance, lineage, related-requirement and usage queries.
 - `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.
+- `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.
+  Preserve complete oversized statements in records rather than truncating their qualifiers.
 - CLI, terminal, web and MCP presentation reuse these services.
 
 Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.
