@@ -1,5 +1,14 @@
 @import "../../src/ekb/interfaces/web/static/theme.css";
 
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+    format("woff2");
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,13 +20,8 @@ body {
   margin: 0;
   background: var(--cp-bg);
   color: var(--cp-text);
-  font-family:
-    "Segoe UI",
-    Aptos,
-    Calibri,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-normal);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -56,7 +60,7 @@ summary:focus-visible {
 h1 {
   font-size: clamp(26px, 2.4vw, 34px);
   font-weight: 650;
-  letter-spacing: -0.035em;
+  letter-spacing: var(--tracking-tight);
   line-height: 1.2;
   margin: 6px 0 12px;
 }
@@ -76,14 +80,14 @@ small,
 }
 code,
 pre {
-  font-family: Consolas, "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
 }
 pre {
   white-space: pre-wrap;
   font-size: 12px;
   background: var(--cp-surface-soft);
   padding: 16px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   margin-top: 12px;
 }
 .workspace {
@@ -97,6 +101,7 @@ pre {
   flex-direction: column;
   padding: 28px 16px 20px;
   border-right: 1px solid var(--cp-border);
+  border-color: var(--sidebar-border);
   background: var(--cp-bg-elevated);
   z-index: 30;
   overflow-y: auto;
@@ -111,7 +116,7 @@ pre {
 .brand-mark {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--cp-accent);
   color: var(--cp-accent-fg);
   display: grid;
@@ -147,7 +152,7 @@ pre {
   overflow-x: auto;
   border: 1px solid var(--cp-border);
   background: var(--cp-bg-elevated);
-  border-radius: 10px;
+  border-radius: var(--radius);
   margin: 16px 0;
 }
 .graph-viewport svg {
@@ -155,6 +160,7 @@ pre {
   min-width: 860px;
 }
 .graph-node {
+  rx: var(--radius);
   fill: var(--cp-surface);
   stroke: var(--cp-border-strong);
 }
@@ -208,7 +214,7 @@ pre {
   gap: 8px;
   padding: 8px 12px;
   border: 1px solid var(--cp-border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   text-decoration: none;
 }
 .graph-choices {
@@ -248,8 +254,8 @@ pre {
   gap: 12px;
   padding: 10px 12px;
   min-height: 44px;
-  border-radius: 10px;
-  color: var(--cp-text-muted);
+  border-radius: var(--radius);
+  color: var(--sidebar-foreground);
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
@@ -259,8 +265,8 @@ pre {
   color: var(--cp-text);
 }
 .sidebar nav a[aria-current="page"] {
-  color: var(--cp-accent);
-  background: var(--cp-accent-soft);
+  color: var(--sidebar-accent-foreground);
+  background: var(--sidebar-accent);
   font-weight: 650;
 }
 .sidebar nav svg {
@@ -386,7 +392,7 @@ main {
   font-size: 30px;
   line-height: 1.4;
   font-weight: 650;
-  letter-spacing: -1px;
+  letter-spacing: var(--tracking-tight);
   margin: 12px 0 8px;
 }
 .metric small {
@@ -537,7 +543,7 @@ main {
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--cp-accent-soft);
   color: var(--cp-accent);
   font-size: 12px;
@@ -597,7 +603,7 @@ main {
 .control {
   height: 36px;
   border: 1px solid var(--cp-border-strong);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--cp-surface);
   color: var(--cp-text);
   font-size: 12px;
@@ -623,6 +629,7 @@ td > strong {
   font-weight: 600;
 }
 .statement-link {
+  color: var(--cp-link);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -714,7 +721,7 @@ td > strong {
   border: 1px solid var(--cp-border);
   border-left: 3px solid var(--cp-accent);
   background: var(--cp-accent-soft);
-  border-radius: 10px;
+  border-radius: var(--radius);
   font-size: 12px;
   margin: 16px 0;
 }
@@ -770,7 +777,7 @@ td > strong {
 .evidence {
   padding: 16px;
   border: 1px solid var(--cp-border);
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 .evidence-heading {
   display: flex;
@@ -796,7 +803,7 @@ blockquote {
   padding: 16px;
   border-left: 3px solid var(--cp-accent);
   background: var(--cp-accent-soft);
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   white-space: pre-wrap;
   line-height: 1.8;
   margin: 12px 0;
@@ -885,7 +892,7 @@ blockquote {
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--cp-border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   text-decoration: none;
   font-size: 12px;
 }
@@ -918,7 +925,7 @@ blockquote {
   margin: 20px 0 8px;
   padding: 20px;
   border: 1px solid var(--cp-border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--cp-bg-elevated);
 }
 .governance-form fieldset {
@@ -955,7 +962,7 @@ blockquote {
 .stage-cards > div {
   padding: 20px;
   border: 1px solid var(--cp-border);
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 .stage-cards h3 {
   margin: 8px 0 12px;

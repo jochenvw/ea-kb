@@ -101,7 +101,13 @@ export default defineConfig(({ command }) => ({
     emptyOutDir: true,
     cssCodeSplit: false,
     rollupOptions: {
-      output: { entryFileNames: "app.js", assetFileNames: "app.[ext]" },
+      output: {
+        entryFileNames: "app.js",
+        assetFileNames: (asset) =>
+          asset.names.some((name) => /\.woff2?$/.test(name))
+            ? "[name]-[hash][extname]"
+            : "app.[ext]",
+      },
     },
   },
 }));

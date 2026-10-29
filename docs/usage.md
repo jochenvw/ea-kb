@@ -296,6 +296,9 @@ Use the Microsoft npm upstream in `frontend\.npmrc`; see `frontend\scripts\READM
 Do not hand-edit generated browser assets; the Python suite detects stale source fingerprints.
 Theme selection follows the OS, can be switched in the header and persists locally.
 `?scoutTheme=light` or `?scoutTheme=dark` explicitly selects the initial theme.
+The [Bold Wikipedia preset](https://tweakcn.com/r/themes/cmlmpb3qp000004l5go47hzsv) supplies
+both palettes, compact corners, typography and shadows. Inter is self-hosted with the application;
+no font/CDN requests are needed. Semantic shadcn variables also drive the custom reference views.
 
 The web scan button uses the server-configured `EKB_SOURCE_DIRECTORY` and/or the public manifest.
 It does not accept arbitrary filesystem paths from a browser. Keep the web server local/private:

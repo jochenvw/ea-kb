@@ -1,8 +1,8 @@
 {
   "frontend/components.json": "93b0e544ebcb7f684e89a5c37bceb8b2454308ada8605c6647ee3307d5906fe2",
   "frontend/index.html": "f377fcbf1740fb3515c1ca47baad00975fef1f8bb8dc9ae4034fcb30f45e3e27",
-  "frontend/package-lock.json": "95676850d9d24a08d0b1b71a14b1124da329bb81a59b2f484afd4937cae2807d",
-  "frontend/package.json": "353ed636899957fae0b4bc10b3b4210ab202500c3718d19b0d6ac5414a4c6f6b",
+  "frontend/package-lock.json": "2c312b83ea11f1be17c6a21adcef117ba1a65d0b3e4970f6e30058c7087d6c5a",
+  "frontend/package.json": "c27bd1b3af2ff335b1dbc1e505d9b8b13b0bdab6de57b44d80403f59d89ae706",
   "frontend/playwright.config.ts": "095bca7b6ead5b049dbf55928b925dcc006faa0a9a51e2b528bf39c5a03b336b",
   "frontend/postcss.config.js": "f13fcd62daab31b54fe65a6d42368509ff4bd8c7d6319d38e69967fff955db8f",
   "frontend/src/activity.tsx": "2205c93b3d2efbef117b9e46b42344ca9c9a1325a8950f637d5952180b36fb3d",
@@ -24,14 +24,14 @@
   "frontend/src/lib/api.ts": "3f04f7cd9ab99c991463d45385f217ded9ec1223651d320d1d2c0cee83c7f7f1",
   "frontend/src/lib/utils.ts": "d1f1e0d62cb8d8d1e04c26e14de842d8a151f75812d81b046c65b5d1fe8e4b27",
   "frontend/src/main.tsx": "61b2619f5938f4e3bac9aa3f8e65ea470b106b8109fb6eae6ae355e1029df5bf",
-  "frontend/src/network.tsx": "d4d5131b9de88d7b5e1f6bb64e9d4aaf94ef6de55621e78bea16f191f533552f",
+  "frontend/src/network.tsx": "54151b9d5369f883fe45049595bd1b2af19fde9966513a97d2e15c9e911c11f3",
   "frontend/src/reference.tsx": "c674cd23842b9338b786ac38d88540b1c31e0c72c4df6913fed67f60f8e6920c",
   "frontend/src/review.tsx": "c0cf5437caae67caf5560182a73d897fb113831d559b4a574b191d857bc1751d",
   "frontend/src/sources.tsx": "b548ddc80e30ae9f13641985a67be754faf3999ec4cec108e8f60d4889145732",
-  "frontend/src/styles.css": "43e7b3a47b314221cad16f7ab621124eb16d0bf0f4caa74f719972a708e49a42",
+  "frontend/src/styles.css": "bd18d3ca1676c1ea29f5ea95ee95c4b97770bbefd6918e268a1cb57836bcb0df",
   "frontend/src/types.ts": "2e73bd781ea12a2bb88898d4a8db65b95dd38c3fd732f087f265b7d786eb4cb8",
-  "frontend/tailwind.config.js": "214fe1dc85d3a65b85c266a9dc9c9cd5598d95b815763fd79bf8dff9ae3cb866",
+  "frontend/tailwind.config.js": "a75839d5c94f077bbf5442f7bb69b5504e37e91935f93cdfc80b0b6445d696b5",
   "frontend/tsconfig.json": "2feaefa57501b76fadb9b106f0be04094854d6e41b758bba32bdc4d7eed212ad",
-  "frontend/vite.config.ts": "d4587af7fbc0e0cd66a13b96f617db19100f73b7ec0b572b71cbc1cb57a823fe",
-  "src/ekb/interfaces/web/static/theme.css": "a701c6bf18e194941e4fde1d40d1890fa23b7eb830ac157f7db0f846d4896980"
+  "frontend/vite.config.ts": "f8f13745d84f9126a9cca77a597677480a4157abb729a9ed9d188f294804dd7c",
+  "src/ekb/interfaces/web/static/theme.css": "bb1c47a639428913231e69f7d598f66a788b6c073bc91f245fa93efad8279340"
 }

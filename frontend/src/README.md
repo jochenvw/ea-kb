@@ -8,5 +8,6 @@
 Use real API records, abort stale reads, disclose query limits and preserve unknown values.
 Publisher maturity, semantic versioning and scoped enterprise authority must stay distinct.
 Native review forms retain server-side Basic authentication, origin checks and immutable auditing.
-Use `components\ui` for shadcn primitives and the existing Clawpilot tokens for every color.
+Use `components\ui` and the Bold Wikipedia semantic tokens in the canonical `theme.css`.
+Existing `--cp-*` aliases map custom views to that same palette; do not introduce another theme.
 No domain inference, model invocation, credentials or automatic approval belongs in the browser.

@@ -200,7 +200,6 @@ export function RelationshipGraph({ id }: { id: string }) {
                         y={position.y}
                         width="264"
                         height="96"
-                        rx="10"
                         className={`graph-node ${node.id === graph.root ? "is-root" : ""}`}
                       />
                       <text

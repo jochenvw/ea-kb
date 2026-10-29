@@ -541,6 +541,83 @@ test("dark theme persists across navigation and mobile stays within its viewport
   ).toBe(true);
 });
 
+test("Bold Wikipedia tokens style primitives and custom views in both modes with a local font", async ({
+  page,
+}) => {
+  await page.goto("/?scoutTheme=light");
+  await page.evaluate(() => document.fonts.ready);
+  const backgrounds: string[] = [];
+  for (const mode of ["light", "dark"]) {
+    await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+    const styles = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      document.body.append(probe);
+      function color(token: string) {
+        probe.style.backgroundColor = `var(${token})`;
+        return getComputedStyle(probe).backgroundColor;
+      }
+      probe.style.borderRadius = "calc(var(--radius) + 4px)";
+      const expectedCardRadius = getComputedStyle(probe).borderRadius;
+      probe.style.borderRadius = "var(--radius)";
+      const expectedRadius = getComputedStyle(probe).borderRadius;
+      const card = getComputedStyle(document.querySelector(".metric")!);
+      const sidebar = getComputedStyle(document.querySelector(".sidebar")!);
+      const active = getComputedStyle(
+        document.querySelector('.sidebar a[aria-current="page"]')!,
+      );
+      const result = {
+        body: getComputedStyle(document.body).backgroundColor,
+        expectedBody: color("--background"),
+        card: card.backgroundColor,
+        expectedCard: color("--card"),
+        sidebar: sidebar.backgroundColor,
+        expectedSidebar: color("--sidebar"),
+        expectedAction: color("--primary"),
+        cardRadius: card.borderRadius,
+        expectedCardRadius,
+        navigationRadius: active.borderRadius,
+        expectedRadius,
+        shadow: card.boxShadow,
+        font: getComputedStyle(document.body).fontFamily,
+        loadedInter: [...document.fonts].some(
+          (font) =>
+            font.family.replaceAll('"', "") === "Inter" &&
+            font.status === "loaded",
+        ),
+      };
+      probe.remove();
+      return result;
+    });
+    expect(styles.body).toBe(styles.expectedBody);
+    expect(styles.card).toBe(styles.expectedCard);
+    expect(styles.sidebar).toBe(styles.expectedSidebar);
+    await expect(
+      page.getByRole("link", { name: "Review issues", exact: true }),
+    ).toHaveCSS("background-color", styles.expectedAction);
+    expect(styles.cardRadius).toBe(styles.expectedCardRadius);
+    expect(styles.navigationRadius).toBe(styles.expectedRadius);
+    expect(styles.shadow).not.toBe("none");
+    expect(styles.font).toContain("Inter");
+    expect(styles.loadedInter).toBe(true);
+    backgrounds.push(styles.body);
+    if (mode === "light")
+      await page.getByRole("button", { name: "Use dark theme" }).click();
+  }
+  expect(backgrounds[0]).not.toBe(backgrounds[1]);
+  const fontRequests = await page.evaluate(() =>
+    performance
+      .getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => name.includes(".woff2")),
+  );
+  expect(fontRequests.length).toBeGreaterThan(0);
+  expect(
+    fontRequests.every(
+      (url) => new URL(url).origin === new URL(page.url()).origin,
+    ),
+  ).toBe(true);
+});
+
 test("pipeline distinguishes indexing scans from all three phases", async ({
   page,
 }) => {

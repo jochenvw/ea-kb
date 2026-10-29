@@ -7,4 +7,5 @@ From this folder: `npm ci`, `npm run build`, `npm run check`, `npm run format:ch
 The Microsoft npm upstream is configured in `.npmrc`; dependency maintenance is in `scripts\README.md`.
 Built assets are committed under `src\ekb\interfaces\web\static\ui` so Python users need no Node runtime.
 Rebuild after source/configuration changes; the Python suite detects stale generated assets.
+Bold Wikipedia tokens style both modes; Inter is bundled locally with its font license, not a CDN.
 See `src\README.md` for presentation boundaries and `tests\README.md` for browser verification.
