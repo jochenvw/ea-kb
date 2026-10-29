@@ -36,3 +36,18 @@ nine published policy references.
 These are small, source-specific regression checks, **not** whole-benchmark, embedding, compliance
 or paid-model quality claims. Live optional model/provider quality and Azure deployment remain
 unverified. `--configured` explicitly opts into the configured small model and potential charges.
+
+## Actual-corpus acceptance
+
+All five `goal2.md` commands completed successfully against the retained corpus. The repeat sync
+skipped 221 unchanged assets; ingestion skipped 222 cached records, with no failures or model calls.
+ASB v2 / MCSB v1 / MCSB v2 contain 70 / 86 / 81 controls respectively.
+
+NS-6 inspection verified five native Rev.5 NIST bindings, nine actual policy definitions and 23
+exact passage ranges against line-ending-normalized originals. The proposed MINOR remains
+review-only with unknown numeric SemVer; the control source is unknown maturity while its edition
+is preview. No authority events were created. Unavailable or invalid external targets stay unresolved.
+
+Local command outputs, verification counts and representative successful spans for all nine required
+benchmark stages are retained under `data\benchmark-acceptance`. These ignored runtime artifacts
+complement the committed golden dataset; they are not synthetic fixtures or a fresh extraction claim.

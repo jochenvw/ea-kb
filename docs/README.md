@@ -3,6 +3,7 @@
 - `usage.md`: setup, configuration, interfaces, corpus downloads, verification and deployment.
 - `architecture.md`: implemented components, flows, persistence, concurrency and deployment.
 - `plugins.md`: connector/provider contracts and rules for future adapters.
+- `benchmark-evaluation.md`: actual-source metrics, acceptance evidence and measurement limits.
 - `decisions`: short architecture decision records and their rationale.
 - `codebase`: source-backed stack, structure, conventions, integrations, tests and concerns.
 
