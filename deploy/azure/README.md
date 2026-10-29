@@ -7,4 +7,6 @@
 - Run `ekb init` explicitly before serving the migrated schema.
 
 No resource provisioning, network isolation or enterprise authentication is implemented here.
+The web/API rejects non-loopback access and forwarded-proxy headers; it is not remotely usable or
+ready for Azure deployment until an Entra authentication boundary is implemented and verified.
 See `docs\architecture.md` and `docs\usage.md` before deploying beyond a private environment.

@@ -112,7 +112,8 @@ Web `/review` and the TUI Review tab call the same application services. API rou
 `/api/pipeline/status`. HTTP mutations are disabled until `EKB_GOVERNANCE_TOKEN` is set; Basic
 authentication uses the operator name and token password, requires HTTPS or loopback and rejects
 cross-origin mutations. Local CLI/TUI actors are trusted operator assertions, not enterprise identity.
-Read endpoints remain local/private; no enterprise role-based or tenant authorization is claimed.
+Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. No enterprise
+role-based or tenant authorization is implemented or claimed.
 
 MCP remains read-only. `resolve_knowledge` and `resolve_requirement` default to strict canonical;
 legacy search/get tools remain explicitly candidate research. Issue/history tools expose audit.

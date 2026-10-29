@@ -17,7 +17,7 @@ from ekb.evaluation.frugal import qualify
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
 
-DATASET = Path("evals") / "teacher-v1.json"
+DATASET = Path("evals") / "teacher-v2.json"
 GATES = Path("evals") / "gates.json"
 
 

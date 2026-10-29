@@ -1,0 +1,28 @@
+import httpx
+import pytest
+
+from ekb.interfaces.api import create_app
+
+
+@pytest.mark.asyncio
+async def test_web_and_data_routes_reject_remote_and_forwarded_requests():
+    app = create_app()
+    transport = httpx.ASGITransport(app=app, client=("203.0.113.7", 41000))
+    async with httpx.AsyncClient(transport=transport, base_url="http://ekb.test") as client:
+        for path in ("/", "/api/ui/config", "/api/sources"):
+            response = await client.get(path)
+            assert response.status_code == 403
+
+    forwarded_transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 41000))
+    async with httpx.AsyncClient(
+        transport=forwarded_transport, base_url="http://ekb.test"
+    ) as client:
+        response = await client.get("/api/sources", headers={"x-forwarded-for": "203.0.113.7"})
+        assert response.status_code == 403
+
+    loopback_transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 41000))
+    async with httpx.AsyncClient(
+        transport=loopback_transport, base_url="http://ekb.test"
+    ) as client:
+        response = await client.get("/")
+        assert response.status_code == 200

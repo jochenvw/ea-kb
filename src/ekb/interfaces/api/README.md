@@ -15,6 +15,9 @@
 - Benchmark inspection is read-only: cached results or structural previews, never model calls.
 - `governance.py` exposes strict resolution, issues, audit and `/review` through shared services.
 - Mutations require configured Basic token authentication, same origin and HTTPS or loopback.
+- All non-health web and API routes reject non-loopback clients and forwarded-proxy headers.
+- Enterprise identity and remote access are not implemented; do not expose this service through a proxy.
 
 Keep handlers thin and cancel owned work on shutdown. Origin checks are not enterprise authentication;
-keep this service local/private. See `tests\integration\test_interfaces.py`.
+keep this service local-only. See `tests\unit\test_api_access.py` and
+`tests\integration\test_interfaces.py`.

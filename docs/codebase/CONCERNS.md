@@ -7,7 +7,7 @@ that every listed risk has produced a failure.
 
 | Priority | Concern | Evidence | Impact | Suggested action |
 |---|---|---|---|---|
-| High before external exposure | No enterprise authentication/authorization | API factory, README | Reachability grants knowledge/scan access | Keep private; add identity before shared deployment |
+| High before external exposure | No enterprise authentication/authorization | API middleware, README | Remote use is unavailable until tenant identity is integrated | Keep local; add and verify Entra before shared deployment |
 | High for policy use | Limited offline baseline; candidates are not approved policy | `RulesInference` | Incomplete/misclassified interpretations | Evaluate a model and retain review |
 | Medium | Model completion and checkpoint commit are separate | Pipeline `_execute` | Crash can repeat billable calls | Preserve idempotence; allow for at-least-once calls |
 | Medium | Separate artifact/database durability | Artifacts, pipeline `_process` | Orphans or incomplete restore | Retain/migrate both stores |
@@ -29,7 +29,7 @@ mean these documented limits are implemented.
 
 | Risk | Evidence | Current mitigation | Gap |
 |---|---|---|---|
-| Unauthenticated endpoints | API, Compose | Localhost publishing, configured source paths, origin checks | Enterprise identity/authorization |
+| Unauthenticated endpoints | API, Compose | Non-loopback and forwarded-proxy requests rejected | Enterprise identity/authorization before remote deployment |
 | Sensitive optional payloads | Inference `_debug` | Off by default, separate files, no auth headers | Operator-owned access/retention, especially Windows ACLs |
 | Licensed-source restrictions | Manifests/downloader | ISO metadata-only; refused retrieval is not fabricated | Authorized private copies and applicability review |
 

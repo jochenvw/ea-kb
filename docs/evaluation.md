@@ -6,24 +6,28 @@ No live model or Azure deployment is claimed by this implementation.
 
 ## Dataset and teacher provenance
 
-`evals\teacher-v1.json` contains 15 GPT-6.1 Sol teacher annotations from seven retained public
-Microsoft/NIST documents. The teacher was the interactive Copilot model, `gpt-6.1-sol`; this is
-not a claim that the same identifier can be deployed in Foundry. Original URLs, SHA-256 hashes,
-publisher/control identifiers and attribution accompany the short, exact quotations.
+`evals\teacher-v2.json` contains 18 source-grounded annotations from ten retained public documents:
+15 GPT-6.1 Sol annotations carried forward from v1 and three supplemental annotations created in
+Copilot Auto mode (the model identity is unavailable). Sources cover Microsoft security guidance,
+NIST catalogs, public corporate strategy and US regulation. Original URLs, SHA-256 hashes,
+publisher/control identifiers and attribution accompany the short, exact quotations. The Shell
+strategy source is copyrighted and retained only for local evaluation.
 
 The teacher supplied paraphrases, retrieval queries and semantic labels. Deterministic
 materialization adds explicit negation, Azure scope, objective wording and prompt-injection
-annotations: **90 extraction examples**, split into 24 train, 24 validation and 42 test cases.
+annotations: **108 extraction examples**, split into 24 train, 30 validation and 54 test cases.
 Only original-quotation variants claim to be actual source text. Generated variants do not inherit
 enterprise approval. These are **teacher-only, provisional labels**, not independent human gold.
 Equivalent paraphrases retain source qualifiers and purposes, including privacy, compliance,
 coverage and timing; they do not upgrade a defined baseline into an approved enterprise standard.
 
 Splitting happens at document-family level before materialization. Logging documents train;
-posture/vulnerability documents validate; incident response, network-security editions and native
-NIST boundary protection are held out. Related network editions share the test split. Reused source
-URLs, original hashes, families or normalized text cannot cross splits. The held-out set also has
-30 semantic pairs, including misleading reused NS-6 identifiers and native-mapping hard negatives.
+posture/vulnerability and corporate-strategy documents validate; incident response, network-security
+editions, NIST CSF, NIST SP 800-53 and US regulation are held out. Related network editions share the
+test split. Reused source URLs, original hashes, families or normalized text cannot cross splits.
+The held-out set also has 38 semantic pairs, including misleading reused NS-6 identifiers and
+native-mapping hard negatives. Objective seeds are evaluated as objectives, not mislabeled as
+requirements or included in requirement-only semantic pairs.
 Published NIST mappings are not semantic equivalence with Azure WAF guidance.
 
 Verify the actual retained originals, including their bytes and every quotation:
@@ -34,7 +38,9 @@ uv run ekb eval verify-corpus
 
 This requires the previously synchronized corpus/database. Missing or changed originals fail
 explicitly; normal offline evaluations use the committed attributed excerpts without downloading.
-The verification performed for v1 established **7 source hashes and 15 exact quotations**.
+The v2 corpus verifier checks all retained original bytes and quotations before reporting coverage.
+Labels remain teacher-only; additional domains broaden coverage but do not constitute independent
+human review or production-grade qualification.
 
 ## A single verification command
 
@@ -109,19 +115,23 @@ comparison. Do not select a model by repeatedly tuning against held-out test res
 labels/gates when reviewed or expanded. Small teacher-only sets need independent review and more
 document families before production qualification.
 
-The measured v1 **offline diagnostic** was:
+The measured v2 **offline rules/lexical diagnostic** was:
 
-| Measure | Offline rules / lexical baseline |
+| Measure | Result |
 |---|---|
-| Extraction precision / recall | 1.00 / .50 |
-| Semantic-pair accuracy | .70 |
-| Retrieval Recall@3 / MRR | .429 / .50 |
+| Requirement precision / recall | 1.00 / .467 |
+| Objective precision / recall | 1.00 / 1.00 |
+| Scope / known-scope accuracy | .70 / .00 |
+| Semantic-pair accuracy | .711 |
+| Lexical retrieval Recall@3 / MRR | .50 / .556 |
 | Safety checks | pass |
 | Live student qualified | **No** |
 
-Thus the baseline is safe enough for deterministic software checks but insufficient for the
-requested model-quality gates. No cheap student or real embedding model has yet been measured.
-Live qualification is the required next evidence, not an assumed outcome.
+The deterministic baseline passes safety checks but misses recall, scope, semantic and retrieval
+quality thresholds. No live model or embedding calls were made; usage/cost qualification remains
+unverified, not zero. The configured cheap student therefore has **no quality qualification**.
+Live validation on the expanded set and a single held-out test run remain necessary; do not treat
+these offline results as model performance.
 
 Implementation verification: the combined full profile passed **158 code tests, zero skips**
 and all offline safety evals. It also passed with paid-model settings present but a deliberately
@@ -137,7 +147,7 @@ post-run estimates, not provider invoices. Grounding verifies substrings, not se
 ## Training-only distillation export
 
 ```powershell
-uv run ekb eval distill --output data\distillation\train-v1.jsonl
+uv run ekb eval distill --output data\distillation\train-v2.jsonl
 ```
 
 This produces 24 OpenAI-format supervised examples from **train only**, plus source/case/teacher

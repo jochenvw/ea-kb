@@ -350,8 +350,9 @@ Rules-only inference cannot semantically rephrase and is rejected rather than si
 The nullable assertion cache records provider-reported usage; unpriced costs remain unknown.
 
 The web scan button uses the server-configured `EKB_SOURCE_DIRECTORY` and/or the public manifest.
-It does not accept arbitrary filesystem paths from a browser. Keep the web server local/private:
-enterprise authentication and network hardening are not part of this milestone.
+It does not accept arbitrary filesystem paths from a browser. Non-health web/API routes reject
+non-loopback clients and forwarded-proxy headers. Enterprise authentication and network hardening
+are not implemented; do not expose this service through a proxy.
 
 The MCP server uses stdio and exposes only `search_concepts`, `get_concept`, `trace_provenance`
 and `find_related_requirements`, with explicit schemas. Example client process configuration:
@@ -486,8 +487,8 @@ blob/model access, an existing PostgreSQL database and Application Insights. See
 `deploy\azure\container-apps.env.example` for environment contracts. Pre-create the private blob
 container, assign narrowly scoped permissions, configure secure PostgreSQL access, run migrations,
 and deploy the web/worker with the same settings. Full infrastructure provisioning, public endpoint
-authentication, private networking, secret rotation and deployment automation are intentionally
-deferred. Do not expose this MVP as an unauthenticated enterprise service.
+enterprise authentication, private networking, secret rotation and deployment automation are
+intentionally deferred. Non-loopback requests are rejected; do not expose this MVP through a proxy.
 
 ## Design and limitations
 

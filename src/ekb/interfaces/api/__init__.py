@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, suppress
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.responses import Response
 
 from ekb.config import Settings
 from ekb.domain.models import (
@@ -61,6 +64,26 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     app = FastAPI(title="Enterprise Knowledge Base", version="0.1.0", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
     templates = Jinja2Templates(directory=WEB / "static" / "ui")
+
+    @app.middleware("http")
+    async def require_loopback(request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path != "/health":
+            try:
+                loopback = (
+                    request.client is not None and ip_address(request.client.host).is_loopback
+                )
+            except ValueError:
+                loopback = False
+            forwarded = any(
+                name == "forwarded" or name == "x-real-ip" or name.startswith("x-forwarded-")
+                for name in request.headers
+            )
+            if not loopback or forwarded:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Remote access is disabled; use a loopback connection."},
+                )
+        return await call_next(request)
 
     def active(request: Request) -> Runtime:
         return request.app.state.runtime

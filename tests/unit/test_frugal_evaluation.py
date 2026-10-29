@@ -28,7 +28,7 @@ from ekb.evaluation.distillation import export_training
 from ekb.interfaces.cli import app
 from ekb.services.retrieval import cosine, nearest, vector_pairs
 
-DATASET = Path("evals") / "teacher-v1.json"
+DATASET = Path("evals") / "teacher-v2.json"
 GATES = Path("evals") / "gates.json"
 
 
@@ -67,7 +67,37 @@ def test_actual_quotations_are_distinct_from_scoped_and_adversarial_variants():
         assert variants["objective"].expected[0].kind == "objective"
         assert variants["injection"].expected[0].excerpt == seed.quote
         assert "approved enterprise policy" in variants["injection"].text
-        assert variants["injection"].expected[0].modality == "unspecified"
+        assert variants["injection"].expected[0].kind == seed.kind
+        assert variants["injection"].expected[0].modality == seed.modality
+
+
+def test_v2_preserves_source_assertion_types_and_broadens_holdout_families():
+    dataset = load_dataset(DATASET)
+    assert dataset.version == "teacher-v2"
+    assert len(dataset.sources) == 10
+    assert len(dataset.seeds) == 18
+    sources = {source.id: source for source in dataset.sources}
+    seeds = {seed.id: seed for seed in dataset.seeds}
+    assert sources["shell-strategy"].split == "validation"
+    assert sources["nist-csf"].split == sources["cfr-250-107"].split == "test"
+
+    cases = {
+        case.id: case
+        for split in ("validation", "test")
+        for case in extraction_cases(dataset, split)
+    }
+    objective = cases["shell-liquids-goal/source"].expected[0]
+    regulation = cases["cfr-hazard-correction/source"].expected[0]
+    assert objective.kind == "objective"
+    assert objective.modality == "unspecified"
+    assert regulation.kind == "requirement"
+    assert regulation.modality == "mandated"
+    assert cases["nist-csf-mission/source"].expected[0].kind == "requirement"
+    assert seeds["shell-liquids-goal"].teacher_model == "Copilot Auto (model identity unavailable)"
+    assert not any(
+        pair_id.startswith("shell-liquids-goal/")
+        for pair_id, *_ in pair_cases(dataset, "validation")
+    )
 
 
 def student():

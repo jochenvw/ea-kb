@@ -311,7 +311,8 @@ Its same-origin checks and single in-process scan slot are not enterprise authen
 distributed scheduling. The task is cancelled on shutdown; durable checkpoints support later runs.
 Governance mutations are separately disabled until `EKB_GOVERNANCE_TOKEN` is configured. HTTP
 Basic identifies a local operator and requires HTTPS or loopback plus same-origin mutation checks.
-Read endpoints remain local/private; this is not enterprise authentication or tenant authorization.
+Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. Remote access
+and enterprise identity/tenant authorization are not implemented.
 
 The browser has a task-oriented hierarchy: overview, searchable knowledge, sources, review queue,
 benchmark explorer and pipeline activity. Exact evidence, history, scope and technical identifiers
@@ -374,7 +375,7 @@ once per process; changing settings is not a hot-reload mechanism.
 - Source manifests can change upstream; original bytes/hashes are retained, but upstream URLs are not
   guaranteed immutable. ISO entries are metadata only; licensed text must be supplied locally.
 - Inspection results are bounded (200 concepts per query, up to 1,000 tasks for statistics). This MVP
-  has no pagination UI or enterprise authorization. Keep interfaces local/private.
+  has no pagination UI or enterprise authorization. Non-loopback requests are denied; keep local.
 - Actual benchmark synchronization, structured ingestion, mappings/policy retrieval, native NIST
   resolution and review-only comparisons are implemented. Structural proposals are not verified
   semantic decisions; source gaps and unresolved references remain explicit.
