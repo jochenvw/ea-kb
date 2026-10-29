@@ -175,6 +175,36 @@ async def test_official_xml_and_public_web_json_retain_locations():
     assert segments[0].location["json_path"] == "$.main.text"
 
 
+async def test_oscal_native_aliases_survive_titled_parts_without_guessing_enhancement_ids():
+    content = json.dumps(
+        {
+            "catalog": {
+                "controls": [
+                    {
+                        "id": "sc-7.5",
+                        "title": "Synthetic enhancement",
+                        "props": [
+                            {"name": "label", "value": "SC-07(05)"},
+                            {"name": "label", "value": "SC-7(5)"},
+                        ],
+                        "parts": [
+                            {
+                                "id": "sc-7.5_smt",
+                                "title": "Statement",
+                                "prose": "Deny traffic by default.",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    ).encode()
+    segments = await parse(content, "oscal", control_ids=["sc-7.5"])
+    assert segments[0].location["control_id"] == "sc-7.5"
+    assert segments[0].location["control_labels"] == ["SC-07(05)", "SC-7(5)"]
+    assert segments[0].location["part_id"] == "sc-7.5_smt"
+
+
 def test_long_sections_split_without_losing_evidence_characters():
     text = "Users must not disable alarms. " * 100
     pieces = split_text(text, 300)

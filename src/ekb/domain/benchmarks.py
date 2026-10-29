@@ -171,6 +171,16 @@ class BenchmarkManifest(Model):
     notes: tuple[str, ...] = ()
 
 
+class NativeControlBinding(Model):
+    framework: str
+    revision: str
+    control_id: str
+    labels: tuple[str, ...]
+    source_id: UUID
+    revision_id: UUID
+    concept_ids: tuple[UUID, ...]
+
+
 class BenchmarkSyncReport(Model):
     discovered: int = 0
     downloaded: int = 0

@@ -471,7 +471,7 @@ class IngestionPipeline:
         result, keys, unmaterialized = benchmark_extraction(document)
         self.progress(item, "persisting structured benchmark evidence")
         with tracer.start_as_current_span(
-            "benchmark.persistence",
+            "benchmark.persist",
             attributes={
                 "benchmark.edition": asset.edition,
                 "benchmark.controls": len(document.controls),

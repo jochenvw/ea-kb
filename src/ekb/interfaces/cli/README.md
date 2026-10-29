@@ -4,6 +4,7 @@
 
 - `init` migrates; `scan` ingests/resumes; inspection commands return persisted knowledge.
 - `sources sync microsoft-security-benchmark` downloads and normalizes actual published assets.
+- `compare` persists review-only comparisons; `lineage` accepts UUIDs or `mcsb-v2:NS-6`.
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.
 - Async use cases enter `Runtime`; keep `asyncio.run` at this synchronous process boundary.
 

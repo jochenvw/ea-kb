@@ -89,6 +89,9 @@ uv run ekb sources sync microsoft-security-benchmark
 uv run ekb sources sync microsoft-security-benchmark --versions mcsb-v1,mcsb-v2 --domains NS
 uv run python scripts\download_test_corpus.py --benchmark --domains NS
 uv run ekb scan
+uv run ekb concepts search "web application firewall"
+uv run ekb compare mcsb-v1 mcsb-v2 --control NS-6
+uv run ekb lineage "mcsb-v2:NS-6"
 ```
 
 Synchronization discovers linked domain articles and published workbooks, downloads actual linked
@@ -97,6 +100,21 @@ checkpoints through the artifact port. Local output is under
 `data\test-corpus\public\microsoft_security_benchmark`; Azure Blob uses equivalent object keys.
 NIST/ISO/CIS mapping projections retain exact namespaces, revisions and unresolved target IDs.
 Microsoft Learn and SecurityBenchmarks source URLs and CC-BY 4.0 attribution remain attached.
+
+Run `scan --manifest sources\public.yaml` to ingest selected native NIST catalogs. Exact
+`nist-sp-800-53` revision `5` label aliases resolve the five published v2 NS-6 NIST mappings;
+revision 4 and unavailable/invalid framework targets remain unresolved. Resolution points to
+existing native control occurrences, not full coverage of every clause.
+
+`compare` without `--control` compares all loaded controls, including added/removed identifiers.
+Results retain source-specific maturity, overview edition maturity, exact mappings, actual policy
+definitions, guidance diffs and review-only lineage/SemVer classifications. Unknown numeric baselines
+stay unknown. Structural proposals are **not model-verified** and never merge or promote concepts.
+Explicitly set `EKB_RECONCILIATION_MODEL_ID` for small-model verification and
+`EKB_EMBEDDING_MODEL_ID` for scoped candidate retrieval, using the existing endpoint/auth settings.
+These independent options are disabled by default; enabling them can incur provider charges.
+Embeddings and valid judgments are cached independently of parser replay. Live paid-model quality
+has not been verified.
 
 Repeated sync uses conditional requests only after checking cached hashes, skips unchanged parsing,
 and replays changed parsers. Failed refreshes preserve earlier valid artifacts. Focused runs retain

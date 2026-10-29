@@ -5,6 +5,7 @@ from typing import Self
 
 from ekb.adapters.artifacts import AzureBlobArtifactStore, FilesystemArtifactStore
 from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference, RulesInference
+from ekb.adapters.inference.reconciliation import OpenAIEmbeddings, OpenAISemanticVerifier
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
 from ekb.adapters.sources import (
@@ -20,6 +21,7 @@ from ekb.observability import configure, flush
 from ekb.pipeline import IngestionPipeline
 from ekb.ports import ArtifactStore, InferencePort, SourceConnector
 from ekb.services.knowledge import KnowledgeService
+from ekb.services.reconciliation import BenchmarkService
 
 
 class Runtime:
@@ -56,6 +58,13 @@ class Runtime:
             ocr=self.settings.ocr, max_chars=self.settings.segment_max_chars
         )
         self.knowledge = KnowledgeService(self.database)
+        self.verifier = (
+            OpenAISemanticVerifier(self.settings) if self.settings.reconciliation_model_id else None
+        )
+        self.embeddings = (
+            OpenAIEmbeddings(self.settings) if self.settings.embedding_model_id else None
+        )
+        self.comparisons = BenchmarkService(self.database, self.verifier, self.embeddings)
         self._connectors: list[SourceConnector] = []
         self._connector_cache: dict[tuple[str, str], list[SourceConnector]] = {}
         self._benchmarks: MicrosoftLearnBenchmarkConnector | None = None
@@ -150,6 +159,10 @@ class Runtime:
                 await connector.close()
         if isinstance(self.inference, OpenAIInference):
             await self.inference.close()
+        if self.verifier:
+            await self.verifier.close()
+        if self.embeddings:
+            await self.embeddings.close()
         if isinstance(self.artifacts, AzureBlobArtifactStore):
             await self.artifacts.close()
         await self.database.close()

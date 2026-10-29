@@ -4,6 +4,8 @@
 - `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.
 - `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.
   Preserve complete oversized statements in records rather than truncating their qualifiers.
+- `reconciliation.py` shares control, historical comparison and evidence-chain queries.
+  Published identifier mappings remain distinct from review-only semantic/version proposals.
 - CLI, terminal, web and MCP presentation reuse these services.
 
 Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.

@@ -82,7 +82,7 @@ class StructuredParser:
         self.ocr = ocr
         self.max_chars = max_chars
         self.version = fingerprint(
-            implementation="structured-v4-publication-metadata",
+            implementation="structured-v5-native-control-labels",
             ocr=ocr,
             max_chars=max_chars,
             packages={name: version(name) for name in ("pymupdf", "python-docx", "python-pptx")},
@@ -346,20 +346,35 @@ class StructuredParser:
             }
         )
 
-        def visit(node: dict[str, Any], control_id: str | None = None) -> None:
-            cid = node.get("id", control_id) if "title" in node else control_id
-            if node.get("prose") and (not control_ids or cid in control_ids):
+        def visit(
+            node: dict[str, Any], control_id: str | None = None, labels: tuple[str, ...] = ()
+        ) -> None:
+            if node.get("prose") and control_id and (not control_ids or control_id in control_ids):
                 key = node.get("id") or node.get("name", "prose")
                 blocks.append(
                     Block(
                         node["prose"],
-                        cid,
-                        location={"control_id": cid, "part_id": key, "structured_control": True},
+                        control_id,
+                        location={
+                            "control_id": control_id,
+                            "control_labels": list(labels),
+                            "part_id": key,
+                            "structured_control": True,
+                        },
                     )
                 )
-            for field_name in ("groups", "controls", "parts"):
+            for field_name in ("groups", "parts"):
                 for child in node.get(field_name, []):
-                    visit(child, cid)
+                    visit(child, control_id, labels)
+            for child in node.get("controls", []):
+                aliases = tuple(
+                    dict.fromkeys(
+                        prop["value"]
+                        for prop in child.get("props", [])
+                        if prop.get("name") == "label" and isinstance(prop.get("value"), str)
+                    )
+                )
+                visit(child, child.get("id"), aliases)
 
         visit(catalog)
         if not any(block.quality != "document_metadata" for block in blocks):

@@ -151,6 +151,9 @@ neither a graph database nor a vector index is required.
 | `authority_events` | Append-only review/approval/rejection and promotion/withdrawal records, scoped and time-bounded |
 | `processing_runs`, `processing_tasks` | Scan summaries and revision/fingerprint tasks with status, owner, lease, attempts and usage |
 | `segment_results` | Validated extraction replay indexed by inference/context fingerprint and linked to its originating segment |
+| `benchmark_documents` | Immutable normalized publisher records, exact passages and semantic occurrence bindings |
+| `benchmark_comparisons` | Source-bound review-only comparisons, published MAPS_TO records and candidate semantic lineage |
+| `benchmark_embeddings`, `benchmark_match_cache` | Provider/input-keyed vector and valid grounded-judgment replay |
 
 Artifact publication and database commits are not a distributed transaction. An interruption
 between publishing an original and committing its revision can leave an unreferenced artifact.

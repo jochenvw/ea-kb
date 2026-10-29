@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 from opentelemetry import trace
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from ekb.config import Settings
 from ekb.domain.grounding import GroundingError, validate_evidence
@@ -129,7 +129,9 @@ class OpenAIInference:
             },
         ]
 
-    async def _complete(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+    async def _complete(
+        self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
+    ) -> tuple[str, int, int]:
         payload: dict[str, Any] = {
             "model": self.capabilities.model_id,
             "messages": messages,
@@ -140,9 +142,9 @@ class OpenAIInference:
             payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "extraction",
+                    "name": schema.__name__.lower(),
                     "strict": False,
-                    "schema": Extraction.model_json_schema(),
+                    "schema": schema.model_json_schema(),
                 },
             }
         response = await self.client.post(
@@ -285,7 +287,9 @@ class AgentFrameworkInference(OpenAIInference):
         headers = await self._headers()
         return headers.get("Authorization", "Bearer local").removeprefix("Bearer ")
 
-    async def _complete(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+    async def _complete(
+        self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
+    ) -> tuple[str, int, int]:
         from agent_framework import ChatOptions, Message
         from openai import APIConnectionError, APIStatusError
 
@@ -295,7 +299,7 @@ class AgentFrameworkInference(OpenAIInference):
                 "max_tokens": self.settings.model_max_output_tokens,
             }
             if self.capabilities.structured_output:
-                options["response_format"] = Extraction
+                options["response_format"] = schema
             response = await self.chat.get_response(
                 messages=[Message(role=m["role"], contents=[m["content"]]) for m in messages],
                 options=options,

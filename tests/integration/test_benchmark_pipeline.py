@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -17,10 +19,76 @@ from ekb.adapters.persistence.postgres.models import (
     SegmentRow,
 )
 from ekb.adapters.sources.benchmarks import LEARN, MicrosoftLearnBenchmarkConnector, _asset
-from ekb.domain.models import ConceptKind, PublicationStatus, fingerprint
+from ekb.domain.models import (
+    ConceptKind,
+    PublicationStatus,
+    SourceItem,
+    SourceRecord,
+    SourceRevision,
+    content_hash,
+    fingerprint,
+)
+from ekb.domain.reconciliation import EmbeddingResult, structural_verification
 from ekb.pipeline import IngestionPipeline
+from ekb.services.reconciliation import BenchmarkService
 
 pytestmark = pytest.mark.integration
+
+
+async def test_native_mapping_resolution_requires_exact_catalog_revision_and_published_label(
+    database,
+):
+    parser, inference = StructuredParser(), RulesInference()
+    expected = {}
+    for revision in ("4", "5", None):
+        source_id = uuid4()
+        item = SourceItem(
+            id=source_id,
+            connector="synthetic-native-test",
+            location=f"urn:synthetic:{source_id}",
+            name="Synthetic native catalog",
+            format="oscal",
+            metadata={"framework_namespace": "nist-sp-800-53", "framework_revision": revision},
+        )
+        content = json.dumps(
+            {
+                "catalog": {
+                    "controls": [
+                        {
+                            "id": "sc-7.5",
+                            "title": "Synthetic enhancement",
+                            "props": [{"name": "label", "value": "SC-7(5)"}],
+                            "parts": [
+                                {
+                                    "id": "statement",
+                                    "prose": f"Revision {revision} must deny traffic by default.",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        ).encode()
+        source_revision = SourceRevision(
+            id=uuid4(), source_id=source_id, content_hash=content_hash(content), artifact_key="test"
+        )
+        segments = await parser.parse(item, source_revision, content)
+        async with database() as uow:
+            await uow.sources.save(SourceRecord(item=item, revision_id=source_revision.id))
+            await uow.sources.save_revision(source_revision)
+            await uow.sources.save_segments(source_revision.id, segments, parser.version)
+            expected[revision] = await uow.knowledge.persist(
+                segments[0], await inference.extract(segments[0])
+            )
+            await uow.commit()
+    async with database() as uow:
+        targets = await uow.benchmarks.native_controls("nist-sp-800-53", "5", "SC-7(5)")
+        assert len(targets) == 1
+        assert targets[0].control_id == "sc-7.5"
+        assert set(targets[0].concept_ids) == set(expected["5"])
+        assert await uow.benchmarks.native_controls("nist-sp-800-53", "5", "SC-7") == []
+        assert await uow.benchmarks.native_controls("nist-sp-800-53", "3", "SC-7(5)") == []
+        assert await uow.benchmarks.native_controls("nist-csf", "5", "SC-7(5)") == []
 
 
 async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_calls(
@@ -148,6 +216,58 @@ async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_
             }
         pipeline.inference_fingerprint = fingerprint(model="another-configured-model")
         assert (await pipeline.scan([connector])).skipped == 2
+
+        class FakeVerifier:
+            fingerprint = "synthetic-model-contract"
+            calls = 0
+
+            async def verify(self, old, new):
+                self.calls += 1
+                return structural_verification(old, new).model_copy(
+                    update={"method": "small_model", "model_calls": 1}
+                )
+
+        class FakeEmbeddings:
+            model_id = fingerprint = "synthetic-embedding-contract"
+            calls = 0
+
+            async def embed(self, texts):
+                self.calls += 1
+                return EmbeddingResult(vectors=tuple((1.0, 0.0) for _ in texts), calls=1)
+
+        verifier, embeddings = FakeVerifier(), FakeEmbeddings()
+        service = BenchmarkService(database, verifier, embeddings)
+        preview = await service.compare("mcsb-v1", "mcsb-v2", "NS-6", read_only=True)
+        assert preview.model_calls == preview.embedding_calls == 0
+        assert verifier.calls == embeddings.calls == 0
+        async with database() as uow:
+            assert await uow.benchmarks.comparison(preview.id) is None
+        comparison = await service.compare("mcsb-v1", "mcsb-v2", "NS-6")
+        assert verifier.calls == embeddings.calls == 1
+        assert comparison.changes[0].review_status == "proposed"
+        assert comparison.changes[0].proposed_semantic_version is None
+        assert comparison.changes[0].new is not None
+        assert comparison.changes[0].new.policies == ()
+        cached = await service.compare("mcsb-v1", "mcsb-v2", "NS-6")
+        assert cached.cache_hit and cached.model_calls == cached.embedding_calls == 0
+        assert verifier.calls == embeddings.calls == 1
+        change = comparison.changes[0]
+        assert change.new is not None
+        binding = change.new.mappings[0]
+        forged_binding = binding.model_copy(
+            update={"reference": binding.reference.model_copy(update={"control_id": "FAKE-999"})}
+        )
+        forged_change = change.model_copy(
+            update={"new": change.new.model_copy(update={"mappings": (forged_binding,)})}
+        )
+        async with database() as uow:
+            with pytest.raises(ValueError, match="exact published control reference"):
+                await uow.benchmarks.save_comparison(
+                    comparison.model_copy(update={"id": uuid4(), "changes": (forged_change,)})
+                )
+        chain = await service.lineage("mcsb-v2:NS-6")
+        assert len(chain.semantic_proposals) == 1
+
         import ekb.adapters.parsers.benchmarks as parser_module
         import ekb.adapters.sources.benchmarks as connector_module
 
@@ -169,3 +289,8 @@ async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_
             assert await uow.session.scalar(select(func.count()).select_from(ConceptRow)) == 3
             assert len(await uow.benchmarks.documents("mcsb-v2", "NS-6", history=True)) == 2
             assert len(await uow.benchmarks.documents("mcsb-v2", "NS-6")) == 1
+        replay_comparison = await service.compare("mcsb-v1", "mcsb-v2", "NS-6")
+        assert replay_comparison.id != comparison.id
+        assert verifier.calls == embeddings.calls == 1
+        verification = replay_comparison.changes[0].verification
+        assert verification is not None and verification.cache_hit

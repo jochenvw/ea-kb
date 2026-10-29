@@ -145,13 +145,45 @@ def concepts_show(concept_id: UUID) -> None:
     emit(asyncio.run(execute()))
 
 
+@concepts_app.command("search")
+def concepts_search(query: str, limit: Annotated[int, typer.Option(min=1, max=200)] = 50) -> None:
+    """Search requirement/objective statements."""
+    concepts_list(query, limit)
+
+
 @app.command()
-def lineage(concept_id: UUID) -> None:
+def compare(
+    from_edition: str,
+    to_edition: str,
+    control: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    """Persist review-only edition/control comparisons, never canonical transitions."""
+
     async def execute():
         async with Runtime() as runtime:
-            return await runtime.knowledge.lineage(concept_id)
+            return await runtime.comparisons.compare(from_edition, to_edition, control)
 
-    emit(asyncio.run(execute()))
+    try:
+        report = asyncio.run(execute())
+        emit(report)
+        if report.failures:
+            raise typer.Exit(1)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
+
+
+@app.command()
+def lineage(concept_id: str) -> None:
+    async def execute():
+        async with Runtime() as runtime:
+            if ":" in concept_id:
+                return await runtime.comparisons.lineage(concept_id)
+            return await runtime.knowledge.lineage(UUID(concept_id))
+
+    try:
+        emit(asyncio.run(execute()))
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
 
 
 @app.command()

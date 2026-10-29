@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol, Self
 from uuid import UUID
 
-from ekb.domain.benchmarks import BenchmarkRole, StoredBenchmarkDocument
+from ekb.domain.benchmarks import BenchmarkRole, NativeControlBinding, StoredBenchmarkDocument
 from ekb.domain.models import (
     AuthorityEvent,
     Capabilities,
@@ -21,6 +21,13 @@ from ekb.domain.models import (
     SourceRecord,
     SourceRevision,
     Usage,
+)
+from ekb.domain.reconciliation import (
+    ComparisonReport,
+    ControlView,
+    EmbeddingRecord,
+    EmbeddingResult,
+    Verification,
 )
 
 
@@ -51,6 +58,19 @@ class InferencePort(Protocol):
     prompt_version: str
 
     async def extract(self, segment: Segment) -> InferenceResult: ...
+
+
+class SemanticVerifier(Protocol):
+    fingerprint: str
+
+    async def verify(self, old: ControlView, new: ControlView) -> Verification: ...
+
+
+class EmbeddingPort(Protocol):
+    model_id: str
+    fingerprint: str
+
+    async def embed(self, texts: list[str]) -> EmbeddingResult: ...
 
 
 class SourceRepository(Protocol):
@@ -99,6 +119,16 @@ class ProcessingRepository(Protocol):
 
 
 class BenchmarkRepository(Protocol):
+    async def comparison(self, comparison_id: UUID) -> ComparisonReport | None: ...
+    async def comparisons(self, edition: str, limit: int = 20) -> list[ComparisonReport]: ...
+    async def save_comparison(self, report: ComparisonReport) -> None: ...
+    async def embedding(self, embedding_id: UUID) -> EmbeddingRecord | None: ...
+    async def save_embedding(self, record: EmbeddingRecord) -> None: ...
+    async def verification(self, key: UUID) -> Verification | None: ...
+    async def save_verification(self, key: UUID, result: Verification) -> None: ...
+    async def native_controls(
+        self, framework: str, revision: str, control_id: str
+    ) -> list[NativeControlBinding]: ...
     async def save(self, document: StoredBenchmarkDocument) -> None: ...
     async def documents(
         self,

@@ -60,6 +60,8 @@ sources:
     access_notes: Public JSON representation of the official sustainability page; Shell copyright. Local analysis only.
     intended_scope: Public sustainability statements, with no assumed legal applicability.
   - id: nist-csf-2.0
+    framework_namespace: nist-csf
+    framework_revision: "2.0"
     publisher: US National Institute of Standards and Technology
     name: NIST Cybersecurity Framework 2.0 (selected OSCAL outcomes)
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/CSF/v2.0/json/NIST_CSF_v2.0_catalog.json
@@ -71,6 +73,8 @@ sources:
     intended_scope: Voluntary cybersecurity outcomes; applicability and enterprise binding status require a separate decision.
     control_ids: [GV.OC-01, GV.RM-01, PR.AA-01]
   - id: nist-sp800-53-rev5
+    framework_namespace: nist-sp-800-53
+    framework_revision: "5"
     publisher: US National Institute of Standards and Technology
     name: NIST SP 800-53 revision 5 (selected OSCAL controls)
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json
@@ -79,8 +83,8 @@ sources:
     retrieval: oscal
     jurisdiction: United States
     access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained; only selected controls parsed.
-    intended_scope: AC-1, AC-2 and IR-4 control statements/guidance; parameter placeholders remain unresolved. No automatic enterprise mandate.
-    control_ids: [ac-1, ac-2, ir-4]
+    intended_scope: Selected access, incident and WAF-mapped boundary/input-validation controls; parameter placeholders remain unresolved. Native label resolution is not per-clause coverage or an enterprise mandate.
+    control_ids: [ac-1, ac-2, ir-4, sc-7, sc-7.5, si-10, si-10.1, si-11]
   - id: iso-iec-27001-metadata
     publisher: International Organization for Standardization
     name: ISO/IEC 27001 information security management systems

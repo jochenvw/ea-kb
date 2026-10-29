@@ -213,6 +213,8 @@ class SourceSpec(Model):
     pages: list[int] = Field(default_factory=list)
     publisher_version: str | None = None
     publication_status: PublicationStatus = PublicationStatus.UNKNOWN
+    framework_namespace: str | None = None
+    framework_revision: str | None = None
 
 
 class SourceItem(Model):

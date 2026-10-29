@@ -169,7 +169,9 @@ class MicrosoftLearnBenchmarkConnector(HTTPConnector):
         return document
 
     async def discover(self) -> AsyncIterator[SourceItem]:
-        manifest = await self.manifest()
+        with tracer.start_as_current_span("benchmark.discover") as span:
+            manifest = await self.manifest()
+            span.set_attribute("benchmark.documents_discovered", len(manifest.assets))
         if not manifest.assets:
             raise ValueError("Run 'ekb sources sync microsoft-security-benchmark' first")
         for asset in sorted(manifest.assets.values(), key=lambda value: str(value.id)):

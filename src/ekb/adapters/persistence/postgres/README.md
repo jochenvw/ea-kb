@@ -7,6 +7,8 @@
 - Publication assessments are immutable; semantic versions may be unknown and authority is scoped.
 - `benchmarks.py` stores immutable typed benchmark snapshots and validates exact source bindings.
 - `documents(control_id=...)` selects matching whole documents, not a trimmed control list.
+- Native references resolve only against exact namespace, revision and published OSCAL label aliases.
+- Review-only comparisons validate source bindings; embeddings and valid judgments have replay caches.
 
 Preserve immutable revisions, exact occurrences and idempotent checkpoints.
 Schema changes require `migrations` updates; verification starts with

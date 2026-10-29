@@ -177,3 +177,24 @@ class BenchmarkDocumentRow(Base):
     extractor_version: Mapped[str] = mapped_column(String(64))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class BenchmarkComparisonRow(Base):
+    __tablename__ = "benchmark_comparisons"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    from_edition: Mapped[str] = mapped_column(String(30), index=True)
+    to_edition: Mapped[str] = mapped_column(String(30), index=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class BenchmarkEmbeddingRow(Base):
+    __tablename__ = "benchmark_embeddings"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class BenchmarkMatchRow(Base):
+    __tablename__ = "benchmark_match_cache"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
