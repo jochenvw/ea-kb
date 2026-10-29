@@ -6,5 +6,5 @@
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.
 - Async use cases enter `Runtime`; keep `asyncio.run` at this synchronous process boundary.
 
-Use root README command examples and `uv run ekb --help`.
+Use `docs\usage.md` command examples and `uv run ekb --help`.
 Do not move ingestion/business rules into Typer handlers; share the existing services.

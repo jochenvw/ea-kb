@@ -7,4 +7,4 @@
 - Run `ekb init` explicitly before serving the migrated schema.
 
 No resource provisioning, network isolation or enterprise authentication is implemented here.
-See `docs\architecture.md` and the root README before deploying beyond a private environment.
+See `docs\architecture.md` and `docs\usage.md` before deploying beyond a private environment.

@@ -14,7 +14,7 @@ uv run pytest -q
 uv run ekb eval run --baseline --output data\evaluation-rules.json
 ```
 
-Database cases require `EKB_TEST_DATABASE_URL`; see `README.md`. No coverage command is configured.
+Database cases require `EKB_TEST_DATABASE_URL`; see `docs\usage.md`. No coverage command is configured.
 
 ## 2) Test Layout
 
@@ -60,4 +60,4 @@ paid inference remain outside offline contracts.
 - `tests\unit\test_domain.py`, `tests\unit\test_inference.py`, `tests\unit\test_adapters.py`.
 - `tests\unit\test_corpus_downloader.py`, `tests\contract\test_repositories.py`.
 - `tests\integration\test_pipeline.py`, `tests\integration\test_interfaces.py`.
-- `src\ekb\evaluation\__init__.py`, `tests\golden\dataset.json`, `README.md`.
+- `src\ekb\evaluation\__init__.py`, `tests\golden\dataset.json`, `docs\usage.md`.

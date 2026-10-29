@@ -105,7 +105,7 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
   existing fixtures and contract tests; avoid tests that merely repeat implementation details.
 - Start with affected tests using `uv run pytest -q` and appropriate path selectors. Broaden for
   cross-cutting changes. PostgreSQL tests require `EKB_TEST_DATABASE_URL` and a disposable-schema
-  setup described in `README.md`; skipped database tests are not evidence of database correctness.
+  setup described in `docs\usage.md`; skipped database tests are not evidence of database correctness.
 - Keep unit tests offline and deterministic. Do not introduce paid inference or live cloud calls
   into default verification. Report offline contracts separately from live integration results.
 - Run the existing quality gates for code changes:
@@ -124,4 +124,4 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
   unrelated user edits; do not rewrite history or push without instruction. State blockers and
   unverified behavior plainly rather than claiming completion.
 
-See `README.md`, `docs\architecture.md` and `docs\plugins.md` for current workflows and contracts.
+See `docs\usage.md`, `docs\architecture.md` and `docs\plugins.md` for current workflows and contracts.

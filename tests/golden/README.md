@@ -5,4 +5,4 @@ Cases distinguish short attributed public excerpts from explicitly synthetic tes
 
 Preserve negations, exceptions and source provenance when changing labels; do not fabricate
 normative ISO content. Changes intentionally affect the report's dataset hash.
-Run the evaluation command documented in root README and `tests\unit\test_evaluation.py`.
+Run the evaluation command documented in `docs\usage.md` and `tests\unit\test_evaluation.py`.

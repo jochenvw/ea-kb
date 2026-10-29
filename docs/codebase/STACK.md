@@ -50,7 +50,7 @@ uv run ruff check src tests migrations scripts
 uv run basedpyright
 ```
 
-Database tests need the setup in `README.md`; optional extras use `uv sync --all-extras`.
+Database tests need the setup in `docs\usage.md`; optional extras use `uv sync --all-extras`.
 
 ## 5) Environment and Config
 

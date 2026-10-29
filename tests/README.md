@@ -5,6 +5,6 @@
 - `contract`: persistence invariants shared by potential backend implementations.
 - `fixtures` and `golden`: synthetic ingestion inputs and attributed/synthetic evaluation labels.
 
-Run affected paths with `uv run pytest -q`; see root README for database/extras setup.
+Run affected paths with `uv run pytest -q`; see `docs\usage.md` for database/extras setup.
 The folder-guide policy test requires Git and a source checkout, but no network or cloud credentials.
 Do not treat skipped database/provider paths as verified behavior.

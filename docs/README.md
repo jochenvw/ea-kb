@@ -1,5 +1,6 @@
 # Design documentation
 
+- `usage.md`: setup, configuration, interfaces, corpus downloads, verification and deployment.
 - `architecture.md`: implemented components, flows, persistence, concurrency and deployment.
 - `plugins.md`: connector/provider contracts and rules for future adapters.
 - `decisions`: short architecture decision records and their rationale.
