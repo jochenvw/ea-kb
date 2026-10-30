@@ -31,12 +31,10 @@ def upgrade() -> None:
     op.create_table(
         "sources",
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("connector", sa.String(length=100), nullable=False),
         sa.Column("location", sa.Text(), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_sources_connector"), "sources", ["connector"], unique=False)
     op.create_table(
         "concept_versions",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -259,7 +257,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_concept_versions_semantic_type"), table_name="concept_versions")
     op.drop_index(op.f("ix_concept_versions_concept_id"), table_name="concept_versions")
     op.drop_table("concept_versions")
-    op.drop_index(op.f("ix_sources_connector"), table_name="sources")
     op.drop_table("sources")
     op.drop_table("processing_runs")
     op.drop_table("concepts")

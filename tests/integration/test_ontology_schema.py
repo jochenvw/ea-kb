@@ -28,6 +28,12 @@ async def test_recreation_replaces_owned_schema_without_dropping_unrelated_table
         )
         await connection.execute(text("ALTER TABLE concept_versions ADD COLUMN old_kind text"))
         await connection.execute(
+            text("ALTER TABLE sources ADD COLUMN connector text NOT NULL DEFAULT 'legacy'")
+        )
+        await connection.execute(
+            text("ALTER TABLE enrichment_findings ADD COLUMN input_revision text")
+        )
+        await connection.execute(
             text(
                 "INSERT INTO sources (id, connector, location, payload) "
                 "VALUES (:id, 'test', 'urn:test', '{}')"
@@ -44,6 +50,14 @@ async def test_recreation_replaces_owned_schema_without_dropping_unrelated_table
             lambda sync: {item["name"] for item in inspect(sync).get_columns("concept_versions")}
         )
         assert "semantic_type" in columns and "old_kind" not in columns
+        source_columns = await connection.run_sync(
+            lambda sync: {item["name"] for item in inspect(sync).get_columns("sources")}
+        )
+        finding_columns = await connection.run_sync(
+            lambda sync: {item["name"] for item in inspect(sync).get_columns("enrichment_findings")}
+        )
+        assert "connector" not in source_columns
+        assert "input_revision" not in finding_columns
         assert await connection.scalar(text("SELECT to_regclass('concept_aliases')")) is None
         assert await connection.scalar(text("SELECT count(*) FROM sources")) == 0
         assert await connection.scalar(text("SELECT id FROM unrelated_records")) == 42

@@ -269,7 +269,6 @@ class ResolutionStore:
             .values(
                 id=finding.id,
                 check_id=finding.check_id,
-                input_revision=finding.input_revision,
                 payload=finding.model_dump(mode="json"),
             )
             .on_conflict_do_nothing()

@@ -17,7 +17,6 @@ def upgrade() -> None:
         "enrichment_findings",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("check_id", sa.String(length=100), nullable=False),
-        sa.Column("input_revision", sa.String(length=64), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )

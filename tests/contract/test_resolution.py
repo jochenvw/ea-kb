@@ -85,6 +85,11 @@ async def test_resolution_repository_contract(database: UnitOfWorkFactory):
     )
     service = ReconciliationService(database)
     await service.propose(finding)
+    async with database() as uow:
+        stored_source = await uow.sources.get(source_id)
+        stored_finding = await uow.resolution.finding(finding.id)
+    assert stored_source and stored_source.item.connector == "fixture"
+    assert stored_finding and stored_finding.input_revision == "source-revision"
     decision = await service.decide(
         Decision(
             finding_id=finding.id,

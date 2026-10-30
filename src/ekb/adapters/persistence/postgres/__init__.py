@@ -142,7 +142,6 @@ class Sources:
             SourceRow,
             {
                 "id": source.item.id,
-                "connector": source.item.connector,
                 "location": source.item.location,
                 "payload": source.model_dump(mode="json"),
             },

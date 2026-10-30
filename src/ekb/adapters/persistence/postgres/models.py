@@ -29,7 +29,6 @@ class Base(DeclarativeBase):
 class SourceRow(Base):
     __tablename__ = "sources"
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    connector: Mapped[str] = mapped_column(String(100), index=True)
     location: Mapped[str] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
@@ -261,7 +260,6 @@ class FindingRow(Base):
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     check_id: Mapped[str] = mapped_column(String(100), index=True)
-    input_revision: Mapped[str] = mapped_column(String(64))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 

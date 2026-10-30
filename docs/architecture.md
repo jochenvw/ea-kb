@@ -295,7 +295,8 @@ and enrichment outputs. `parse_checkpoints` separately proves completion even fo
 Task status and attempt columns are authoritative for claims and are overlaid on the domain
 payload when read; usage remains in that payload. Pipeline execution projections and payloads
 are written together by `Workflow.save_execution`; ontology type projections are SQL-checked
-against their immutable version payloads.
+against their immutable version payloads. Connector identity and finding input revision remain
+in their typed payloads: no retained query or constraint needs duplicate SQL columns for them.
 
 Artifact publication and database commits are not a distributed transaction. An interruption
 between publishing an original and committing its revision can leave an unreferenced artifact.
