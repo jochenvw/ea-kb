@@ -5,6 +5,8 @@ from ekb.domain.models import ContentLabeling, Extraction, Modality, Segment, Se
 
 
 def validate_labeling(labeling: ContentLabeling, segment: Segment) -> None:
+    if labeling.coverage and labeling.coverage.excerpt not in segment.text:
+        raise GroundingError("Coverage evidence is not an exact source substring")
     for label in labeling.labels:
         if label.excerpt not in segment.text:
             raise GroundingError("Label evidence is not an exact source substring")

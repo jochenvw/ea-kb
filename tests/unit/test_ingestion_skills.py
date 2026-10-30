@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import httpx
+import pymupdf
 import pytest
 from pydantic import ValidationError
 
@@ -15,10 +16,12 @@ from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     Candidate,
     Capabilities,
+    ContentCoverage,
     ContentLabel,
     ContentLabeling,
     Extraction,
     InferenceResult,
+    LabelingResult,
     ProposedRelationship,
     RelationshipKind,
     Scope,
@@ -27,14 +30,22 @@ from ekb.domain.models import (
     SourceItem,
     SourceRevision,
     Usage,
+    content_hash,
 )
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.evaluation.dataset import load_dataset
-from ekb.evaluation.skills import SkillDataset, evaluate_skills
+from ekb.evaluation.skills import (
+    SkillDataset,
+    _audit_document_sources,
+    document_metrics,
+    evaluate_skills,
+    label_metrics,
+)
 from ekb.pipeline import IngestionPipeline
 
 DATASET = Path("evals") / "skills-v1.json"
 GATES = Path("evals") / "gates.json"
+DOCUMENTS = Path("evals") / "documents-v1.json"
 
 
 def scoped_input():
@@ -498,3 +509,137 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
     )
     assert not unknown["passed"]
     assert not unknown["skills"]["labeling"]["quality_gates"]["priced_cost"]
+
+
+def test_document_metrics_separate_company_coverage_layers_and_named_scope():
+    dataset = SkillDataset.model_validate_json(DOCUMENTS.read_bytes())
+    cases = list(dataset.cases)
+    predictions = [case.labeling for case in cases]
+    perfect = document_metrics(cases, predictions)
+    assert perfect["coverage"]["accuracy"] == 1
+    assert perfect["ontology_type_set_accuracy"] == 1
+
+    nist = predictions[1]
+    predictions[1] = nist.model_copy(
+        update={
+            "coverage": None,
+            "labels": [
+                label.model_copy(update={"scope": Scope(organization="NIST")})
+                for label in nist.labels
+                if label.semantic_type != SemanticType.TECHNICAL_REQUIREMENT
+            ],
+        }
+    )
+    report = document_metrics(cases, predictions)
+    assert report["coverage"]["correct"] == 2
+    assert report["documents"][1]["missing_ontology_types"] == ["TechnicalRequirement"]
+    assert report["documents"][1]["expected_scopes"] == []
+    assert report["documents"][1]["actual_scopes"] == [{"organization": "NIST"}]
+    assert report["documents"][2]["ontology_types_exact_match"]
+    assert label_metrics(cases, predictions)["fp"] > 0
+
+
+async def test_document_eval_uses_only_source_text_and_keeps_iso_negative(tmp_path):
+    dataset = SkillDataset.model_validate_json(DOCUMENTS.read_bytes())
+
+    class Reader(RulesInference):
+        capabilities = Capabilities(model_id="synthetic-reader")
+
+        async def label(self, segment):
+            case = next(case for case in dataset.cases if case.text == segment.text)
+            assert not segment.location
+            return LabelingResult(
+                labeling=case.labeling,
+                model_id="synthetic",
+                prompt_version="synthetic",
+                usage=Usage(input_tokens=10, output_tokens=5, model_calls=1, cost=0.001),
+            )
+
+        async def extract_scoped(self, segment, labeling):
+            case = next(case for case in dataset.cases if case.text == segment.text)
+            assert labeling == case.labeling
+            return InferenceResult(
+                extraction=case.expected,
+                model_id="synthetic",
+                prompt_version="synthetic",
+                usage=Usage(input_tokens=10, output_tokens=5, model_calls=1, cost=0.001),
+            )
+
+    report = await evaluate_skills(
+        DOCUMENTS, GATES, tmp_path / "documents.json", Reader(), split="all"
+    )
+    assert report["skills"]["labeling"]["document_classification"]["coverage"]["accuracy"] == 1
+    assert report["skills"]["extraction"]["metrics"]["recall"] == 1
+    assert report["skills"]["extraction"]["negative_cases"] == {
+        "scored": 1,
+        "correctly_empty": 1,
+    }
+    assert not any(skill["qualified"] for skill in report["skills"].values())
+
+    class MissingCoverage(Reader):
+        async def label(self, segment):
+            result = await super().label(segment)
+            return result.model_copy(
+                update={"labeling": result.labeling.model_copy(update={"coverage": None})}
+            )
+
+    missing = await evaluate_skills(
+        DOCUMENTS, GATES, tmp_path / "missing.json", MissingCoverage(), split="all", live=True
+    )
+    assert missing["skills"]["labeling"]["metrics"]["recall"] == 1
+    assert not missing["skills"]["labeling"]["quality_gates"]["document_coverage"]
+    assert not missing["passed"]
+
+
+def test_coverage_and_document_annotations_must_resolve_to_source_passages():
+    segment, labeling, _ = scoped_input()
+    forged = labeling.model_copy(
+        update={"coverage": ContentCoverage(level="company_level", excerpt="Unseen company")}
+    )
+    with pytest.raises(GroundingError, match="Coverage evidence"):
+        validate_labeling(forged, segment)
+    with pytest.raises(ValidationError, match="explanation"):
+        ContentCoverage(level="unknown", excerpt=segment.text)
+    raw = json.loads(DOCUMENTS.read_bytes())
+    raw["cases"][0]["document"]["passages"][0]["excerpt"] = "Fabricated quote."
+    with pytest.raises(ValidationError, match="selected source passages"):
+        SkillDataset.model_validate(raw)
+
+
+def test_document_source_audit_checks_hash_and_exact_pdf_page(tmp_path, monkeypatch):
+    dataset = SkillDataset.model_validate_json(DOCUMENTS.read_bytes())
+    case = dataset.cases[1]
+    assert case.source and case.document
+    passage = case.document.passages[0].model_copy(update={"pdf_page": 2})
+    monkeypatch.chdir(tmp_path)
+    path = Path("source.pdf")
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((30, 30), passage.excerpt, fontsize=6)
+        pdf.new_page().insert_text((30, 30), "Unrelated page.")
+        pdf.save(path)
+    sample = case.document.model_copy(update={"retained_path": path, "passages": (passage,)})
+    source = case.source.model_copy(update={"sha256": content_hash(path.read_bytes())})
+    selected = case.model_copy(update={"document": sample, "source": source})
+    with pytest.raises(ValueError, match="cited page"):
+        _audit_document_sources([selected])
+    sample = sample.model_copy(update={"passages": (passage.model_copy(update={"pdf_page": 1}),)})
+    selected = selected.model_copy(update={"document": sample})
+    assert _audit_document_sources([selected])["passages"] == 1
+    path.write_bytes(b"Changed original")
+    with pytest.raises(ValueError, match="hash changed"):
+        _audit_document_sources([selected])
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_metadata_source_identity_is_checkout_line_ending_independent(
+    tmp_path, monkeypatch, newline
+):
+    case = SkillDataset.model_validate_json(DOCUMENTS.read_bytes()).cases[2]
+    assert case.source and case.document
+    monkeypatch.chdir(tmp_path)
+    path = Path("metadata.md")
+    path.write_bytes(case.text.replace("\n", newline).encode())
+    sample = case.document.model_copy(update={"retained_path": path})
+    source = case.source.model_copy(update={"sha256": content_hash(case.text.encode())})
+    selected = case.model_copy(update={"document": sample, "source": source})
+    assert _audit_document_sources([selected])["passages"] == 2

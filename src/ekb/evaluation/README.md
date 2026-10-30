@@ -6,6 +6,7 @@
 `dataset.py` materializes split-isolated teacher cases; `frugal.py` qualifies quality and efficiency.
 `distillation.py` exports train-only labels; `suite.py` combines code tests and offline/live evals.
 `skills.py` independently scores ontology/scope labeling and gold-routed extraction on isolated cases.
+It also audits document references and scores organizational coverage and mixed ontology layers.
 `goals.py` verifies source-page evidence and evaluates goal detection, abstraction, scope,
 duplicates, provenance, provisional hierarchy and efficiency.
 
@@ -21,5 +22,6 @@ Run `uv run ekb eval benchmarks`; `--configured` explicitly opts into the config
 Run `uv run ekb eval workflow` after actual corpus sync/indexing; see `docs\phase3.md`.
 Run `uv run ekb test --ui` for Python/browser tests and evals; omit `--ui` for Python-only checks.
 Run `uv run ekb eval skills --skill labeling` or `--skill extraction`; `--live` opts into paid models.
+Run `uv run ekb eval documents --verify-sources` for annual/NIST passages and ISO metadata.
 Frontend checks require Node.js and an installed Playwright browser; no live corpus or model.
 See `docs\evaluation.md` for gates and teacher provenance.

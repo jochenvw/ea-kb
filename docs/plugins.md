@@ -34,6 +34,11 @@ may change. Preserve originals; normalized text is an intermediate artifact, not
 `IngestionSkills` adds `label(segment)` and `extract_scoped(segment, labeling)` with independent
 label/extraction fingerprints. Labeling returns exact evidence spans, nullable ontology classes
 and explicit scopes; extraction must retain each candidate's matching class/scope and evidence.
+Optional `ContentLabeling.coverage` independently identifies `company_level`, `organizational_unit`
+or explicit `unknown`, with an exact supporting excerpt. Coverage applies only to supplied content,
+does not identify an adopting company, and is not an ontology class or authority decision.
+Multiple ontology labels must survive company-level classification; external frameworks may span
+strategic requirements, architecture domains and lower requirements without becoming approved policy.
 Domain classification is not a requirement. Unknown layers require an uncertainty explanation.
 Prompt assets live in `adapters\inference\skills` and their content hashes enter replay identity.
 Implement both skills for an interchangeable ingestion provider; `extract` is the combined

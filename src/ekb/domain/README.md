@@ -6,6 +6,7 @@
 - `grounding.py` checks exact evidence substrings and relationship candidate references.
 - `skills.py` validates labeled scope evidence and extraction routing/qualifiers without model calls.
   Ontology types are distinct from organizational/platform scope; unknown layers remain nullable.
+- Optional evidence-backed content coverage describes company/unit breadth, not adoption or OWL types.
 - `benchmarks.py` defines source/control/mapping/policy records, not additional semantic primitives.
 - `reconciliation.py` types comparisons, grounded judgments and explicit structural-only proposals.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit, aliases and issue lifecycle.

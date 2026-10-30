@@ -151,6 +151,42 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
 
         execute(operation)
 
+    @evaluations.command("documents")
+    def documents(
+        live: Annotated[
+            bool, typer.Option(help="Explicitly allow configured model calls.")
+        ] = False,
+        verify_sources: Annotated[
+            bool, typer.Option(help="Verify retained source hashes and cited PDF/text passages.")
+        ] = False,
+        dataset: Annotated[Path, typer.Option()] = Path("evals") / "documents-v1.json",
+        output: Annotated[Path, typer.Option()] = Path("data") / "document-evaluation.json",
+    ):
+        """Evaluate document coverage, mixed ontology labels and gold-routed extraction."""
+
+        async def operation():
+            if live:
+                settings = Settings()
+                if settings.inference not in {"openai", "agent-framework"}:
+                    raise ValueError(
+                        "Select agent-framework or openai for live document evaluation"
+                    )
+                async with Runtime(settings) as runtime:
+                    return await evaluate_skills(
+                        dataset,
+                        GATES,
+                        output,
+                        runtime.inference,
+                        split="all",
+                        live=True,
+                        verify_sources=verify_sources,
+                    )
+            return await evaluate_skills(
+                dataset, GATES, output, RulesInference(), split="all", verify_sources=verify_sources
+            )
+
+        execute(operation)
+
     @evaluations.command("verify-corpus")
     def verify(dataset: Annotated[Path, typer.Option()] = DATASET):
         """Verify source hashes and teacher quotations against retained original documents."""

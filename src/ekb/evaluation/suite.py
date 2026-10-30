@@ -119,6 +119,7 @@ async def run_suite(
     tests = await code_tests(output, unit_only)
     evaluation = None
     skills = None
+    documents = None
     error = None
     code_passed = tests["passed"] and (frontend is None or frontend["passed"])
     if code_passed:
@@ -142,6 +143,14 @@ async def run_suite(
                         runtime.inference,
                         live=True,
                     )
+                    documents = await evaluate_skills(
+                        Path("evals") / "documents-v1.json",
+                        gates,
+                        output / "documents.json",
+                        runtime.inference,
+                        split="all",
+                        live=True,
+                    )
             else:
                 evaluation = await qualify(
                     dataset,
@@ -155,6 +164,13 @@ async def run_suite(
                     output / "skills.json",
                     RulesInference(),
                 )
+                documents = await evaluate_skills(
+                    Path("evals") / "documents-v1.json",
+                    gates,
+                    output / "documents.json",
+                    RulesInference(),
+                    split="all",
+                )
         except Exception as exc:
             error = type(exc).__name__
     report = {
@@ -162,15 +178,18 @@ async def run_suite(
         "unit_only": unit_only,
         "passed": code_passed
         and bool(evaluation and evaluation["passed"])
-        and bool(skills and skills["passed"]),
+        and bool(skills and skills["passed"])
+        and bool(documents and documents["passed"]),
         "tests": tests,
         "frontend": frontend,
         "evaluation": evaluation,
         "skills": skills,
+        "documents": documents,
         "evaluation_error": error,
         "coverage": {
             "indexing_provenance": "pipeline/integration/contract tests + benchmark eval",
             "extraction_modality_scope": "actual-source and synthetic teacher extraction cases",
+            "document_classification": "annual report/NIST mixed layers + ISO metadata negative",
             "semantic_duplicates_lineage": "teacher pairs + benchmark eval + workflow tests",
             "embedding_retrieval": "held-out teacher queries, Recall@k/MRR + provider/cache tests",
             "publication_versions": "benchmark eval + domain/history/scope tests",

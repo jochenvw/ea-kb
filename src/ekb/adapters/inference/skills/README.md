@@ -1,6 +1,7 @@
 # Bounded ingestion skills
 
 - `labeling.md` labels exact content spans by ontology class and explicit organizational/platform scope.
+- Organizational coverage is separately evidenced; mixed document layers do not imply company adoption.
 - `extraction.md` extracts candidates only within those labeled spans and scopes.
 - Prompts are runtime assets; their content hashes independently invalidate skill replay.
 - Both skills use typed domain inputs/outputs through `IngestionSkills`, with no tools or loops.

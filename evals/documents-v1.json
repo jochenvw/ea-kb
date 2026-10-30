@@ -1,0 +1,227 @@
+{
+  "version": "document-classification-v1",
+  "review_status": "provisional",
+  "cases": [
+    {
+      "id": "shell-annual-company-strategy",
+      "family": "corporate-strategy",
+      "split": "validation",
+      "source": {
+        "id": "shell-annual-2025",
+        "group": "corporate-strategy",
+        "split": "validation",
+        "url": "https://www.shell.com/investors/results-and-reporting/annual-report/_jcr_content/root/main/section_2113846431/link_list/links/item0.stream/1774544186011/5727c329a58b5eb7a54442c0a03f562a5aef1159/shell-annual-report-2025-interactive.pdf",
+        "sha256": "eab508829aacb9c2d78a9d0ee8e9e1f6266b474bdd726c4f23ddf6fc3e6c1f40",
+        "attribution": "Shell plc, Annual Report and Accounts 2025; user-provided local report, not redistributed."
+      },
+      "document": {
+        "kind": "annual_report",
+        "retained_path": "data\\test-corpus\\public\\corporate_strategy\\shell-annual-2025.pdf",
+        "note": "Selected passages from This is Shell, printed page 6 / physical PDF page 9. Vision is not a binding commitment; competitiveness is a provisional goal interpretation and possible enabler. Named scope is retained only where explicit, not copied from adjacent passages.",
+        "passages": [
+          {
+            "pdf_page": 9,
+            "section": "This is Shell",
+            "excerpt": "Shell is a global group of energy and petrochemical companies, employing around 85,000 people [A] across more than 70 countries."
+          },
+          {
+            "pdf_page": 9,
+            "section": "This is Shell - Our vision",
+            "excerpt": "Our vision is to become [B] the world's leading integrated energy company -- delivering impact at scale, connecting energy and people, matching supply to demand."
+          },
+          {
+            "pdf_page": 9,
+            "section": "This is Shell - Our vision",
+            "excerpt": "We are positioning Shell to become a leaner, more competitive organisation to succeed through a multi- decade energy transition."
+          }
+        ]
+      },
+      "text": "Shell is a global group of energy and petrochemical companies, employing around 85,000 people [A] across more than 70 countries.\n\nOur vision is to become [B] the world's leading integrated energy company -- delivering impact at scale, connecting energy and people, matching supply to demand.\n\nWe are positioning Shell to become a leaner, more competitive organisation to succeed through a multi- decade energy transition.",
+      "labeling": {
+        "coverage": {
+          "level": "company_level",
+          "excerpt": "Shell is a global group of energy and petrochemical companies, employing around 85,000 people [A] across more than 70 countries."
+        },
+        "labels": [
+          {
+            "semantic_type": "OrganizationalScope",
+            "excerpt": "Shell is a global group of energy and petrochemical companies, employing around 85,000 people [A] across more than 70 countries.",
+            "scope": {"organization": "Shell"}
+          },
+          {
+            "semantic_type": "StrategicGoal",
+            "excerpt": "Our vision is to become [B] the world's leading integrated energy company -- delivering impact at scale, connecting energy and people, matching supply to demand.",
+            "uncertainty": "The vision is an intended enterprise outcome, not a binding target. Its own excerpt does not explicitly name the organizational entity."
+          },
+          {
+            "semantic_type": "StrategicGoal",
+            "excerpt": "We are positioning Shell to become a leaner, more competitive organisation to succeed through a multi- decade energy transition.",
+            "scope": {"organization": "Shell"},
+            "uncertainty": "Provisional interpretation: competitiveness may be a strategic enabler rather than an independent ultimate goal."
+          }
+        ]
+      },
+      "expected": {
+        "candidates": [
+          {
+            "semantic_type": "StrategicGoal",
+            "goal_level": "enterprise",
+            "statement": "Become the world's leading integrated energy company.",
+            "excerpt": "Our vision is to become [B] the world's leading integrated energy company -- delivering impact at scale, connecting energy and people, matching supply to demand."
+          },
+          {
+            "semantic_type": "StrategicGoal",
+            "goal_level": "enterprise",
+            "statement": "We are positioning Shell to become a leaner, more competitive organisation to succeed through a multi- decade energy transition.",
+            "excerpt": "We are positioning Shell to become a leaner, more competitive organisation to succeed through a multi- decade energy transition.",
+            "scope": {"organization": "Shell"},
+            "uncertainty": "May be an enabler rather than an independent ultimate strategic goal."
+          }
+        ]
+      }
+    },
+    {
+      "id": "nist-csf-company-and-architecture",
+      "family": "nist-csf",
+      "split": "test",
+      "source": {
+        "id": "nist-csf-2.0",
+        "group": "nist-csf",
+        "split": "test",
+        "url": "https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=957258",
+        "sha256": "3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c",
+        "attribution": "NIST CSWP 29, The NIST Cybersecurity Framework (CSF) 2.0, February 26, 2024; US Government material."
+      },
+      "document": {
+        "kind": "framework",
+        "retained_path": "data\\test-corpus\\public\\voluntary_framework\\nist-csf-2.pdf",
+        "note": "Selected Core outcomes and three domain headings. The strategic/technical abstraction labels are provisional interpretations of non-prescriptive outcomes. Company-level coverage is generic: NIST is the publisher, not the adopting organization, and no Shell applicability, platform, mandatory modality or enterprise adoption is inferred.",
+        "passages": [
+          {
+            "pdf_page": 21,
+            "section": "Appendix A / GOVERN / GV.RM-03",
+            "excerpt": "GV.RM-03: Cybersecurity risk management activities and outcomes are included in enterprise risk management processes"
+          },
+          {
+            "pdf_page": 24,
+            "section": "Appendix A / PROTECT / PR.AA",
+            "excerpt": "Identity Management, Authentication, and Access Control (PR.AA)"
+          },
+          {
+            "pdf_page": 24,
+            "section": "Appendix A / PROTECT / PR.AA-03",
+            "excerpt": "PR.AA-03: Users, services, and hardware are authenticated"
+          },
+          {
+            "pdf_page": 25,
+            "section": "Appendix A / PROTECT / PR.DS",
+            "excerpt": "Data Security (PR.DS)"
+          },
+          {
+            "pdf_page": 25,
+            "section": "Appendix A / PROTECT / PR.DS-01",
+            "excerpt": "PR.DS-01: The confidentiality, integrity, and availability of data-at-rest are protected"
+          },
+          {
+            "pdf_page": 25,
+            "section": "Appendix A / PROTECT / PR.IR",
+            "excerpt": "Technology Infrastructure Resilience (PR.IR)"
+          }
+        ]
+      },
+      "text": "GV.RM-03: Cybersecurity risk management activities and outcomes are included in enterprise risk management processes\n\nIdentity Management, Authentication, and Access Control (PR.AA)\n\nPR.AA-03: Users, services, and hardware are authenticated\n\nData Security (PR.DS)\n\nPR.DS-01: The confidentiality, integrity, and availability of data-at-rest are protected\n\nTechnology Infrastructure Resilience (PR.IR)",
+      "labeling": {
+        "coverage": {
+          "level": "company_level",
+          "excerpt": "GV.RM-03: Cybersecurity risk management activities and outcomes are included in enterprise risk management processes"
+        },
+        "labels": [
+          {
+            "semantic_type": "StrategicRequirement",
+            "excerpt": "GV.RM-03: Cybersecurity risk management activities and outcomes are included in enterprise risk management processes",
+            "uncertainty": "An organization-wide candidate obligation if adopted; the external framework alone does not establish company authority."
+          },
+          {
+            "semantic_type": "ArchitectureDomain",
+            "excerpt": "Identity Management, Authentication, and Access Control (PR.AA)"
+          },
+          {
+            "semantic_type": "TechnicalRequirement",
+            "excerpt": "PR.AA-03: Users, services, and hardware are authenticated",
+            "uncertainty": "Provisional boundary with conceptual requirements: authentication is a technically actionable, vendor-independent condition, not a specified implementation."
+          },
+          {
+            "semantic_type": "ArchitectureDomain",
+            "excerpt": "Data Security (PR.DS)"
+          },
+          {
+            "semantic_type": "ConceptualRequirement",
+            "excerpt": "PR.DS-01: The confidentiality, integrity, and availability of data-at-rest are protected"
+          },
+          {
+            "semantic_type": "ArchitectureDomain",
+            "excerpt": "Technology Infrastructure Resilience (PR.IR)"
+          }
+        ]
+      },
+      "expected": {
+        "candidates": [
+          {
+            "semantic_type": "StrategicRequirement",
+            "statement": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes.",
+            "excerpt": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes"
+          },
+          {
+            "semantic_type": "TechnicalRequirement",
+            "statement": "Users, services, and hardware are authenticated.",
+            "excerpt": "Users, services, and hardware are authenticated"
+          },
+          {
+            "semantic_type": "ConceptualRequirement",
+            "statement": "The confidentiality, integrity, and availability of data-at-rest are protected.",
+            "excerpt": "The confidentiality, integrity, and availability of data-at-rest are protected"
+          }
+        ]
+      }
+    },
+    {
+      "id": "iso-27001-metadata-no-invented-clauses",
+      "family": "iso-information-security-metadata",
+      "split": "train",
+      "source": {
+        "id": "iso-27001-metadata-fixture",
+        "group": "iso-information-security-metadata",
+        "split": "train",
+        "url": "repository:tests\\fixtures\\local\\iso-metadata.md",
+        "sha256": "49cd9548c8dc2a75aeb8188cce395f4e882b9f5051425b2f7dd3b86eb68024de",
+        "attribution": "Repository-authored ISO catalog metadata referring to https://www.iso.org/standard/27001. Not original ISO wording or licensed standard text."
+      },
+      "document": {
+        "kind": "metadata_only",
+        "retained_path": "tests\\fixtures\\local\\iso-metadata.md",
+        "hash_mode": "lf_normalized_text",
+        "note": "User selected the existing metadata-only negative fixture because no authorized ISO standard was provided and the official overview returned HTTP 403. Hash covers UTF-8 repository text with LF newlines. This case does not evaluate normative ISO clauses, substantive ISO coverage or ISO requirement recall.",
+        "passages": [
+          {
+            "section": "Metadata boundary",
+            "excerpt": "This is independently curated catalog metadata, not ISO clause text or an approved requirement."
+          },
+          {
+            "section": "ISO/IEC 27001 catalog reference",
+            "excerpt": "ISO/IEC 27001 concerns information security management systems."
+          }
+        ]
+      },
+      "text": "This is independently curated catalog metadata, not ISO clause text or an approved requirement.\n\nISO/IEC 27001 concerns information security management systems.",
+      "labeling": {
+        "coverage": {
+          "level": "unknown",
+          "excerpt": "This is independently curated catalog metadata, not ISO clause text or an approved requirement.",
+          "uncertainty": "Catalog metadata does not establish organizational coverage or supply clauses to classify."
+        },
+        "labels": []
+      },
+      "expected": {"candidates": []}
+    }
+  ]
+}

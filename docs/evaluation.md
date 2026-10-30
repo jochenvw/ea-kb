@@ -94,6 +94,53 @@ gold routing labels as inputs, not expected candidates, so a labeling error cann
 behavior. Normal ingestion and the existing teacher evaluation exercise the combined model-backed
 path. Prompt/model selection uses validation; reserve test for the final comparison.
 
+### Document classification and mixed ontology layers
+
+```powershell
+uv run ekb eval documents --output data\document-evaluation.json
+uv run ekb eval documents --verify-sources
+# Explicitly configured provider; may incur cost:
+uv run --extra agent-framework ekb eval documents --live
+```
+
+`evals\documents-v1.json` contains provisional reference labels for three document samples.
+Organizational coverage is scored independently of ontology class and named scope:
+
+| Sample | Coverage | Expected content |
+|---|---|---|
+| Shell annual report | Company level | Strategic goals and explicit Shell organizational context |
+| NIST CSF 2.0 | Company level, generically | Strategic requirement, three architecture domains, conceptual and technical requirements |
+| ISO/IEC 27001 metadata | Unknown | No invented ISO clauses or requirement candidates |
+
+Company-level coverage does not mean every passage has one abstraction level. NIST is the publisher,
+not the organization to which a requirement is automatically applied. No enterprise adoption,
+Shell applicability, platform specificity or mandatory wording is inferred from a standard's name.
+Architecture domains remain context labels, not extracted requirements. Shell's explicit vision
+is distinguished from a binding target; the competitiveness interpretation remains provisional.
+
+The ISO case uses repository-authored metadata, as explicitly selected by the user. No licensed
+standard was available and ISO's official public overview returned HTTP 403. This negative checks
+the metadata boundary; it provides **no evidence of normative ISO extraction accuracy**.
+
+The same labeling/extraction ports, grounding gates and metrics are reused. The report adds
+coverage accuracy, per-document missing/unexpected classes and named scopes, exact class-set
+accuracy and correctly empty extraction cases. Extraction receives reference routing independently
+of predicted labels; it is not an end-to-end ingestion quality score. `--verify-sources` checks
+original PDF bytes and each cited physical page in both text reading orders. Repository metadata
+uses an explicitly recorded LF-normalized text hash for checkout-independent verification.
+Without that flag, committed passages run offline without requiring or downloading originals.
+
+The annual-report family is validation, NIST is test and metadata is train. `eval documents`
+runs all three as a diagnostic, never model qualification; annotations never enter labeling prompts.
+The normal `uv run ekb test` suite includes this dataset and retains `documents.json`.
+
+The measured offline Rules baseline verified all 11 passages across the three retained sources.
+Label identification was 1 TP / 0 FP / 8 FN (recall .111); gold-routed extraction was
+1 TP / 0 FP / 4 FN (recall .200). Organizational coverage was 0/3: Rules does not implement that
+semantic classification. Only the metadata sample had an exact ontology class-set match; its
+empty extraction was correctly retained. These results expose missing classification behavior,
+not model qualification or successful company/NIST classification. No live model was measured.
+
 ### Enterprise strategic-goal evaluation
 
 ```powershell

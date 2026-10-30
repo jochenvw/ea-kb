@@ -5,7 +5,7 @@ import json
 import re
 from datetime import UTC, date, datetime
 from enum import StrEnum
-from typing import Any, Self
+from typing import Any, Literal, Self
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -404,8 +404,21 @@ class ContentLabel(Model):
         return self
 
 
+class ContentCoverage(Model):
+    level: Literal["company_level", "organizational_unit", "unknown"]
+    excerpt: str = Field(min_length=1)
+    uncertainty: str | None = None
+
+    @model_validator(mode="after")
+    def unknown_is_explicit(self) -> Self:
+        if self.level == "unknown" and not self.uncertainty:
+            raise ValueError("Unknown organizational coverage requires an explanation")
+        return self
+
+
 class ContentLabeling(Model):
     labels: list[ContentLabel] = Field(default_factory=list, max_length=32)
+    coverage: ContentCoverage | None = None
 
 
 class LabelingResult(Model):
