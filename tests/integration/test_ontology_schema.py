@@ -63,6 +63,35 @@ async def test_recreation_keeps_obsolete_tables_when_an_active_scan_blocks_reset
         assert await connection.scalar(text("SELECT count(*) FROM processing_runs")) == 1
 
 
+async def test_recreation_does_not_remove_namesakes_in_other_schemas(database):
+    other_schema = f"ekb_unrelated_{uuid4().hex}"
+    async with database.engine.begin() as connection:
+        current_schema = await connection.scalar(text("SELECT current_schema()"))
+        preparer = connection.dialect.identifier_preparer
+        current = preparer.quote_schema(current_schema)
+        other = preparer.quote_schema(other_schema)
+        await connection.execute(text(f"CREATE SCHEMA {other}"))
+        await connection.execute(
+            text(f"CREATE TABLE {other}.concept_aliases (id integer PRIMARY KEY)")
+        )
+        await connection.execute(text(f"INSERT INTO {other}.concept_aliases VALUES (42)"))
+        await connection.execute(text(f"SET search_path TO {current}, {other}"))
+        assert await connection.scalar(
+            text("SELECT to_regclass('concept_aliases') = to_regclass(:name)"),
+            {"name": f"{other_schema}.concept_aliases"},
+        )
+    try:
+        async with database.reset(recreate=True):
+            pass
+        async with database.engine.connect() as connection:
+            assert await connection.scalar(text(f"SELECT id FROM {other}.concept_aliases")) == 42
+    finally:
+        async with database.engine.begin() as connection:
+            await connection.execute(text(f"SET search_path TO {current}"))
+            await connection.execute(text(f"DROP TABLE {other}.concept_aliases"))
+            await connection.execute(text(f"DROP SCHEMA {other}"))
+
+
 async def test_database_enforces_ontology_classes_and_version_payload_agreement(database):
     async with database.engine.begin() as connection:
         concept_id = uuid4()
