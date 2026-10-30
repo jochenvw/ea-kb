@@ -29,6 +29,9 @@ No SharePoint/Graph credentials, proprietary integrations, or fabricated remote 
 `DocumentParser` returns stable segments with revision IDs, hierarchy, locations, quality and media
 references, with no model calls. Parser configuration must change its fingerprint whenever output
 may change. Preserve originals; normalized text is an intermediate artifact, not a substitute.
+Native CSF PDF parsing retains source Function/Category/Subcategory IDs and exact per-page text in
+segment locations; these are not EKB classes. Whole-publication detection uses actual cover text,
+not filenames. Explicit `framework_namespace: nist-csf` requires the complete Core hierarchy.
 
 `InferencePort` exposes capabilities, prompt version and validated structured extraction.
 `IngestionSkills` adds `label(segment)` and `extract_scoped(segment, labeling)` with independent

@@ -1,0 +1,27 @@
+{
+  "functions": [
+    {"id": "GV", "label": "Govern"},
+    {"id": "PR", "label": "Protect"}
+  ],
+  "categories": [
+    {"id": "PR.DS", "parent_id": "PR", "label": "Data Security"}
+  ],
+  "subcategories": [
+    {"id": "PR.DS-01", "parent_id": "PR.DS"},
+    {"id": "PR.DS-02", "parent_id": "PR.DS"}
+  ],
+  "semantic_cases": [
+    {
+      "id": "PR.DS-02",
+      "ontology_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "evidence": {"printed_page": 20},
+      "normalized_statement": "Protect data while it travels between systems"
+    }
+  ],
+  "negative_case_decisions": [
+    {"id": "NEG-03", "decision": "reject"},
+    {"id": "NEG-04", "decision": "reject"}
+  ]
+}

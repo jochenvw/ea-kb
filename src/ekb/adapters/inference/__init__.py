@@ -103,6 +103,8 @@ def _rules_extraction(segment: Segment) -> Extraction:
         elif re.search(r"\b(should|recommended)\b", text, re.I):
             kind = None
             modality = Modality.RECOMMENDED
+        elif structured:
+            kind = None
         elif re.search(
             r"\b(aim to|aims to|objective|our goal|we target|we will reduce|"
             r"we will improve|we will increase|we seek to)\b",
@@ -110,8 +112,6 @@ def _rules_extraction(segment: Segment) -> Extraction:
             re.I,
         ):
             kind = SemanticType.STRATEGIC_GOAL
-        elif structured:
-            kind = None
         else:
             continue
         candidates.append(
@@ -132,12 +132,12 @@ class RulesInference:
     """Conservative offline baseline, explicitly not a language model."""
 
     capabilities = Capabilities(model_id="offline-rules-v1")
-    prompt_version = "rules-v3"
+    prompt_version = "rules-v4"
     label_fingerprint = fingerprint(
-        skill="rules-labeling-v2", schema=ContentLabeling.model_json_schema()
+        skill="rules-labeling-v3", schema=ContentLabeling.model_json_schema()
     )
     extraction_fingerprint = fingerprint(
-        skill="rules-scoped-extraction-v3", schema=Extraction.model_json_schema()
+        skill="rules-scoped-extraction-v4", schema=Extraction.model_json_schema()
     )
 
     async def label(self, segment: Segment) -> LabelingResult:
@@ -155,7 +155,7 @@ class RulesInference:
                 ]
             ),
             model_id=self.capabilities.model_id,
-            prompt_version="rules-labeling-v2",
+            prompt_version="rules-labeling-v3",
         )
 
     async def extract_scoped(self, segment: Segment, labeling: ContentLabeling) -> InferenceResult:

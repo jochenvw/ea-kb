@@ -22,6 +22,11 @@ Use semantic_type as the only concept classification; do not emit a generic kind
 ArchitectureDomain and OrganizationalScope are classification metadata, not requirement candidates.
 For unknown semantic_type, leave it null and retain uncertainty rather than inventing a layer.
 Labels are routing hypotheses, not permission to invent a claim or upgrade its authority.
+Extract source-grounded framework outcomes even when stated as existing or desired conditions
+without imperative wording. Preserve native identifiers in source_key when present in the excerpt.
+Do not turn an outcome into a particular product, protocol version, algorithm or implementation.
+For example, protection does not by itself specify how protection must be implemented.
+A StrategicRequirement candidate is not evidence that an enterprise adopted the source framework.
 
 Preserve negations, qualifiers, exceptions and applicability. Never omit 'not' or 'unless'.
 Keep unrelated statements separate. Never broaden a business-unit claim to the whole organization.

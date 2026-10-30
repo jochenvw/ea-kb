@@ -1,0 +1,88 @@
+{
+  "cases": [
+    {
+      "id": "NEG-01",
+      "candidate": "NIST CSF 2.0 is a Shell-approved company strategic requirement",
+      "expected": "reject",
+      "reason": "No evidence of Shell-specific adoption in NIST publication."
+    },
+    {
+      "id": "NEG-02",
+      "candidate": "Govern, Identify and Protect are three Shell strategic goals",
+      "expected": "reject",
+      "reason": "They are NIST CSF Functions, not corporate goals."
+    },
+    {
+      "id": "NEG-03",
+      "candidate": "PR.DS-02 mandates TLS 1.3 for every connection",
+      "expected": "reject",
+      "reason": "CSF outcome names data-in-transit protection without specifying TLS versions."
+    },
+    {
+      "id": "NEG-04",
+      "candidate": "PR.IR-01 mandates Azure Front Door with WAF",
+      "expected": "reject",
+      "reason": "CSF does not prescribe Azure products or WAF solutions."
+    },
+    {
+      "id": "NEG-05",
+      "candidate": "PR.DS-01 explicitly mandates AES-256 encryption at rest",
+      "expected": "reject",
+      "reason": "Data protection outcome does not prescribe encryption product, method or algorithm."
+    },
+    {
+      "id": "NEG-06",
+      "candidate": "PR.PS-06 expressly mandates a specific SAST vendor",
+      "expected": "reject",
+      "reason": "Secure development outcome is implementation-neutral."
+    },
+    {
+      "id": "NEG-07",
+      "candidate": "NIST CSF Platform Security means Microsoft Azure PlatformRequirement",
+      "expected": "reject",
+      "reason": "NIST platform security means physical and virtual platforms, not the Azure cloud vendor."
+    },
+    {
+      "id": "NEG-08",
+      "candidate": "All six NIST CSF Functions must be implemented in a sequential order",
+      "expected": "reject",
+      "reason": "NIST explicitly calls them concurrent."
+    },
+    {
+      "id": "NEG-09",
+      "candidate": "A CSF informative reference is always full equivalence to another control",
+      "expected": "reject",
+      "reason": "Mappings can be narrower or partial; informative, not equivalent."
+    },
+    {
+      "id": "NEG-10",
+      "candidate": "A NIST implementation example is a legally binding minimum control",
+      "expected": "reject",
+      "reason": "Examples are explicitly non-exhaustive and not a required baseline."
+    },
+    {
+      "id": "NEG-11",
+      "candidate": "NIST CSF 2.0 is still a draft",
+      "expected": "reject",
+      "reason": "CSWP 29 final was published February 26, 2024."
+    },
+    {
+      "id": "NEG-12",
+      "candidate": "CSF 2.0 excludes operational technology and industrial automation",
+      "expected": "reject",
+      "reason": "Framework covers IT, IoT and OT."
+    },
+    {
+      "id": "NEG-13",
+      "candidate": "Network micro-segmentation is explicitly mandatory in PR.IR-01",
+      "expected": "reject",
+      "reason": "Network protection is the outcome; micro-segmentation is a possible method, not prescribed."
+    },
+    {
+      "id": "NEG-14",
+      "candidate": "All 106 subcategories are independent enterprise strategic goals",
+      "expected": "reject",
+      "reason": "They are detailed framework outcomes beneath categories."
+    }
+  ]
+}

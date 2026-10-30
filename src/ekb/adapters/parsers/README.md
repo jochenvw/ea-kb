@@ -3,6 +3,10 @@
 `StructuredParser` in `__init__.py` converts PDF, Office, OSCAL/JSON, XML, HTML and text into segments.
 `benchmarks.py` deterministically extracts benchmark controls, original framework revisions,
 workbook-specific maturity and actual policy definitions with exact normalized-text offsets.
+`csf.py` preserves native CSF Core IDs, parent links and per-page source text without semantic guesses.
+Whole NIST CSWP 29 PDFs are detected by their cover text, or selected by `framework_namespace: nist-csf`.
+Automatic detection preserves surrounding publication text outside the native Core pages.
+Explicit page subsets retain generic PDF parsing; native hierarchy parsing requires the full Core.
 
 - Preserve hierarchy and source locations; exact offsets refer to persisted parsed text.
 - Blocking libraries run through `asyncio.to_thread`; OCR is selective and opt-in.

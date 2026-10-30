@@ -16,6 +16,7 @@
 - `evaluation.py` adds `test`, `eval qualify/verify-corpus/distill/skills`; live calls require opt-in.
 - `eval goals` source-audits annotations and compares strategies; provider calls require `--live`.
 - `eval documents` diagnoses company coverage/mixed layers; `--verify-sources` checks retained originals.
+- `eval nist` scores native Core extraction; `--excerpts-only` replays sources, `--predictions` scores exports.
 - `eval report --latest` displays the newest retained strategic-goal Markdown report.
 - `test --ui` includes frontend checks/build and local Playwright regressions before Python/evals.
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.

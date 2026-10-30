@@ -9,6 +9,7 @@
 It also audits document references and scores organizational coverage and mixed ontology layers.
 `goals.py` verifies source-page evidence and evaluates goal detection, abstraction, scope,
 duplicates, provenance, provisional hierarchy and efficiency.
+`nist.py` scores supplied CSF structure, provisional mappings, provenance and explicit negative decisions.
 
 - Labels live in `tests\golden\dataset.json`; keep real attributed excerpts distinct from synthetic cases.
 - Score grounding, ontology class/modality/scope and duplicates; invented mandates receive extra penalties.
@@ -23,5 +24,6 @@ Run `uv run ekb eval workflow` after actual corpus sync/indexing; see `docs\phas
 Run `uv run ekb test --ui` for Python/browser tests and evals; omit `--ui` for Python-only checks.
 Run `uv run ekb eval skills --skill labeling` or `--skill extraction`; `--live` opts into paid models.
 Run `uv run ekb eval documents --verify-sources` for annual/NIST passages and ISO metadata.
+Run `uv run ekb eval nist`; `--excerpts-only` replays committed, source-audited NIST passages.
 Frontend checks require Node.js and an installed Playwright browser; no live corpus or model.
 See `docs\evaluation.md` for gates and teacher provenance.

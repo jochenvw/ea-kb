@@ -1,0 +1,537 @@
+{
+  "source_id": "NIST.CSWP.29",
+  "review_status": "provisional; human review recommended",
+  "cases": [
+    {
+      "id": "GV.OC-03",
+      "source_subcategory_id": "GV.OC-03",
+      "normalized_statement": "Manage applicable cybersecurity obligations",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      },
+      "note": "Regulatory recognition, not an assertion about Shell.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "GV.RM-02",
+      "source_subcategory_id": "GV.RM-02",
+      "normalized_statement": "Define and maintain risk appetite and tolerance",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      },
+      "note": "Governance outcome, not a company strategy.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "GV.RR-01",
+      "source_subcategory_id": "GV.RR-01",
+      "normalized_statement": "Make organizational leadership accountable for cyber risk",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      },
+      "note": "Leadership accountability outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "GV.PO-02",
+      "source_subcategory_id": "GV.PO-02",
+      "normalized_statement": "Keep cybersecurity policy current as conditions change",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      },
+      "note": "Explicit policy maintenance outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "GV.SC-05",
+      "source_subcategory_id": "GV.SC-05",
+      "normalized_statement": "Address supply-chain cyber risk through supplier agreements",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      },
+      "note": "Supplier requirements are framework guidance.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "ID.AM-02",
+      "source_subcategory_id": "ID.AM-02",
+      "normalized_statement": "Maintain inventories of managed software and services",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      },
+      "note": "Specific, platform-neutral inventory outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "ID.AM-03",
+      "source_subcategory_id": "ID.AM-03",
+      "normalized_statement": "Document authorized network flows",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      },
+      "note": "Logical network knowledge, not mandated segmentation.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "ID.RA-01",
+      "source_subcategory_id": "ID.RA-01",
+      "normalized_statement": "Identify and record asset vulnerabilities",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      },
+      "note": "Specific vulnerability assessment outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "ID.RA-07",
+      "source_subcategory_id": "ID.RA-07",
+      "normalized_statement": "Assess and track risk implications of exceptions",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      },
+      "note": "Applicable to governance exception workflows.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "ID.IM-02",
+      "source_subcategory_id": "ID.IM-02",
+      "normalized_statement": "Use security testing to identify improvements",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      },
+      "note": "Continuous-improvement outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.AA-03",
+      "source_subcategory_id": "PR.AA-03",
+      "normalized_statement": "Authenticate users, services, and hardware",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      },
+      "note": "Technical outcome without a named identity provider.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.AA-05",
+      "source_subcategory_id": "PR.AA-05",
+      "normalized_statement": "Manage authorization with least privilege",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "Source also addresses separation of duties.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.DS-01",
+      "source_subcategory_id": "PR.DS-01",
+      "normalized_statement": "Protect stored data confidentiality and integrity",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "Do not infer mandatory encryption algorithm.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.DS-02",
+      "source_subcategory_id": "PR.DS-02",
+      "normalized_statement": "Protect transmitted data confidentiality and integrity",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "Do not infer a prescribed TLS version.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.DS-11",
+      "source_subcategory_id": "PR.DS-11",
+      "normalized_statement": "Protect and test data backups",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "Backup resilience outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.PS-04",
+      "source_subcategory_id": "PR.PS-04",
+      "normalized_statement": "Generate logs for security monitoring",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "Not specifically LLM token-usage logs.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.PS-06",
+      "source_subcategory_id": "PR.PS-06",
+      "normalized_statement": "Integrate secure development throughout software lifecycle",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "No particular scanning product is mandated.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "PR.IR-01",
+      "source_subcategory_id": "PR.IR-01",
+      "normalized_statement": "Prevent unauthorized logical network access",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      },
+      "note": "No Azure Front Door/WAF mandate.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "DE.CM-01",
+      "source_subcategory_id": "DE.CM-01",
+      "normalized_statement": "Monitor network services for adverse events",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      },
+      "note": "Monitoring outcome, no vendor dependency.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "DE.AE-03",
+      "source_subcategory_id": "DE.AE-03",
+      "normalized_statement": "Correlate event information across sources",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      },
+      "note": "Source-neutral event correlation.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "RS.MA-01",
+      "source_subcategory_id": "RS.MA-01",
+      "normalized_statement": "Execute the incident response plan when activated",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      },
+      "note": "Incident-response governance outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "RS.AN-07",
+      "source_subcategory_id": "RS.AN-07",
+      "normalized_statement": "Preserve integrity and provenance of incident records",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      },
+      "note": "Source refers to forensic incident metadata.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "RS.MI-01",
+      "source_subcategory_id": "RS.MI-01",
+      "normalized_statement": "Contain cybersecurity incidents",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      },
+      "note": "A desired outcome, not a particular tool.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "RC.RP-03",
+      "source_subcategory_id": "RC.RP-03",
+      "normalized_statement": "Verify backup integrity prior to restoration",
+      "expected_ekb_class": "TechnicalRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 23,
+        "pdf_page": 28
+      },
+      "note": "Specific platform-neutral verification outcome.",
+      "status": "provisional_reference_label"
+    },
+    {
+      "id": "RC.CO-03",
+      "source_subcategory_id": "RC.CO-03",
+      "normalized_statement": "Communicate recovery progress to relevant stakeholders",
+      "expected_ekb_class": "ConceptualRequirement",
+      "authority": "external_nonprescriptive_guidance",
+      "enterprise_adopted": null,
+      "scope": {
+        "technology_platform": "any",
+        "organization": "unspecified"
+      },
+      "evidence": {
+        "source_id": "NIST.CSWP.29",
+        "url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+        "section": "Appendix A",
+        "printed_page": 23,
+        "pdf_page": 28
+      },
+      "note": "Recovery communication outcome.",
+      "status": "provisional_reference_label"
+    }
+  ],
+  "notes": [
+    "NIST Functions/Categories are source taxonomy, not new OWL classes.",
+    "Map source outcomes to ontology without treating them as a Shell mandate.",
+    "ArchitectureDomain is a candidate mapping for Categories, not an automatic 1:1 classification.",
+    "PlatformRequirement count should be zero: CSF 2.0 is vendor neutral."
+  ]
+}

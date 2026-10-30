@@ -233,6 +233,16 @@ def test_relationship_cannot_escape_the_labeled_scope():
         ("Operators must not disable alarms.", "Operators must disable alarms.", "mandated"),
         ("Teams should retain logs for 30 days.", "Teams should retain logs.", "recommended"),
         ("Teams should review changes.", "Teams must review changes.", "mandated"),
+        (
+            "Data in transit are protected.",
+            "Data in transit must use TLS 1.3.",
+            "unspecified",
+        ),
+        (
+            "Stored data are protected.",
+            "Stored data use AES-256 encryption.",
+            "unspecified",
+        ),
     ],
 )
 def test_scoped_extraction_rejects_lost_qualifiers_and_invented_mandates(

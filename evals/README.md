@@ -12,5 +12,7 @@ synthetic cases, with family/split isolation and provisional ontology labels.
 passages plus an explicitly metadata-only ISO negative. It separates company-level coverage,
 mixed ontology classes and named organizational scope; no standard is automatically adopted.
 Original PDF hashes/pages can be audited with `uv run ekb eval documents --verify-sources`.
+`nist-csf` imports the supplied Core hierarchy, 25 provisional mappings and 14 negative challenges,
+with separately source-audited excerpts, locator corrections and explicit reference disagreements.
 Run `uv run ekb test` for code tests plus offline evals; `--live` explicitly enables configured models.
 See `docs\evaluation.md` for measured results, source verification and training-only export.

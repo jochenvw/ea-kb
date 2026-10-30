@@ -141,6 +141,67 @@ semantic classification. Only the metadata sample had an exact ontology class-se
 empty extraction was correctly retained. These results expose missing classification behavior,
 not model qualification or successful company/NIST classification. No live model was measured.
 
+### NIST CSF Core extraction
+
+```powershell
+uv run ekb eval nist
+uv run ekb eval nist --excerpts-only
+uv run ekb eval nist --excerpts-only --predictions evals\nist-csf\predictions_sample.json
+# Explicitly configured provider; may incur cost:
+uv run --extra agent-framework ekb eval nist --model-profile config\foundry.yaml --live
+```
+
+`evals\nist-csf` imports the supplied draft reference JSON unchanged: 6 Functions, 22 Categories,
+106 Subcategories, 25 provisional ontology mappings and 14 authored negative claims. These
+are source taxonomy and provisional annotations, not additional OWL classes or reviewed gold.
+The sample predictions are intentionally incomplete scorer input, not measured model results.
+`archive-provenance.json` records original hashes and decisions; `source-excerpts.json` separately
+retains all 134 native nodes with exact whitespace-normalized, per-page quotations audited against
+the retained NIST CSWP 29 PDF. Source review found **25 incorrect structural page locators**,
+usually subcategories continuing beyond their category's first page. Reports list corrections
+without silently rewriting the imported references.
+
+The default command verifies the retained PDF hash and runs native parsing; `--excerpts-only`
+replays committed passages without a fresh original-source audit. Whole-publication ingestion
+detects the actual cover identifier/title, preserves native hierarchy and IDs in Core segments,
+and retains surrounding publication text. Explicit native-only parsing uses
+`framework_namespace: nist-csf`; page subsets use generic PDF parsing.
+The shared labeling/extraction ports process the 25 curated outcomes using **source text only**,
+not expected classes or normalized answers. Framework conditions need no imperative wording;
+taxonomy is not a goal, an ontology layer or enterprise adoption. Grounding also rejects invented
+numeric qualifiers such as unsupported protocol versions and encryption strengths.
+
+Measured offline results on the actual PDF:
+
+| Check | Result |
+|---|---|
+| Native Function / Category / Subcategory identities | 6/6, 22/22, 106/106; no false positives |
+| Native parent links | 128/128 |
+| Curated outcomes identified / source-verified | 25/25, 25/25 |
+| Correct provisional ontology classes | 0/25; Rules leaves these unknown |
+| Explicit negative decisions | 14 NOT RUN; missing decisions never count as rejection |
+| Unchanged repeat | Parse cache hit, 25 extraction cache hits, zero model calls |
+
+A structural before/after comparison used the existing generic full-page parser as baseline:
+492 generic segments carried no native identities or source-keyed outcomes. Native detection
+produced 134 native segments plus 271 surrounding segments, and Rules preserved all 106 outcome
+source keys. This measures structural extraction improvement, **not semantic classification**.
+The generic framework prompt improvements remain unverified by a live model. Cached local
+GPU/NPU model loading failed and the user selected offline continuation; no model was downloaded
+and no paid inference was run.
+
+JSON/Markdown history under `data\nist-evaluations` records fingerprints, native nodes, predictions,
+class errors, scope/adoption/authority checks, exact evidence, duplicates, negative decision status,
+current usage and cache hits. Prior-run class deltas require the same source, reference fingerprint,
+model and source mode. All runs remain unqualified pending independent review; offline success
+means structural, extraction and safety checks passed, not successful ontology classification.
+The normal verification suite includes committed-excerpt replay under its `nist` output folder.
+
+Two reference disagreements are deliberately retained: the user permits strategic requirement
+**candidates** without inferring adoption, unlike the archive's blanket type prohibition.
+Also, `PR.DS-01` is `TechnicalRequirement` in the supplied reference but `ConceptualRequirement`
+in the earlier document case. Neither provisional label is silently changed.
+
 ### Enterprise strategic-goal evaluation
 
 ```powershell

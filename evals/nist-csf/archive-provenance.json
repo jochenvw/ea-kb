@@ -1,0 +1,23 @@
+{
+  "archive": "ekb-nist-csf-2.0-eval.zip",
+  "archive_sha256": "fa382cc70b689fc22899a3d03453c535afef1bd3029efdfee67dfb155cf6d60b",
+  "supplied_reference_version": "v0.1.0-draft.1",
+  "imported_unchanged": {
+    "gold/csf_core_structure.json": "11be495549c0b554b0d388d5a9c3c8b39ffcc9701e7bf3477efb79aa1b52d9f3",
+    "gold/ekb_classification_reference.json": "168916768a24410a4834456e40774f20e4b1ce452f2e222c0fdf8e930fa6a0af",
+    "gold/negative_cases.json": "6515f156480c15bbc11fd6aac97d9bbe972e8e75e2c21f30c472b9259e433f65",
+    "examples/predictions_sample.json": "e268eeac2ee90f1a08914443e7dde578836febbd66603274ca987ae13da78057"
+  },
+  "source_pdf_sha256": "3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c",
+  "source_pdf_url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+  "review_status": "provisional_reference_annotations",
+  "integration_notes": [
+    "Original reference files are retained unchanged; exact source excerpts and corrected structural locations are recorded separately.",
+    "The user explicitly retained strategic requirement candidates separately from adoption; the archive's blanket StrategicRequirement prohibition is a recorded reference disagreement, not an enterprise-adoption rule.",
+    "The archive labels PR.DS-01 TechnicalRequirement while the prior document-classification case labels it ConceptualRequirement. Both provisional references remain visible.",
+    "Archive scripts were inspected, not executed or installed; their scoring checks were adapted into the existing typed evaluation runner and test suite.",
+    "The archive's example report and predictions are not measured model results. Only the small prediction sample is retained as a scorer contract fixture.",
+    "Negative claims require actual supplied decisions; missing decisions are not scored as successful rejections.",
+    "No independently validated model quality is claimed. User selected offline verification after cached local GPU/NPU model loading failed."
+  ]
+}

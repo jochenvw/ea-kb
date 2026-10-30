@@ -9,9 +9,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ekb.adapters.inference import RulesInference
+from ekb.adapters.parsers import StructuredParser
 from ekb.config import Settings
 from ekb.evaluation.dataset import write_json
 from ekb.evaluation.frugal import qualify
+from ekb.evaluation.nist import evaluate_nist
 from ekb.evaluation.skills import evaluate_skills
 from ekb.runtime import Runtime
 
@@ -120,6 +122,7 @@ async def run_suite(
     evaluation = None
     skills = None
     documents = None
+    nist = None
     error = None
     code_passed = tests["passed"] and (frontend is None or frontend["passed"])
     if code_passed:
@@ -151,6 +154,13 @@ async def run_suite(
                         split="all",
                         live=True,
                     )
+                    nist = await evaluate_nist(
+                        None,
+                        output / "nist",
+                        runtime.parser,
+                        runtime.inference,
+                        live=True,
+                    )
             else:
                 evaluation = await qualify(
                     dataset,
@@ -171,6 +181,9 @@ async def run_suite(
                     RulesInference(),
                     split="all",
                 )
+                nist = await evaluate_nist(
+                    None, output / "nist", StructuredParser(), RulesInference()
+                )
         except Exception as exc:
             error = type(exc).__name__
     report = {
@@ -179,17 +192,20 @@ async def run_suite(
         "passed": code_passed
         and bool(evaluation and evaluation["passed"])
         and bool(skills and skills["passed"])
-        and bool(documents and documents["passed"]),
+        and bool(documents and documents["passed"])
+        and bool(nist and nist["passed"]),
         "tests": tests,
         "frontend": frontend,
         "evaluation": evaluation,
         "skills": skills,
         "documents": documents,
+        "nist": nist,
         "evaluation_error": error,
         "coverage": {
             "indexing_provenance": "pipeline/integration/contract tests + benchmark eval",
             "extraction_modality_scope": "actual-source and synthetic teacher extraction cases",
             "document_classification": "annual report/NIST mixed layers + ISO metadata negative",
+            "nist_extraction": "Core taxonomy, class/provenance checks; unrun negatives explicit",
             "semantic_duplicates_lineage": "teacher pairs + benchmark eval + workflow tests",
             "embedding_retrieval": "held-out teacher queries, Recall@k/MRR + provider/cache tests",
             "publication_versions": "benchmark eval + domain/history/scope tests",

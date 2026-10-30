@@ -7,6 +7,7 @@ cache-only discovery, resumable downloads, parser replay and corruption rejectio
 `test_workflow_domain.py` covers plugin configuration, scope/conflict rules and bounded comparisons.
 `test_ingestion_skills.py` covers labeling/routing, scope/qualifier gates, SDK transport and replay.
 It also checks mixed document labels, coverage evidence, source-page auditing and ISO metadata negatives.
+`test_nist_evaluation.py` covers supplied references, native PDF hierarchy, evidence, replay and unrun negatives.
 `test_ontology.py` checks exact OWL definitions, domain/SQL/browser parity and read-only access.
 `test_frugal_evaluation.py` covers split leakage, train-only exports, quality/cost gates and suite failure.
 `test_infra.py` compiles/lints Bicep and checks ARM safeguards offline when Azure tooling is available.

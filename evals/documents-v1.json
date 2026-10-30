@@ -95,7 +95,7 @@
       "document": {
         "kind": "framework",
         "retained_path": "data\\test-corpus\\public\\voluntary_framework\\nist-csf-2.pdf",
-        "note": "Selected Core outcomes and three domain headings. The strategic/technical abstraction labels are provisional interpretations of non-prescriptive outcomes. Company-level coverage is generic: NIST is the publisher, not the adopting organization, and no Shell applicability, platform, mandatory modality or enterprise adoption is inferred.",
+        "note": "Selected Core outcomes and three domain headings. The strategic/technical abstraction labels are provisional interpretations of non-prescriptive outcomes. Company-level coverage is generic: NIST is the publisher, not the adopting organization, and no Shell applicability, platform, mandatory modality or enterprise adoption is inferred. The supplied nist-csf evaluation labels PR.DS-01 TechnicalRequirement rather than this case's ConceptualRequirement; this reference disagreement is retained explicitly. The user retained strategic requirement candidates separately from adoption.",
         "passages": [
           {
             "pdf_page": 21,

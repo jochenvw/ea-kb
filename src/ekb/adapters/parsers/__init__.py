@@ -16,6 +16,7 @@ from docx.text.paragraph import Paragraph
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
+from ekb.adapters.parsers.csf import CSF_PARSER_VERSION, parse_csf_pdf
 from ekb.domain.models import (
     Segment,
     SourceItem,
@@ -83,6 +84,7 @@ class StructuredParser:
         self.max_chars = max_chars
         self.version = fingerprint(
             implementation="structured-v5-native-control-labels",
+            csf_parser=CSF_PARSER_VERSION,
             ocr=ocr,
             max_chars=max_chars,
             packages={name: version(name) for name in ("pymupdf", "python-docx", "python-pptx")},
@@ -96,7 +98,12 @@ class StructuredParser:
     def _parse(self, item: SourceItem, revision: SourceRevision, content: bytes) -> list[Segment]:
         match item.format:
             case "pdf":
-                blocks = self._pdf(content, item.metadata.get("pages", []))
+                if item.metadata.get("framework_namespace") == "nist-csf":
+                    if item.metadata.get("pages"):
+                        raise ValueError("Native CSF parsing requires the complete Core hierarchy")
+                    blocks = self._csf_blocks(content)
+                else:
+                    blocks = self._pdf(content, item.metadata.get("pages", []))
             case "docx":
                 blocks = self._docx(content)
             case "pptx":
@@ -117,6 +124,10 @@ class StructuredParser:
         parents: list[tuple[int, Any]] = []
         with tracer.start_as_current_span("segmentation"):
             for block in blocks:
+                if segments and ("csf_node" in block.location) != (
+                    "csf_node" in segments[-1].location
+                ):
+                    parents.clear()
                 for offset, text in split_text(block.text, self.max_chars):
                     segment_id = stable_id(
                         revision.id, parsing_fingerprint(self.version, item), len(segments), text
@@ -161,14 +172,49 @@ class StructuredParser:
             blocks.append(Block("\n".join(lines), heading, level, {"line": start}))
         return blocks
 
+    def _csf_blocks(self, content: bytes) -> list[Block]:
+        return [
+            Block(
+                node.text,
+                heading=node.label or node.id,
+                level={"Function": 1, "Category": 2, "Subcategory": 3}[node.level],
+                location={
+                    "page": node.passages[0].pdf_page,
+                    "control_id": node.id,
+                    "part_id": node.id,
+                    "structured_control": node.level == "Subcategory",
+                    "csf_node": node.model_dump(mode="json"),
+                },
+            )
+            for node in parse_csf_pdf(content)
+        ]
+
     def _pdf(self, content: bytes, pages: list[int]) -> list[Block]:
         blocks: list[Block] = []
         heading = None
         with pymupdf.open(stream=content, filetype="pdf") as document:
             metadata = document.metadata or {}
             blocks.extend(document_metadata({"title": metadata.get("title")}))
+            cover = " ".join(str(document[0].get_text("text")).split()) if len(document) else ""
+            native_blocks = []
+            if (
+                not pages
+                and re.search(r"\bNIST[. ]CSWP[. ]29\b", cover)
+                and "The NIST Cybersecurity Framework (CSF) 2.0" in cover
+            ):
+                native_blocks = self._csf_blocks(content)
+            native_pages = {
+                passage["pdf_page"]
+                for block in native_blocks
+                for passage in block.location["csf_node"]["passages"]
+            }
             for page_index in range(len(document)):
                 if pages and page_index + 1 not in pages:
+                    continue
+                if page_index + 1 in native_pages:
+                    blocks.extend(
+                        block for block in native_blocks if block.location["page"] == page_index + 1
+                    )
                     continue
                 page = document[page_index]
                 textpage = None

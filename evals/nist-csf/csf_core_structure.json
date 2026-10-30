@@ -1,0 +1,1503 @@
+{
+  "source": {
+    "id": "NIST.CSWP.29",
+    "title": "The NIST Cybersecurity Framework (CSF) 2.0",
+    "publisher": "National Institute of Standards and Technology",
+    "publication_date": "2024-02-26",
+    "publisher_version": "2.0",
+    "publication_status": "final",
+    "official_pdf_url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+    "official_reference_tool": "https://csrc.nist.gov/Projects/cybersecurity-framework/Filters#/csf/filters",
+    "official_json_export": "https://csrc.nist.gov/extensions/nudp/services/json/csf/download?olirids=all",
+    "pdf_download_status": "not_downloaded_in_artifact_build_environment",
+    "framework_is_binding_by_itself": false,
+    "enterprise_adoption_unknown": true,
+    "scope": "technology-, sector-, and jurisdiction-neutral outcomes",
+    "pdf_appendix_a_printed_pages": "15-23"
+  },
+  "functions": [
+    {
+      "id": "GV",
+      "label": "Govern",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "ID",
+      "label": "Identify",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "PR",
+      "label": "Protect",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "DE",
+      "label": "Detect",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "RS",
+      "label": "Respond",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "id": "RC",
+      "label": "Recover",
+      "source_level": "Function",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "evidence": {
+        "section": "2; Appendix A",
+        "printed_pages": [
+          3,
+          4
+        ]
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": "GV.OC",
+      "parent_id": "GV",
+      "label": "Organizational Context",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM",
+      "parent_id": "GV",
+      "label": "Risk Management Strategy",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RR",
+      "parent_id": "GV",
+      "label": "Roles, Responsibilities, and Authorities",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.PO",
+      "parent_id": "GV",
+      "label": "Policy",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.OV",
+      "parent_id": "GV",
+      "label": "Oversight",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC",
+      "parent_id": "GV",
+      "label": "Cybersecurity Supply Chain Risk Management",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "ID.AM",
+      "parent_id": "ID",
+      "label": "Asset Management",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA",
+      "parent_id": "ID",
+      "label": "Risk Assessment",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.IM",
+      "parent_id": "ID",
+      "label": "Improvement",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA",
+      "parent_id": "PR",
+      "label": "Identity Management, Authentication, and Access Control",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AT",
+      "parent_id": "PR",
+      "label": "Awareness and Training",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.DS",
+      "parent_id": "PR",
+      "label": "Data Security",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS",
+      "parent_id": "PR",
+      "label": "Platform Security",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.IR",
+      "parent_id": "PR",
+      "label": "Technology Infrastructure Resilience",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "DE.CM",
+      "parent_id": "DE",
+      "label": "Continuous Monitoring",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE",
+      "parent_id": "DE",
+      "label": "Adverse Event Analysis",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "RS.MA",
+      "parent_id": "RS",
+      "label": "Incident Management",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.AN",
+      "parent_id": "RS",
+      "label": "Incident Analysis",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.CO",
+      "parent_id": "RS",
+      "label": "Incident Response Reporting and Communication",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MI",
+      "parent_id": "RS",
+      "label": "Incident Mitigation",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP",
+      "parent_id": "RC",
+      "label": "Incident Recovery Plan Execution",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.CO",
+      "parent_id": "RC",
+      "label": "Incident Recovery Communication",
+      "source_level": "Category",
+      "ontology_class": null,
+      "classification": "source_taxonomy",
+      "proposed_ontology_class": "ArchitectureDomain",
+      "requires_review": true,
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 23,
+        "pdf_page": 28
+      }
+    }
+  ],
+  "subcategories": [
+    {
+      "id": "GV.OC-01",
+      "parent_id": "GV.OC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.OC-02",
+      "parent_id": "GV.OC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.OC-03",
+      "parent_id": "GV.OC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.OC-04",
+      "parent_id": "GV.OC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.OC-05",
+      "parent_id": "GV.OC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-01",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-02",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-03",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-04",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-05",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-06",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RM-07",
+      "parent_id": "GV.RM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 16,
+        "pdf_page": 21
+      }
+    },
+    {
+      "id": "GV.RR-01",
+      "parent_id": "GV.RR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.RR-02",
+      "parent_id": "GV.RR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.RR-03",
+      "parent_id": "GV.RR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.RR-04",
+      "parent_id": "GV.RR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.PO-01",
+      "parent_id": "GV.PO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.PO-02",
+      "parent_id": "GV.PO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.OV-01",
+      "parent_id": "GV.OV",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.OV-02",
+      "parent_id": "GV.OV",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.OV-03",
+      "parent_id": "GV.OV",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-01",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-02",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-03",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-04",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-05",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-06",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-07",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-08",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-09",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "GV.SC-10",
+      "parent_id": "GV.SC",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 17,
+        "pdf_page": 22
+      }
+    },
+    {
+      "id": "ID.AM-01",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-02",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-03",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-04",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-05",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-07",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.AM-08",
+      "parent_id": "ID.AM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-01",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-02",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-03",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-04",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-05",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-06",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-07",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-08",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-09",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.RA-10",
+      "parent_id": "ID.RA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 18,
+        "pdf_page": 23
+      }
+    },
+    {
+      "id": "ID.IM-01",
+      "parent_id": "ID.IM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "ID.IM-02",
+      "parent_id": "ID.IM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "ID.IM-03",
+      "parent_id": "ID.IM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "ID.IM-04",
+      "parent_id": "ID.IM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-01",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-02",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-03",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-04",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-05",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AA-06",
+      "parent_id": "PR.AA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 19,
+        "pdf_page": 24
+      }
+    },
+    {
+      "id": "PR.AT-01",
+      "parent_id": "PR.AT",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.AT-02",
+      "parent_id": "PR.AT",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.DS-01",
+      "parent_id": "PR.DS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.DS-02",
+      "parent_id": "PR.DS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.DS-10",
+      "parent_id": "PR.DS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.DS-11",
+      "parent_id": "PR.DS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-01",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-02",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-03",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-04",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-05",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.PS-06",
+      "parent_id": "PR.PS",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.IR-01",
+      "parent_id": "PR.IR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.IR-02",
+      "parent_id": "PR.IR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.IR-03",
+      "parent_id": "PR.IR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "PR.IR-04",
+      "parent_id": "PR.IR",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 20,
+        "pdf_page": 25
+      }
+    },
+    {
+      "id": "DE.CM-01",
+      "parent_id": "DE.CM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.CM-02",
+      "parent_id": "DE.CM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.CM-03",
+      "parent_id": "DE.CM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.CM-06",
+      "parent_id": "DE.CM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.CM-09",
+      "parent_id": "DE.CM",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-02",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-03",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-04",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-06",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-07",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "DE.AE-08",
+      "parent_id": "DE.AE",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 21,
+        "pdf_page": 26
+      }
+    },
+    {
+      "id": "RS.MA-01",
+      "parent_id": "RS.MA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MA-02",
+      "parent_id": "RS.MA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MA-03",
+      "parent_id": "RS.MA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MA-04",
+      "parent_id": "RS.MA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MA-05",
+      "parent_id": "RS.MA",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.AN-03",
+      "parent_id": "RS.AN",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.AN-06",
+      "parent_id": "RS.AN",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.AN-07",
+      "parent_id": "RS.AN",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.AN-08",
+      "parent_id": "RS.AN",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.CO-02",
+      "parent_id": "RS.CO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.CO-03",
+      "parent_id": "RS.CO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MI-01",
+      "parent_id": "RS.MI",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RS.MI-02",
+      "parent_id": "RS.MI",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-01",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-02",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-03",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-04",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-05",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.RP-06",
+      "parent_id": "RC.RP",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 22,
+        "pdf_page": 27
+      }
+    },
+    {
+      "id": "RC.CO-03",
+      "parent_id": "RC.CO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 23,
+        "pdf_page": 28
+      }
+    },
+    {
+      "id": "RC.CO-04",
+      "parent_id": "RC.CO",
+      "source_level": "Subcategory",
+      "evidence": {
+        "section": "Appendix A",
+        "printed_page": 23,
+        "pdf_page": 28
+      }
+    }
+  ],
+  "counts": {
+    "functions": 6,
+    "categories": 22,
+    "subcategories": 106
+  }
+}

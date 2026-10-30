@@ -15,6 +15,7 @@ from ekb.evaluation.dataset import Split, load_dataset
 from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
 from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_latest
+from ekb.evaluation.nist import evaluate_nist
 from ekb.evaluation.skills import SkillSelection, evaluate_skills
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
@@ -27,7 +28,7 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
     def execute(operation):
         try:
             result = asyncio.run(operation())
-        except ValueError as error:
+        except (ValueError, OSError) as error:
             raise typer.BadParameter(str(error)) from None
         emit(result)
         if result.get("passed") is False:
@@ -311,6 +312,70 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             emit(asyncio.run(operation()))
         except (ValueError, OSError) as error:
             raise typer.BadParameter(str(error)) from None
+
+    @evaluations.command("nist")
+    def nist(
+        source: Annotated[Path, typer.Option()] = Path("data")
+        / "test-corpus"
+        / "public"
+        / "voluntary_framework"
+        / "nist-csf-2.pdf",
+        output: Annotated[Path, typer.Option()] = Path("data") / "nist-evaluations",
+        model_profile: Annotated[Path, typer.Option()] = Path("config") / "local.yaml",
+        live: Annotated[
+            bool, typer.Option(help="Explicitly allow configured model calls.")
+        ] = False,
+        excerpts_only: Annotated[
+            bool, typer.Option(help="Replay committed source excerpts instead of parsing the PDF.")
+        ] = False,
+        predictions: Annotated[
+            Path | None,
+            typer.Option(help="Score an external export; never treated as a model run."),
+        ] = None,
+        max_model_calls: Annotated[int, typer.Option(min=1, max=10000)] = 500,
+    ):
+        """Evaluate CSF identity, hierarchy, extraction, provenance and provisional classes."""
+
+        async def operation():
+            settings = Settings(config_file=model_profile)
+            if settings.inference != "rules" and not live and predictions is None:
+                raise ValueError("Pass --live to enable configured model calls")
+            async with Runtime(settings) as runtime:
+                report = await evaluate_nist(
+                    None if excerpts_only else source,
+                    output,
+                    runtime.parser,
+                    runtime.inference,
+                    imported_predictions=predictions,
+                    live=live,
+                    max_model_calls=max_model_calls,
+                    calls_per_case=6 * (settings.model_retries + 1),
+                )
+            metrics = report["metrics"]
+            return {
+                "status": report["status"],
+                "passed": report["passed"],
+                "qualified": report["qualified"],
+                "model_id": report["model_id"],
+                "source_mode": report["source_mode"],
+                "identity_metrics": metrics["identity_metrics"],
+                "hierarchy": metrics["hierarchy"],
+                "curated_semantics": {
+                    key: metrics["curated_semantics"][key]
+                    for key in ("expected", "identified", "correct_classes", "verified_provenance")
+                },
+                "negative_results": [
+                    {"id": item["id"], "result": item["result"]}
+                    for item in metrics["negative_cases"]
+                ],
+                "cache_hits": report["cache_hits"],
+                "current_usage": report["current_usage"],
+                "errors": report["errors"],
+                "json_report": report["json_report"],
+                "markdown_report": report["markdown_report"],
+            }
+
+        execute(operation)
 
     @evaluations.command("report")
     def goal_report(

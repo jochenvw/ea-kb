@@ -13,6 +13,12 @@ Company-level coverage does not identify a particular company or establish adopt
 External frameworks can describe candidate strategic requirements and lower-level outcomes without
 being mandatory company policy. Classify their meaning, not their publisher or title.
 Metadata mentioning a standard does not supply that standard's requirements or company coverage.
+Framework outcomes can describe desired conditions in present/passive wording without "must" or
+"should"; lack of an imperative is not a reason to discard them. Native taxonomy levels and IDs
+are source structure, not ontology classes. A function named "Protect" is not a corporate goal;
+category names may identify architectural concerns but are not automatically equivalent domains.
+Keep strategic requirement candidates separate from enterprise adoption. Explain uncertainty at
+the conceptual/technical boundary rather than inventing implementation detail to force a class.
 
 Use the authoritative class names and definitions supplied below. ArchitectureDomain and
 OrganizationalScope identify classification context, not requirements to extract.
