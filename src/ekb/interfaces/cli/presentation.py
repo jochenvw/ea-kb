@@ -6,6 +6,7 @@ from uuid import UUID
 
 import typer
 from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from ekb.config import Settings
 from ekb.domain.execution import Execution
@@ -37,6 +38,33 @@ def locations(settings: Settings, report: Path) -> dict[str, str]:
         ).render_as_string(),
         "report": report.resolve().as_uri(),
     }
+
+
+def workspace_error(settings: Settings, error: SQLAlchemyError | OSError) -> str:
+    cause = error.orig if isinstance(error, DBAPIError) else error
+    if not isinstance(cause, ConnectionRefusedError):
+        return (
+            f"Workspace unavailable ({type(error).__name__}).\n"
+            "Check database access and data-directory permissions."
+        )
+    url = make_url(settings.database_url.get_secret_value())
+    host, port = url.host or "localhost", url.port or 5432
+    address = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    if host in {"localhost", "127.0.0.1", "::1"} and port == 5432:
+        recovery = (
+            "Start Docker Desktop, then run from the repository root:\n"
+            "docker compose up -d postgres --wait"
+        )
+    else:
+        recovery = "Start PostgreSQL and check the configured host, port and network access."
+    return (
+        "PostgreSQL connection refused.\n"
+        f"Expected: {safe(address)}, database '{safe(url.database or '(not configured)')}'.\n"
+        "The server did not accept a network connection.\n"
+        "Database existence and credentials could not be checked.\n"
+        f"{recovery}\n"
+        "Check EKB_DATABASE_URL or database_url in the selected profile."
+    )
 
 
 class ScanConsole:

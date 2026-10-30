@@ -91,6 +91,8 @@ changes, optional UI links, a credential-free database location and a JSON repor
 Counts are not claims of approval or compliance.
 Failures produce a nonzero exit, retain checkpoints and save available failure details. UI links
 are optional result inspection and assume `uv run ekb web` at the default address.
+Connection-refused errors identify the expected PostgreSQL host, port and database without credentials.
+For the default local database, start Docker Desktop and run `docker compose up -d postgres --wait`.
 
 In another terminal, with the same database, data directory and model/profile settings:
 
@@ -125,6 +127,7 @@ token-bearing tasks with missing call counts make aggregate calls and cost null.
 historical information cannot be reconstructed, so do not treat old task amounts as complete.
 
 `--fresh` clears **only EKB database state**, including processing and workflow checkpoints.
+It does not update table definitions; use `uv run ekb init --recreate` after schema changes.
 It retains filesystem/Azure original artifacts, Alembic state, unrelated tables, source files and
 manifests, reports and telemetry, including previously downloaded source-input directories.
 The four obsolete `benchmark_documents`, `benchmark_comparisons`, `benchmark_embeddings` and

@@ -3,11 +3,62 @@ from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
+from sqlalchemy.exc import OperationalError
 from typer.testing import CliRunner
 
 from ekb.config import Settings
 from ekb.interfaces.cli import app
 from ekb.interfaces.cli.presentation import ScanConsole, locations
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "wrapped", "docker_hint"),
+    [
+        ("localhost", 5432, False, True),
+        ("localhost", 6543, False, False),
+        ("database.example.test", 6432, True, False),
+    ],
+)
+def test_pipeline_connection_refused_explains_expected_database_without_secrets(
+    monkeypatch, host, port, wrapped, docker_hint
+):
+    monkeypatch.setenv(
+        "EKB_DATABASE_URL",
+        f"postgresql+asyncpg://test-user:test-password@{host}:{port}/ekb?token=test-token",
+    )
+    refused = ConnectionRefusedError("Sensitive connection details")
+    error = OperationalError(None, None, refused) if wrapped else refused
+
+    def unavailable(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr("ekb.interfaces.cli.workflow.Runtime", unavailable)
+    result = CliRunner().invoke(app, ["pipeline", "run", "--json"])
+    assert result.exit_code == 2
+    assert "PostgreSQL connection refused" in result.output
+    assert f"{host}:{port}" in result.output and "database 'ekb'" in result.output
+    assert "credentials could not be checked" in result.output
+    assert "EKB_DATABASE_URL" in result.output
+    assert ("docker compose up -d postgres --wait" in result.output) is docker_hint
+    assert "stop active scans" not in result.output
+    assert not any(
+        secret in result.output
+        for secret in ("test-user", "test-password", "test-token", "Sensitive connection details")
+    )
+
+
+def test_pipeline_filesystem_failure_is_not_reported_as_a_database_connection_refusal(monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise PermissionError("Sensitive filesystem path")
+
+    monkeypatch.setattr("ekb.interfaces.cli.workflow.Runtime", unavailable)
+    result = CliRunner().invoke(app, ["pipeline", "run", "--json"])
+    assert result.exit_code == 2
+    assert "PermissionError" in result.output and "data-directory permissions" in result.output
+    assert "connection refused" not in result.output
+    assert (
+        "docker compose" not in result.output and "Sensitive filesystem path" not in result.output
+    )
 
 
 def test_fresh_requires_confirmation_before_runtime_or_database_access(tmp_path, monkeypatch):

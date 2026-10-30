@@ -17,7 +17,7 @@ from ekb.domain.execution import StageOptions
 from ekb.domain.issues import IssueStatus
 from ekb.domain.models import Scope
 from ekb.domain.resolution import Decision, ResolutionProfile
-from ekb.interfaces.cli.presentation import ScanConsole, locations
+from ekb.interfaces.cli.presentation import ScanConsole, locations, workspace_error
 from ekb.maintenance import reset_workspace
 from ekb.runtime import Runtime
 
@@ -106,10 +106,7 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         except ValueError as error:
             raise typer.BadParameter(str(error)) from None
         except (SQLAlchemyError, OSError) as error:
-            raise typer.BadParameter(
-                f"Workspace unavailable ({type(error).__name__}); "
-                "stop active scans and check database access."
-            ) from None
+            raise typer.BadParameter(workspace_error(settings, error)) from None
 
         async def operation():
             async with Runtime(settings) as runtime:
@@ -173,10 +170,7 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         except ValueError as error:
             raise typer.BadParameter(str(error)) from None
         except (SQLAlchemyError, OSError) as error:
-            raise typer.BadParameter(
-                f"Workspace unavailable ({type(error).__name__}); "
-                "stop active scans and check database/cache access."
-            ) from None
+            raise typer.BadParameter(workspace_error(settings, error)) from None
         if json_output:
             emit(result)
         if not result["passed"]:

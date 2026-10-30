@@ -5,6 +5,7 @@
 `scan` ingests/resumes; concepts, lineage and sources expose shared services.
 `pipeline` runs resumable workflows with progress and status snapshots; `workflow.py` registers
 orchestration and review commands.
+Connection refusals name the expected PostgreSQL address and safe startup/configuration guidance.
 `scans list/tasks/usage` exposes persisted failure and usage diagnostics; task pages use `--after`.
 Unknown or incomplete prices remain null, including after a task retry.
 `eval skills/list/history` uses bounded Pydantic Evals cases and durable skill history.
