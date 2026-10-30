@@ -1,4 +1,4 @@
-"""durable pipeline checks reconciliation aliases and issues"""
+"""durable pipeline checks reconciliation and issues"""
 
 from collections.abc import Sequence
 
@@ -23,6 +23,12 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_enrichment_findings_check_id"), "enrichment_findings", ["check_id"], unique=False
+    )
+    op.create_index(
+        "ix_findings_alias",
+        "enrichment_findings",
+        ["id"],
+        postgresql_where=sa.text("(payload ->> 'action') = 'alias'"),
     )
     op.create_table(
         "knowledge_issues",
@@ -109,46 +115,15 @@ def upgrade() -> None:
         sa.UniqueConstraint("finding_id", "previous_id"),
     )
     op.create_index(
-        op.f("ix_reconciliation_decisions_finding_id"),
+        "ix_decision_head",
         "reconciliation_decisions",
-        ["finding_id"],
+        ["finding_id", "recorded_at", "id"],
         unique=False,
-    )
-    op.create_table(
-        "concept_aliases",
-        sa.Column("decision_id", sa.Uuid(), nullable=False),
-        sa.Column("alias_id", sa.Uuid(), nullable=False),
-        sa.Column("target_id", sa.Uuid(), nullable=False),
-        sa.CheckConstraint("alias_id <> target_id"),
-        sa.ForeignKeyConstraint(
-            ["alias_id"],
-            ["concepts.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["decision_id"],
-            ["reconciliation_decisions.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["target_id"],
-            ["concepts.id"],
-        ),
-        sa.PrimaryKeyConstraint("decision_id"),
-    )
-    op.create_index(
-        op.f("ix_concept_aliases_alias_id"), "concept_aliases", ["alias_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_concept_aliases_target_id"), "concept_aliases", ["target_id"], unique=False
     )
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_concept_aliases_target_id"), table_name="concept_aliases")
-    op.drop_index(op.f("ix_concept_aliases_alias_id"), table_name="concept_aliases")
-    op.drop_table("concept_aliases")
-    op.drop_index(
-        op.f("ix_reconciliation_decisions_finding_id"), table_name="reconciliation_decisions"
-    )
+    op.drop_index("ix_decision_head", table_name="reconciliation_decisions")
     op.drop_table("reconciliation_decisions")
     op.drop_index(op.f("ix_issue_events_issue_id"), table_name="issue_events")
     op.drop_table("issue_events")
@@ -160,5 +135,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_knowledge_issues_issue_type"), table_name="knowledge_issues")
     op.drop_index(op.f("ix_knowledge_issues_check_id"), table_name="knowledge_issues")
     op.drop_table("knowledge_issues")
+    op.drop_index("ix_findings_alias", table_name="enrichment_findings")
     op.drop_index(op.f("ix_enrichment_findings_check_id"), table_name="enrichment_findings")
     op.drop_table("enrichment_findings")

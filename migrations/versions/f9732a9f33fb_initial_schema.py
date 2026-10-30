@@ -18,7 +18,6 @@ def upgrade() -> None:
         "concepts",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("identity_key", sa.Text(), nullable=False),
-        sa.Column("kind", sa.String(length=20), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("identity_key"),
     )
@@ -42,10 +41,21 @@ def upgrade() -> None:
         "concept_versions",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("concept_id", sa.Uuid(), nullable=False),
+        sa.Column("semantic_type", sa.String(length=40), nullable=True),
         sa.Column("semantic_version", sa.String(length=50), nullable=False),
         sa.Column("predecessor_id", sa.Uuid(), nullable=True),
         sa.Column("statement", sa.Text(), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.CheckConstraint(
+            "semantic_type IN ('StrategicGoal','StrategicRequirement','ArchitectureDomain',"
+            "'ConceptualRequirement','TechnicalRequirement','PlatformRequirement',"
+            "'OrganizationalScope')",
+            name="version_semantic_type",
+        ),
+        sa.CheckConstraint(
+            "semantic_type IS NOT DISTINCT FROM (payload #>> '{candidate,semantic_type}')",
+            name="version_semantic_type_payload",
+        ),
         sa.ForeignKeyConstraint(
             ["concept_id"],
             ["concepts.id"],
@@ -59,6 +69,12 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_concept_versions_concept_id"), "concept_versions", ["concept_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_concept_versions_semantic_type"),
+        "concept_versions",
+        ["semantic_type"],
+        unique=False,
     )
     op.create_table(
         "source_revisions",
@@ -196,6 +212,11 @@ def upgrade() -> None:
         sa.Column("occurrence_id", sa.Uuid(), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.CheckConstraint("from_id <> to_id"),
+        sa.CheckConstraint(
+            "kind IN ('refines','supports','constrains','mapsTo','dependsOn',"
+            "'tensionWith','conflictsWith')",
+            name="ontology_relationship_kind",
+        ),
         sa.ForeignKeyConstraint(
             ["from_id"],
             ["concepts.id"],
@@ -235,6 +256,7 @@ def downgrade() -> None:
     op.drop_table("authority_events")
     op.drop_index(op.f("ix_source_revisions_source_id"), table_name="source_revisions")
     op.drop_table("source_revisions")
+    op.drop_index(op.f("ix_concept_versions_semantic_type"), table_name="concept_versions")
     op.drop_index(op.f("ix_concept_versions_concept_id"), table_name="concept_versions")
     op.drop_table("concept_versions")
     op.drop_index(op.f("ix_sources_connector"), table_name="sources")

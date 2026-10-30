@@ -10,7 +10,8 @@
 - Scoped extraction rejects both omitted and invented numeric qualifiers, including technical versions.
 - `benchmarks.py` defines source/control/mapping/policy records, not additional semantic primitives.
 - `reconciliation.py` types comparisons, grounded judgments and explicit structural-only proposals.
-- `execution.py`, `resolution.py`, `issues.py` define durable runs, audit, aliases and issue lifecycle.
+- `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
+  alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
 - `sources.py` groups explicit benchmark-edition metadata into logical sources; documents retain IDs.
 - Knowledge levels separate goals/guidance from explicit platform requirements; they grant no authority.

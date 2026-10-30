@@ -9,8 +9,8 @@ from textual.widgets import Input, Static
 
 from ekb.config import Settings
 from ekb.domain.execution import CheckOptions, PipelineConfiguration, StageOptions
-from ekb.domain.models import ConceptVersion, Scope, SemanticVersion
-from ekb.domain.resolution import Decision
+from ekb.domain.models import ConceptVersion, Scope, SemanticVersion, now
+from ekb.domain.resolution import Decision, active_aliases
 from ekb.interfaces.api import create_app
 from ekb.interfaces.tui import KnowledgeApp
 from ekb.ports.workflow import CheckResult
@@ -204,10 +204,17 @@ async def test_accepted_alias_canonical_resolution_reversal_and_restart(database
                 outcome="accepted",
                 actor="test-reviewer",
                 rationale="Reviewed synthetic source equivalence.",
+                effective_at=date(2020, 1, 1),
+                effective_until=date(2030, 12, 31),
             )
         )
         assert await runtime.reconciliation.decide(accepted) == accepted
         source, target = duplicate.concept_ids
+        async with database() as uow:
+            snapshot = await uow.resolution.snapshot()
+        assert active_aliases(snapshot, date(2019, 1, 1)) == {}
+        assert active_aliases(snapshot, date(2021, 1, 1)) == {source: target}
+        assert active_aliases(snapshot, date(2031, 1, 1)) == {}
         canonical = await runtime.knowledge.get(target)
         assert canonical is not None
         scope = Scope(organization="Example", platform="Azure")
@@ -283,11 +290,101 @@ async def test_accepted_alias_canonical_resolution_reversal_and_restart(database
                 actor="test-reviewer",
                 rationale="Reverse the synthetic equivalence.",
                 previous_id=accepted.id,
+                effective_at=date(2022, 1, 1),
             )
         )
         assert (await restarted.resolve_concept(source, scope)).status == "not_established"
         assert len(await runtime.reconciliation.history(duplicate.id)) == 2
+        async with database() as uow:
+            snapshot = await uow.resolution.snapshot()
+        assert active_aliases(snapshot, date(2021, 1, 1)) == {source: target}
+        assert active_aliases(snapshot, date(2023, 1, 1)) == {}
         assert await runtime.knowledge.provenance(source)
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_concurrent_alias_reviews_cannot_accept_a_cycle(database, tmp_path):
+    runtime, _, config = await prepare(database, tmp_path)
+    try:
+        await runtime.orchestrator().run(configuration=config)
+        forward = next(f for f in await runtime.reconciliation.findings() if f.action == "alias")
+        reverse = forward.model_copy(
+            update={"id": uuid4(), "concept_ids": tuple(reversed(forward.concept_ids))}
+        )
+        await runtime.reconciliation.propose(reverse)
+        outcomes = await asyncio.gather(
+            *(
+                runtime.reconciliation.decide(
+                    Decision(
+                        finding_id=finding.id,
+                        outcome="accepted",
+                        actor="reviewer",
+                        rationale="Review of synthetic identity evidence.",
+                    )
+                )
+                for finding in (forward, reverse)
+            ),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(outcome, Decision) for outcome in outcomes) == 1
+        failures = [outcome for outcome in outcomes if isinstance(outcome, ValueError)]
+        assert len(failures) == 1 and "Cyclic" in str(failures[0])
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_alias_target_can_change_only_after_explicit_reversal(database, tmp_path):
+    runtime, directory, config = await prepare(database, tmp_path)
+    (directory / "three.md").write_text(
+        "# Synthetic enterprise standard\n\nOperators must protect internal web endpoints with WAF."
+    )
+    try:
+        await runtime.orchestrator().run(configuration=config)
+        forward = next(f for f in await runtime.reconciliation.findings() if f.action == "alias")
+        source, target = forward.concept_ids
+        concepts = await runtime.knowledge.search("web")
+        replacement = next(concept.id for concept in concepts if concept.id not in {source, target})
+        source_concept = await runtime.knowledge.get(source)
+        assert source_concept is not None
+        alternative = forward.model_copy(
+            update={
+                "id": uuid4(),
+                "concept_ids": (source, replacement),
+                "version_ids": (),
+                "occurrence_ids": (source_concept.occurrences[0].id,),
+            }
+        )
+        await runtime.reconciliation.propose(alternative)
+        accepted = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=forward.id,
+                outcome="accepted",
+                actor="reviewer",
+                rationale="Initial synthetic identity review.",
+            )
+        )
+        change = Decision(
+            finding_id=alternative.id,
+            outcome="accepted",
+            actor="reviewer",
+            rationale="Replacement synthetic identity review.",
+        )
+        with pytest.raises(ValueError, match="Reverse the existing alias"):
+            await runtime.reconciliation.decide(change)
+        await runtime.reconciliation.decide(
+            Decision(
+                finding_id=forward.id,
+                previous_id=accepted.id,
+                outcome="reversed",
+                actor="reviewer",
+                rationale="Reverse the initial target before replacing it.",
+            )
+        )
+        await runtime.reconciliation.decide(change)
+        async with database() as uow:
+            snapshot = await uow.resolution.snapshot()
+        assert active_aliases(snapshot, now().date())[source] == replacement
     finally:
         await runtime.__aexit__()
 

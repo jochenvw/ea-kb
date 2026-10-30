@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pytest
@@ -12,7 +12,16 @@ from ekb.domain.models import (
     Scope,
     SemanticType,
 )
-from ekb.domain.resolution import Deviation, KnowledgeSnapshot, overlaps, resolve_alias
+from ekb.domain.resolution import (
+    Decision,
+    Deviation,
+    Finding,
+    KnowledgeSnapshot,
+    active_aliases,
+    alias_edges,
+    overlaps,
+    resolve_alias,
+)
 from ekb.orchestration.registry import StageRegistry
 from ekb.ports.workflow import CheckContext
 from ekb.stages.enrichment import Check
@@ -145,6 +154,78 @@ def test_alias_cycles_are_rejected_instead_of_resolved_arbitrarily():
     assert resolve_alias(a, {a: b, b: c}) == (a, b, c)
     with pytest.raises(ValueError, match="Cyclic"):
         resolve_alias(a, {a: b, b: a})
+
+
+def test_aliases_follow_effective_and_reversed_decisions_without_a_projection():
+    source, target, replacement = uuid4(), uuid4(), uuid4()
+    finding = Finding(
+        id=uuid4(),
+        check_id="review",
+        check_version="1",
+        input_revision="test",
+        action="alias",
+        concept_ids=(source, target),
+        confidence=1.0,
+        explanation="Evidence-backed identity proposal.",
+    )
+    accepted = Decision(
+        finding_id=finding.id,
+        outcome="accepted",
+        actor="reviewer",
+        rationale="Reviewed.",
+        recorded_at=datetime(2020, 1, 1, tzinfo=UTC),
+        effective_at=date(2020, 1, 1),
+        effective_until=date(2020, 12, 31),
+    )
+    reversed_decision = Decision(
+        finding_id=finding.id,
+        outcome="reversed",
+        actor="reviewer",
+        rationale="Withdrawn.",
+        recorded_at=datetime(2022, 1, 1, tzinfo=UTC),
+        effective_at=date(2022, 1, 1),
+        previous_id=accepted.id,
+    )
+    next_finding = finding.model_copy(update={"id": uuid4(), "concept_ids": (source, replacement)})
+    next_decision = Decision(
+        finding_id=next_finding.id,
+        outcome="accepted",
+        actor="reviewer",
+        rationale="New reviewed target.",
+        recorded_at=datetime(2023, 1, 1, tzinfo=UTC),
+        effective_at=date(2023, 1, 1),
+    )
+    snapshot = context().snapshot.model_copy(
+        update={
+            "findings": (finding, next_finding),
+            "decisions": (accepted, reversed_decision, next_decision),
+        }
+    )
+    assert active_aliases(snapshot, date(2019, 1, 1)) == {}
+    assert active_aliases(snapshot, date(2020, 6, 1)) == {source: target}
+    assert active_aliases(snapshot, date(2021, 6, 1)) == {}
+    assert active_aliases(snapshot, date(2022, 6, 1)) == {}
+    assert active_aliases(snapshot, date(2023, 6, 1)) == {source: replacement}
+
+
+def test_derived_aliases_reject_competing_targets_and_cycles():
+    a, b, c = uuid4(), uuid4(), uuid4()
+    finding = Finding(
+        id=uuid4(),
+        check_id="review",
+        check_version="1",
+        input_revision="test",
+        action="alias",
+        concept_ids=(a, b),
+        confidence=1.0,
+        explanation="Evidence-backed identity proposal.",
+    )
+    competing = finding.model_copy(update={"id": uuid4(), "concept_ids": (a, c)})
+    cycle = finding.model_copy(update={"id": uuid4(), "concept_ids": (b, a)})
+    with pytest.raises(ValueError, match="Competing"):
+        alias_edges((finding, competing))
+    with pytest.raises(ValueError, match="Cyclic"):
+        alias_edges((finding, cycle))
 
 
 def test_registry_rejects_unknown_checks_and_dependency_cycles():

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -73,12 +74,6 @@ class Decision(Model):
         return self
 
 
-class Alias(Model):
-    decision_id: UUID
-    alias_id: UUID
-    target_id: UUID
-
-
 class Resolution(Model):
     requested_id: UUID | None = None
     resolved_id: UUID | None = None
@@ -102,7 +97,6 @@ class KnowledgeSnapshot(Model):
     current_version_ids: frozenset[UUID]
     findings: tuple[Finding, ...] = ()
     decisions: tuple[Decision, ...] = ()
-    aliases: tuple[Alias, ...] = ()
     active_finding_ids: frozenset[UUID] = frozenset()
     preview_version_ids: frozenset[UUID] = frozenset()
 
@@ -195,20 +189,33 @@ def resolve_alias(identity: UUID, aliases: dict[UUID, UUID]) -> tuple[UUID, ...]
     return tuple(chain)
 
 
-def active_aliases(snapshot: KnowledgeSnapshot, as_of: date) -> dict[UUID, UUID]:
-    heads = decision_heads(tuple(d for d in snapshot.decisions if d.effective_at <= as_of))
-    active = {
-        d.id
-        for d in heads.values()
-        if d.outcome == "accepted" and (d.effective_until is None or d.effective_until >= as_of)
-    }
+def alias_edges(findings: Iterable[Finding]) -> dict[UUID, UUID]:
     aliases: dict[UUID, UUID] = {}
-    for alias in snapshot.aliases:
-        if alias.decision_id not in active:
+    for finding in findings:
+        if finding.action != "alias":
             continue
-        if alias.alias_id in aliases and aliases[alias.alias_id] != alias.target_id:
+        if len(finding.concept_ids) != 2 or finding.concept_ids[0] == finding.concept_ids[1]:
+            raise ValueError("Aliases require two different identities")
+        alias_id, target_id = finding.concept_ids
+        if alias_id in aliases and aliases[alias_id] != target_id:
             raise ValueError("Competing accepted alias targets")
-        aliases[alias.alias_id] = alias.target_id
+        aliases[alias_id] = target_id
     for identity in aliases:
         resolve_alias(identity, aliases)
     return aliases
+
+
+def active_aliases(snapshot: KnowledgeSnapshot, as_of: date) -> dict[UUID, UUID]:
+    heads = decision_heads(tuple(d for d in snapshot.decisions if d.effective_at <= as_of))
+    findings = {finding.id: finding for finding in snapshot.findings}
+    active: list[Finding] = []
+    for decision in heads.values():
+        if decision.outcome != "accepted" or (
+            decision.effective_until is not None and decision.effective_until < as_of
+        ):
+            continue
+        finding = findings.get(decision.finding_id)
+        if finding is None:
+            raise ValueError("Accepted decision refers to a missing finding")
+        active.append(finding)
+    return alias_edges(active)

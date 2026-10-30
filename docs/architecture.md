@@ -277,8 +277,25 @@ neither a graph database nor a vector index is required.
 | `benchmark_comparisons` | Source-bound review-only comparisons, published mapsTo records and candidate semantic lineage |
 | `benchmark_embeddings`, `benchmark_match_cache` | Provider/input-keyed vector and valid grounded-judgment replay |
 | `pipeline_executions`, `pipeline_leases` | Pipeline/stage/check attempts, artifacts and renewable ownership |
-| `enrichment_findings`, `reconciliation_decisions`, `concept_aliases` | Evidence-bound proposals and append-only reversible identity decisions |
+| `enrichment_findings`, `reconciliation_decisions` | Evidence-bound proposals and append-only reversible identity decisions; aliases derive from accepted findings |
 | `knowledge_issues`, `issue_events` | Deduplicated issues, observation history and human resolution audit |
+
+Alias edges are derived from immutable findings and decision heads, including historical effective
+dates and reversals; no second alias projection is written. Snapshots and decision histories are
+bounded to 20,000 records. Acceptance uses a partial alias-finding index and indexed decision-head
+lookup, and the governance transaction lock serializes conflicting reviews. See decision `0011`.
+
+The small `processing_runs` table remains separate from `pipeline_executions`: standalone and nested
+scans have `ScanReport` counts and completed/partial statuses, while pipeline executions have
+parented stage/check artifacts, ownership and different status semantics. Mixing scan roots into
+execution queries would require a second payload variant and special filters for current pipeline
+and enrichment outputs. `parse_checkpoints` separately proves completion even for zero segments;
+`segment_results` retains independently fingerprinted skill outputs across revisions.
+
+Task status and attempt columns are authoritative for claims and are overlaid on the domain
+payload when read; usage remains in that payload. Pipeline execution projections and payloads
+are written together by `Workflow.save_execution`; ontology type projections are SQL-checked
+against their immutable version payloads.
 
 Artifact publication and database commits are not a distributed transaction. An interruption
 between publishing an original and committing its revision can leave an unreferenced artifact.

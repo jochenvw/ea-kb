@@ -1,10 +1,16 @@
 from uuid import uuid4
 
 import pytest
+from alembic.autogenerate import compare_metadata
+from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+from alembic.script import ScriptDirectory
 from sqlalchemy import insert, inspect, text
 from sqlalchemy.exc import IntegrityError
 
-from ekb.adapters.persistence.postgres.models import VersionRow
+from ekb.adapters.persistence.postgres.models import Base, VersionRow
+from ekb.domain.models import ScanReport
 
 pytestmark = pytest.mark.integration
 
@@ -13,6 +19,13 @@ async def test_recreation_replaces_owned_schema_without_dropping_unrelated_table
     async with database.engine.begin() as connection:
         await connection.execute(text("CREATE TABLE unrelated_records (id integer PRIMARY KEY)"))
         await connection.execute(text("INSERT INTO unrelated_records VALUES (42)"))
+        await connection.execute(
+            text(
+                "CREATE TABLE concept_aliases ("
+                "decision_id uuid PRIMARY KEY REFERENCES reconciliation_decisions(id), "
+                "alias_id uuid REFERENCES concepts(id), target_id uuid REFERENCES concepts(id))"
+            )
+        )
         await connection.execute(text("ALTER TABLE concept_versions ADD COLUMN old_kind text"))
         await connection.execute(
             text(
@@ -21,6 +34,9 @@ async def test_recreation_replaces_owned_schema_without_dropping_unrelated_table
             ),
             {"id": uuid4()},
         )
+    await database.initialize()
+    async with database.engine.connect() as connection:
+        assert await connection.scalar(text("SELECT to_regclass('concept_aliases')")) is not None
     async with database.reset(recreate=True):
         pass
     async with database.engine.connect() as connection:
@@ -28,8 +44,23 @@ async def test_recreation_replaces_owned_schema_without_dropping_unrelated_table
             lambda sync: {item["name"] for item in inspect(sync).get_columns("concept_versions")}
         )
         assert "semantic_type" in columns and "old_kind" not in columns
+        assert await connection.scalar(text("SELECT to_regclass('concept_aliases')")) is None
         assert await connection.scalar(text("SELECT count(*) FROM sources")) == 0
         assert await connection.scalar(text("SELECT id FROM unrelated_records")) == 42
+
+
+async def test_recreation_keeps_obsolete_tables_when_an_active_scan_blocks_reset(database):
+    async with database.engine.begin() as connection:
+        await connection.execute(text("CREATE TABLE concept_aliases (id integer PRIMARY KEY)"))
+    async with database() as uow:
+        await uow.processing.save_scan(ScanReport(id=uuid4()))
+        await uow.commit()
+    with pytest.raises(ValueError, match="active scan"):
+        async with database.reset(recreate=True):
+            pass
+    async with database.engine.connect() as connection:
+        assert await connection.scalar(text("SELECT to_regclass('concept_aliases')")) is not None
+        assert await connection.scalar(text("SELECT count(*) FROM processing_runs")) == 1
 
 
 async def test_database_enforces_ontology_classes_and_version_payload_agreement(database):
@@ -65,3 +96,32 @@ async def test_database_enforces_ontology_classes_and_version_payload_agreement(
         )
         assert "refines" in constraint and "constrains" in constraint
         assert "DERIVES_FROM" not in constraint and "SUPERSEDES" not in constraint
+
+
+async def test_archived_migrations_match_the_current_schema_and_ontology_constraints(database):
+    async with database.engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+
+        def migrate(sync):
+            context = MigrationContext.configure(sync)
+            revisions = list(ScriptDirectory.from_config(Config("alembic.ini")).walk_revisions())
+            with Operations.context(context):
+                for revision in reversed(revisions):
+                    revision.module.upgrade()
+            assert compare_metadata(context, Base.metadata) == []
+            assert "concept_aliases" not in inspect(sync).get_table_names()
+            names = set(
+                sync.execute(
+                    text(
+                        "SELECT conname FROM pg_constraint WHERE conrelid IN "
+                        "('concept_versions'::regclass, 'relationships'::regclass)"
+                    )
+                ).scalars()
+            )
+            assert {
+                "version_semantic_type",
+                "version_semantic_type_payload",
+                "ontology_relationship_kind",
+            } <= names
+
+        await connection.run_sync(migrate)

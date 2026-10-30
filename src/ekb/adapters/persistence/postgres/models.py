@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -251,6 +252,13 @@ class WorkflowLeaseRow(Base):
 
 class FindingRow(Base):
     __tablename__ = "enrichment_findings"
+    __table_args__ = (
+        Index(
+            "ix_findings_alias",
+            "id",
+            postgresql_where=text("(payload ->> 'action') = 'alias'"),
+        ),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     check_id: Mapped[str] = mapped_column(String(100), index=True)
     input_revision: Mapped[str] = mapped_column(String(64))
@@ -262,23 +270,14 @@ class DecisionRow(Base):
     __table_args__ = (
         CheckConstraint("outcome IN ('accepted','rejected','deferred','reversed')"),
         UniqueConstraint("finding_id", "previous_id"),
+        Index("ix_decision_head", "finding_id", "recorded_at", "id"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    finding_id: Mapped[UUID] = mapped_column(ForeignKey("enrichment_findings.id"), index=True)
+    finding_id: Mapped[UUID] = mapped_column(ForeignKey("enrichment_findings.id"))
     previous_id: Mapped[UUID | None] = mapped_column(ForeignKey("reconciliation_decisions.id"))
     outcome: Mapped[str] = mapped_column(String(20))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
-
-
-class AliasRow(Base):
-    __tablename__ = "concept_aliases"
-    __table_args__ = (CheckConstraint("alias_id <> target_id"),)
-    decision_id: Mapped[UUID] = mapped_column(
-        ForeignKey("reconciliation_decisions.id"), primary_key=True
-    )
-    alias_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
-    target_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
 
 
 class IssueRow(Base):

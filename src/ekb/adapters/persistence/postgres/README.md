@@ -20,7 +20,8 @@
 - `documents(control_id=...)` selects matching whole documents, not a trimmed control list.
 - Native references resolve only against exact namespace, revision and published OSCAL label aliases.
 - Review-only comparisons validate source bindings; embeddings and valid judgments have replay caches.
-- `workflow.py` fences stage/check runs and atomically applies append-only decisions/aliases/authority.
+- `workflow.py` fences stage/check runs and atomically applies decisions/authority; alias edges derive
+  from immutable findings and accepted decision heads, not a separately persisted projection.
 - `issues.py` prioritizes scoped issues before limiting and preserves review/reopening history.
 
 Preserve immutable revisions, exact occurrences and idempotent checkpoints.

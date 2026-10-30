@@ -3,7 +3,7 @@
 - `test_pipeline.py` exercises incrementality, replay, history, cancellation, concurrency and formats.
 - `test_interfaces.py` exercises web/API evidence, real MCP protocol sessions and a headless TUI.
 - `test_benchmark_pipeline.py` checks model-free structured ingestion, replay and exact source records.
-- `test_workflow.py` covers orchestration, real concurrency/resume, review, scoped authority and caches.
+- `test_workflow.py` covers orchestration, concurrency/resume, reversible alias reviews and scoped authority.
 - `test_ontology_schema.py` verifies schema recreation, unrelated-table safety and ontology SQL constraints.
 - `test_scan_cli.py` verifies real CLI progress, concurrent status/fencing, replay and failure/resume.
 - Inputs are synthetic/temporary; PostgreSQL is real but isolated in per-test schemas.

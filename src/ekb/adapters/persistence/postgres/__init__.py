@@ -888,11 +888,28 @@ class Postgres:
     async def reset(self, *, recreate: bool = False) -> AsyncIterator[None]:
         """Clear only EKB tables, keeping migrations and unrelated application tables."""
         async with self.engine.begin() as connection:
+            preparer = connection.dialect.identifier_preparer
+            obsolete_tables = []
             if recreate:
                 await connection.run_sync(Base.metadata.create_all)
+                schema = await connection.scalar(text("SELECT current_schema()"))
+                if not schema:
+                    raise ValueError("Cannot determine the EKB schema for recreation")
+                for name in ("concept_aliases",):
+                    exists = await connection.scalar(
+                        text(
+                            "SELECT to_regclass(format('%I.%I', "
+                            "CAST(:schema AS text), CAST(:name AS text))) IS NOT NULL"
+                        ),
+                        {"schema": schema, "name": name},
+                    )
+                    if exists:
+                        obsolete_tables.append(
+                            f"{preparer.quote_schema(schema)}.{preparer.quote(name)}"
+                        )
             names = ", ".join(
-                connection.dialect.identifier_preparer.quote(table.name)
-                for table in Base.metadata.sorted_tables
+                [preparer.quote(table.name) for table in Base.metadata.sorted_tables]
+                + obsolete_tables
             )
             await connection.execute(text(f"LOCK TABLE {names} IN ACCESS EXCLUSIVE MODE NOWAIT"))
             active_lease = await connection.scalar(
@@ -909,6 +926,8 @@ class Postgres:
             if active_lease or active_scan or active_task:
                 raise ValueError("Workspace has an active scan or lease; stop it before --fresh")
             if recreate:
+                for name in obsolete_tables:
+                    await connection.execute(text(f"DROP TABLE {name}"))
                 await connection.run_sync(Base.metadata.drop_all)
                 await connection.run_sync(Base.metadata.create_all)
             else:

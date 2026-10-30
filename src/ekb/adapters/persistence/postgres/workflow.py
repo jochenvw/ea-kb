@@ -8,7 +8,6 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ekb.adapters.persistence.postgres.models import (
-    AliasRow,
     AuthorityRow,
     BenchmarkDocumentRow,
     ConceptRow,
@@ -35,11 +34,11 @@ from ekb.domain.models import (
     stable_id,
 )
 from ekb.domain.resolution import (
-    Alias,
     Decision,
     Deviation,
     Finding,
     KnowledgeSnapshot,
+    alias_edges,
     decision_heads,
     resolve_alias,
     version_evidence,
@@ -198,10 +197,6 @@ class ResolutionStore:
             )
         findings = tuple(Finding.model_validate(r.payload) for r in await self._bounded(FindingRow))
         decisions = tuple(await self.decisions())
-        aliases = tuple(
-            Alias(decision_id=r.decision_id, alias_id=r.alias_id, target_id=r.target_id)
-            for r in await self._bounded(AliasRow)
-        )
         enrichment = await Workflow(self.session).successful("enrichment")
         active = set(enrichment.output.record_ids) if enrichment and enrichment.output else set()
         active.update(f.id for f in findings if f.check_id == "manual")
@@ -228,7 +223,6 @@ class ResolutionStore:
             current_version_ids=current_versions,
             findings=findings,
             decisions=decisions,
-            aliases=aliases,
             active_finding_ids=frozenset(active),
             preview_version_ids=frozenset(
                 o.concept_version_id for o in occurrences if o.segment_id in preview_segments
@@ -359,14 +353,6 @@ class ResolutionStore:
                 payload=decision.model_dump(mode="json"),
             )
         )
-        if decision.outcome == "accepted" and finding.action == "alias":
-            await self.session.execute(
-                insert(AliasRow).values(
-                    decision_id=decision.id,
-                    alias_id=finding.concept_ids[0],
-                    target_id=finding.concept_ids[1],
-                )
-            )
         if finding.action == "canonical_review":
             await self._authority(finding, decision)
         return decision
@@ -387,13 +373,28 @@ class ResolutionStore:
                 )
             if types[0] != types[1]:
                 raise ValueError("Different ontology classes cannot be merged")
-            heads = decision_heads(tuple(await self.decisions()))
-            aliases = await self._bounded(AliasRow)
-            edges = {
-                r.alias_id: r.target_id
-                for r in aliases
-                if any(h.id == r.decision_id and h.outcome == "accepted" for h in heads.values())
-            }
+            head = (
+                select(DecisionRow.id)
+                .where(DecisionRow.finding_id == FindingRow.id)
+                .order_by(DecisionRow.recorded_at.desc(), DecisionRow.id.desc())
+                .correlate(FindingRow)
+                .limit(1)
+                .scalar_subquery()
+            )
+            rows = list(
+                await self.session.scalars(
+                    select(FindingRow)
+                    .join(DecisionRow, DecisionRow.id == head)
+                    .where(
+                        text("(enrichment_findings.payload ->> 'action') = 'alias'"),
+                        DecisionRow.outcome == "accepted",
+                    )
+                    .limit(20001)
+                )
+            )
+            if len(rows) > 20000:
+                raise ValueError("Alias workspace exceeds 20,000 records; partition the corpus")
+            edges = alias_edges(Finding.model_validate(row.payload) for row in rows)
             if finding.concept_ids[0] in edges and (
                 edges[finding.concept_ids[0]] != finding.concept_ids[1]
             ):
