@@ -66,6 +66,7 @@ from ekb.domain.models import (
     knowledge_level,
     now,
     stable_id,
+    total_usage,
 )
 from ekb.domain.publication import project_authority
 from ekb.observability import tracer
@@ -713,6 +714,10 @@ class Processing:
 
     async def claim(self, task: ProcessingTask, owner: UUID) -> bool:
         until = now() + timedelta(minutes=5)
+        payload = task.model_dump(mode="json")
+        if task.usage == Usage():
+            # Absence means no usage was recorded, distinct from an unpriced empty result.
+            payload.pop("usage")
         statement = insert(TaskRow).values(
             id=task.id,
             revision_id=task.revision_id,
@@ -721,7 +726,7 @@ class Processing:
             owner=owner,
             lease_until=until,
             attempts=1,
-            payload=task.model_dump(mode="json"),
+            payload=payload,
         )
         result = await self.session.scalar(
             statement.on_conflict_do_update(
@@ -762,6 +767,9 @@ class Processing:
         if row is None:
             raise RuntimeError("Cannot complete a task owned by another worker")
         task = task.model_copy(update={"usage": self._task(row).usage})
+        payload = task.model_dump(mode="json")
+        if "usage" not in row.payload:
+            payload.pop("usage")
         result = await self.session.scalar(
             update(TaskRow)
             .where(TaskRow.id == task.id, TaskRow.owner == owner, TaskRow.status == "running")
@@ -769,7 +777,7 @@ class Processing:
                 status=task.status,
                 lease_until=None,
                 owner=None,
-                payload=task.model_dump(mode="json"),
+                payload=payload,
             )
             .returning(TaskRow.id)
         )
@@ -785,15 +793,10 @@ class Processing:
         if row is None:
             raise RuntimeError("Processing lease lost while recording usage")
         task = self._task(row)
-        old = task.usage
-        costs = [cost for cost in (old.cost, usage.cost) if cost is not None]
-        combined = Usage(
-            input_tokens=old.input_tokens + usage.input_tokens,
-            output_tokens=old.output_tokens + usage.output_tokens,
-            latency_ms=old.latency_ms + usage.latency_ms,
-            cost=sum(costs) if costs else None,
-            validation_failures=old.validation_failures + usage.validation_failures,
-        )
+        previous = task.usage
+        if not previous.model_calls and (previous.input_tokens or previous.output_tokens):
+            previous = previous.model_copy(update={"cost": None})
+        combined = total_usage([previous, usage]) if "usage" in row.payload else usage
         row.payload = task.model_copy(update={"usage": combined}).model_dump(mode="json")
 
     async def save_scan(self, report: ScanReport) -> None:
@@ -813,10 +816,11 @@ class Processing:
         )
         return [ScanReport.model_validate(row.payload) for row in rows]
 
-    async def tasks(self, limit: int = 100) -> list[ProcessingTask]:
-        rows = await self.session.scalars(
-            select(TaskRow).order_by(TaskRow.id).limit(min(limit, 1000))
-        )
+    async def tasks(self, limit: int = 100, after: UUID | None = None) -> list[ProcessingTask]:
+        statement = select(TaskRow)
+        if after is not None:
+            statement = statement.where(TaskRow.id > after)
+        rows = await self.session.scalars(statement.order_by(TaskRow.id).limit(min(limit, 1000)))
         return [self._task(row) for row in rows]
 
     async def cached(self, segment_id: UUID, fingerprint: str) -> InferenceResult | None:

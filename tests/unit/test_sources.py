@@ -208,3 +208,28 @@ async def test_runtime_keeps_benchmark_activation_separate_from_http_manifest_re
             for connector in runtime.connectors(manifest=path)
         )
         assert runtime.connectors() == [runtime.benchmarks()]
+
+
+async def test_runtime_loads_generic_manifest_without_network(tmp_path):
+    import yaml
+
+    from ekb.config import Settings
+    from ekb.runtime import Runtime
+
+    path = tmp_path / "sources.yaml"
+    path.write_text(
+        yaml.safe_dump({"sources": [specification().model_dump(mode="json")]}),
+        encoding="utf-8",
+    )
+    async with Runtime(
+        Settings(
+            data_dir=tmp_path / "runtime",
+            inference="rules",
+            source_directory=None,
+            artifact_backend="filesystem",
+        )
+    ) as runtime:
+        connectors = runtime.connectors(manifest=path)
+        assert len(connectors) == 1 and isinstance(connectors[0], HTTPConnector)
+        source = await anext(connectors[0].discover())
+        assert source.location == "https://example.test/doc.txt"

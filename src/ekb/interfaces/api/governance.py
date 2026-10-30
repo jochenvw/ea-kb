@@ -192,10 +192,6 @@ def register(
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
 
-    @app.get("/api/pipeline/status")
-    async def pipeline_status(request: Request, run_id: UUID | None = None):
-        return await active(request).orchestrator().status(run_id)
-
     @app.get("/review", response_class=HTMLResponse)
     def review_page(
         status: IssueStatus | None = None,

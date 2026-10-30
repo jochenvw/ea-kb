@@ -87,10 +87,11 @@ See `phase3.md` for a concrete example and configuration.
 
 ## Repositories, artifacts and future adapters
 
-`UnitOfWork` owns source, knowledge, lineage, processing, workflow, resolution and issue repositories. Explicit commits
-are required. Never return ORM rows outside the PostgreSQL adapter. A future Neo4j implementation
-must pass the same contract tests and preserve transaction/checkpoint/evidence semantics; the
-relational design does not require Neo4j.
+`UnitOfWork` owns source, knowledge, lineage, processing, workflow, resolution and issue
+repositories. Processing task inspection returns bounded pages in UUID order with an exclusive
+`after` cursor. Explicit commits are required. Never return ORM rows outside the PostgreSQL adapter.
+A future Neo4j implementation must pass the same contract tests and preserve
+transaction/checkpoint/evidence semantics; the relational design does not require Neo4j.
 
 `ArtifactStore` uses SHA-256 keys, idempotent writes and verified reads. Separate `put_named` /
 `get_named` operations maintain atomic corpus views and checkpoints; consumers validate content hashes.

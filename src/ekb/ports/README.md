@@ -7,6 +7,7 @@ repositories and explicit units of work.
 Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.
 `AssertionWriter` rephrases a version against its exact evidence; original candidates stay immutable.
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.
+Processing task inspection is bounded and uses exclusive UUID cursors in stable order.
 `InspectionRepository` provides bounded source, graph, backlog and allowlisted table queries.
 `ArtifactStore` separates immutable content-addressed originals from named corpus views/checkpoints.
 `SemanticVerifier` and `EmbeddingPort` are opt-in boundaries; `BenchmarkRepository` preserves

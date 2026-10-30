@@ -7,6 +7,7 @@
 - [Plugin contracts](../plugins.md): interchangeable adapters, stages and repositories.
 - [Evaluations](../evaluation.md) and [tests](../../tests/README.md): quality gates and isolation.
 - [Frontend](../../frontend/README.md): browser source, build and committed assets.
+- Ingestion runs/status/resume are CLI-owned; browser/TUI retain knowledge and governance inspection.
 - [Python manifest](../../pyproject.toml) and [frontend manifest](../../frontend/package.json):
   dependency declarations; their committed lockfiles are authoritative for resolved versions.
 

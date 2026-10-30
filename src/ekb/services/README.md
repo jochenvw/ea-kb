@@ -2,6 +2,7 @@
 
 - `knowledge.py` exposes concept, provenance, lineage, related-requirement and usage queries.
   Search forwards source/level-filtered UUID-cursor pages without loading the complete corpus.
+  Usage summarizes at most 1,000 tasks and retains unknown cost if any task is unpriced.
 - `assertions.py` phrases existing versions with bounded model workers and replay caching;
   it never changes original candidates, occurrences, identities or authority.
 - `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.

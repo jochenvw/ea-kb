@@ -9,6 +9,8 @@ Vite produces local, committed HTML/CSS/JavaScript inside the Python package. Th
 build, not a production Node.js service or CDN dependency. Source fingerprints detect stale output;
 bundled third-party licenses accompany the assets. The former Jinja/HTMX presentation is retired.
 Knowledge and proposal lists use bounded UUID cursors so browsing does not stop at an initial cap.
+Ingestion execution, status and resume are CLI-owned; the web lifespan does not own scan tasks.
+Generic data/log inspection and authenticated governance remain browser responsibilities.
 
 Clawpilot tokens, responsive navigation and accessible shadcn primitives provide one visual system.
 Playwright fixtures cover browser behavior without external services or real governance writes.

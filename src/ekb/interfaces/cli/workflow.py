@@ -126,6 +126,7 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
                     before = await uow.knowledge.counts()
                 orchestrator = runtime.orchestrator(progress=console, staged=True)
                 failure = None
+                failure_detail = None
                 try:
                     status = await orchestrator.run(
                         tuple(s.strip() for s in stages.split(",")) if stages else None,
@@ -133,6 +134,11 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
                     )
                 except Exception as error:
                     failure = type(error).__name__
+                    if (
+                        isinstance(error, ValueError)
+                        and str(error) == "Another pipeline owns the renewable execution lease"
+                    ):
+                        failure_detail = str(error)
                     status = await orchestrator.status(console.run_id) if console.run_id else None
                 async with runtime.database() as uow:
                     after = await uow.knowledge.counts()
@@ -146,6 +152,7 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
                     {
                         "passed": failure is None and bool(status and status.run.status == "done"),
                         "error": failure,
+                        "error_detail": failure_detail,
                         "fresh": fresh,
                         "scan": console.report.model_dump(mode="json") if console.report else None,
                         "before": before.model_dump(),
@@ -157,10 +164,13 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
                 await asyncio.to_thread(
                     report_path.write_text, json.dumps(result, indent=2) + "\n", encoding="utf-8"
                 )
+                if status:
+                    console.checks(status.executions)
                 console.finish("done" if result["passed"] else "failed", before, after, links)
                 if failure:
                     console.line(
-                        f"Failure: {failure}. Inspect the report and persisted pipeline status."
+                        f"Failure: {failure}. "
+                        f"{failure_detail or 'Inspect the report and persisted pipeline status.'}"
                     )
                 return result
 

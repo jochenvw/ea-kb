@@ -471,6 +471,9 @@ main {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
+.overview-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .metric > div {
   padding: 20px;
 }
@@ -491,12 +494,6 @@ main {
   font-size: 10px;
   line-height: 1.5;
   min-height: 30px;
-}
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
 }
 .consolidation-journey {
   display: grid;
@@ -696,38 +693,7 @@ main {
 .status-low .status-dot {
   background: var(--cp-link);
 }
-.stage-list > div {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 16px 0;
-}
-.stage-list > div > span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-}
-.stage-number {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius);
-  background: var(--cp-accent-soft);
-  color: var(--cp-accent);
-  font-size: 12px;
-  font-weight: 650;
-  flex-shrink: 0;
-}
-.stage-list strong {
-  display: block;
-  font-size: 12px;
-}
-.stage-list small {
-  display: block;
-  font-size: 10px;
-}
-.principle-grid,
-.stage-cards {
+.principle-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
@@ -740,8 +706,7 @@ main {
   margin: 12px 0 6px;
   font-size: 13px;
 }
-.principle-grid p,
-.stage-cards p {
+.principle-grid p {
   color: var(--cp-text-muted);
   font-size: 12px;
 }
@@ -1141,31 +1106,6 @@ blockquote {
   height: 16px;
   accent-color: var(--cp-accent);
 }
-.run-summary {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--cp-text-muted);
-  margin-bottom: 24px;
-}
-.stage-cards > div {
-  padding: 20px;
-  border: 1px solid var(--cp-border);
-  border-radius: var(--radius);
-}
-.stage-cards h3 {
-  margin: 8px 0 12px;
-}
-.stage-cards p {
-  margin-top: 16px;
-}
-.scan-form {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 .benchmark-form {
   display: flex;
   gap: 12px;
@@ -1264,10 +1204,8 @@ blockquote {
     flex-direction: column;
     align-items: flex-start;
   }
-  .overview-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .metrics-grid {
+  .metrics-grid,
+  .overview-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1351,7 +1289,6 @@ blockquote {
     padding-right: 16px;
   }
   .principle-grid,
-  .stage-cards,
   .two-column {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;

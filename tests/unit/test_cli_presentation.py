@@ -40,6 +40,15 @@ def test_reset_requires_confirmation_without_starting_runtime_or_reindexing(monk
     assert declined.exit_code != 0 and "Aborted" in declined.output
 
 
+def test_tui_has_no_ingestion_source_options():
+    result = CliRunner().invoke(app, ["tui", "--help"])
+    assert result.exit_code == 0
+    assert "--directory" not in result.output and "--manifest" not in result.output
+    run = CliRunner().invoke(app, ["pipeline", "run", "--help"])
+    assert run.exit_code == 0
+    assert "--directory" in run.output and "--manifest" in run.output
+
+
 def test_destructive_schema_recreation_is_not_allowed_at_or_after_v1(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("A released application must not recreate its database")
@@ -120,3 +129,21 @@ def test_terminal_output_and_links_do_not_leak_credentials_or_control_sequences(
     )
     assert not any(secret in str(links) for secret in ("test-user", "test-password", "test-token"))
     assert links["database"] == "postgresql://localhost:5432/ekb"
+    assert "pipeline" not in links
+
+
+def test_terminal_reports_skipped_sources(capsys):
+    from ekb.domain.models import SourceItem, stable_id
+
+    console = ScanConsole()
+    console.source(
+        SourceItem(
+            id=stable_id("unchanged"),
+            connector="synthetic",
+            name="Policy",
+            location="https://example.invalid",
+            format="md",
+        ),
+        "skipped",
+    )
+    assert "[skipped" in capsys.readouterr().out

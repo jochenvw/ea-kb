@@ -3,7 +3,9 @@
 `app` in `__init__.py` is registered as the `ekb` console script by `pyproject.toml`.
 `init/reset` manage EKB-owned development state; rebuilds are guarded to pre-v1.
 `scan` ingests/resumes; concepts, lineage, sources and comparisons expose shared services.
-`pipeline` runs resumable workflows; `workflow.py` registers orchestration and review commands.
+`pipeline` runs resumable workflows with progress and status snapshots; `workflow.py` registers them.
+`scans list/tasks/usage` exposes persisted failure and usage diagnostics; task pages use `--after`.
+Unknown or incomplete prices remain null, including after a task retry.
 `eval skills/list/history` uses bounded Pydantic Evals cases and durable skill history.
 Live evaluation requires opt-in; `--compare-concurrency` additionally requires `--live`.
 `eval goals/documents/nist` checks source-grounded strategic, mixed-layer and framework cases.

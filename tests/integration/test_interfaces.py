@@ -8,6 +8,7 @@ import httpx
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 from pydantic import SecretStr
+from textual.binding import Binding
 from textual.widgets import DataTable, Input, Static, TabbedContent
 
 from ekb.config import Settings
@@ -52,7 +53,6 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             for path in (
                 "/knowledge",
                 "/sources",
-                "/pipeline",
                 "/review",
                 "/benchmarks",
                 "/ontology",
@@ -73,7 +73,6 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
                 assert cached.status_code == 304
             assert (await client.get("/api/ui/config")).json() == {
                 "governance_enabled": False,
-                "scan_running": False,
             }
             assert (await client.get("/api/sources")).status_code == 200
             concepts = (await client.get("/api/concepts")).json()
@@ -103,14 +102,13 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             assert configuration.json()["governance_enabled"] is True
             assert "synthetic-browser-test-token" not in configuration.text
             runtime.settings.governance_token = SecretStr("")
-            denied = await client.post("/scans", headers={"Origin": "https://other.example"})
-            assert denied.status_code == 403
-            assert (await client.get("/api/statistics")).json()["task_count"] == 3
-            runtime.settings.source_directory = Path("tests/fixtures/local")
-            started = await client.post("/scans", headers={"Origin": "http://test"})
-            assert started.status_code == 303
-            await asyncio.wait_for(app.state.scan_task, timeout=10)
-            assert (await client.get("/api/scans")).json()[0]["skipped"] == 3
+            assert (await client.post("/scans")).status_code == 404
+            assert (await client.get("/api/scans")).status_code == 404
+            assert (await client.get("/api/tasks")).status_code == 404
+            assert (await client.get("/api/statistics")).status_code == 404
+            assert (await client.get("/api/pipeline/status")).status_code == 404
+            assert (await client.get("/pipeline")).status_code == 404
+            assert not hasattr(app.state, "scan_task")
     await runtime.__aexit__()
 
 
@@ -424,22 +422,25 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
     await runtime.__aexit__()
 
 
-async def test_tui_browses_sources_and_stays_responsive_during_scan(database, tmp_path):
+async def test_tui_browses_sources_and_evidence_without_ingestion_controls(database, tmp_path):
     runtime = await prepared(database, tmp_path)
-    app = KnowledgeApp(runtime, Path("tests/fixtures/local"))
+    app = KnowledgeApp(runtime)
     async with app.run_test(size=(140, 50)) as pilot:
         await pilot.pause()
         assert app.query_one("#sources", DataTable).row_count == 3
         assert app.query_one("#concepts", DataTable).row_count == 4
+        for selector in ("#scan", "#scans-pane", "#tasks-pane", "#statistics"):
+            assert not app.query(selector)
+        assert not hasattr(app, "action_scan")
+        assert all(
+            (binding.key if isinstance(binding, Binding) else binding[0]) != "s"
+            for binding in app.BINDINGS
+        )
         app.query_one(TabbedContent).active = "concepts-pane"
         app.query_one("#concepts", DataTable).focus()
         await pilot.press("enter")
         await pilot.pause()
         assert '"provenance"' in str(app.query_one("#evidence", Static).content)
-        worker = app.action_scan()
-        await pilot.pause()
-        await asyncio.wait_for(worker.wait(), timeout=10)
-        assert "skipped" in str(app.query_one("#status", Static).content)
     await runtime.__aexit__()
 
 
@@ -495,7 +496,7 @@ async def test_publication_and_scoped_approval_are_distinct_across_interfaces(da
         assert all(
             state["canonical_status"] == "not_canonical" for state in record["authority_states"]
         )
-    terminal = KnowledgeApp(runtime, directory)
+    terminal = KnowledgeApp(runtime)
     async with terminal.run_test(size=(140, 50)) as pilot:
         terminal.query_one("#search", Input).value = "synthetic draft audit"
         await terminal.action_reload()

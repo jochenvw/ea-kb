@@ -24,8 +24,8 @@ From a checkout, in PowerShell:
 uv sync
 docker compose up -d postgres --wait
 uv run ekb init
-uv run ekb scan tests\fixtures\local
-$env:EKB_SOURCE_DIRECTORY = "tests\fixtures\local"
+uv run ekb pipeline run --directory tests\fixtures\local
+uv run ekb pipeline status
 uv run ekb web
 ```
 
@@ -35,8 +35,10 @@ Operations (read-only tables and logs). No Node runtime is needed.
 Use `uv run ekb --help` for other commands.
 
 For the full configured corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.
-It prints file progress, three-pass summaries and result links. Add `--fresh` for a confirmed reset
-of EKB tables and owned local caches; source inputs are preserved. See [operations](docs/usage.md).
+It prints file progress, stage/check outcomes and a retained JSON report. Add `--fresh` for a
+confirmed reset of EKB tables and owned local caches; source inputs are preserved. See
+[operations](docs/usage.md).
+Ingestion runs and monitoring are CLI-owned; browser and TUI are for knowledge and governance.
 
 ## Documentation
 

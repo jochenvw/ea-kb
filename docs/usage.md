@@ -56,6 +56,7 @@ Copy `.env.example` to `.env` for overrides. Runtime data lives under gitignored
 ### One-command ingestion
 
 ```powershell
+uv run ekb pipeline run --directory tests\fixtures\local
 uv run ekb pipeline run --manifest sources\public.yaml
 # Or use source/stage settings from a profile:
 uv run ekb pipeline run --config config\local.yaml
@@ -82,11 +83,42 @@ visible passes are:
    Each reports new concepts/proposals/issues and executed/reused checks; decisions remain governed.
    Independent files run concurrently, but dependent stages/checks are not blindly parallelized.
 
-The overall summary includes persisted totals and observed workspace changes, UI links, credential-free
-database location, cache folders and a JSON report under `data\reports`. `--output FILE` selects a
-report path; `--json` suppresses human progress. Counts are not claims of approval or compliance.
+The run ID is printed as soon as the durable run starts. Stage summaries and final check outcomes
+include statuses and identifiers. The overall summary includes persisted totals, observed workspace
+changes, optional UI links, a credential-free database location, cache folders and a JSON report
+under `data\reports`. `--output FILE` selects a report path; `--json` suppresses human progress.
+Counts are not claims of approval or compliance.
 Failures produce a nonzero exit, retain checkpoints and save available failure details. UI links
-assume the default address and require `uv run ekb web` in another terminal.
+are optional result inspection and assume `uv run ekb web` at the default address.
+
+In another terminal, with the same database, data directory and model/profile settings:
+
+```powershell
+uv run ekb pipeline status                 # latest persisted snapshot, not a live subscription
+uv run ekb pipeline status RUN_UUID
+uv run ekb scans list                      # recent scan counts and source/error identifiers
+uv run ekb scans tasks --limit 100         # bounded task errors, attempts and individual usage
+uv run ekb scans tasks --after LAST_TASK_UUID
+uv run ekb scans usage                     # bounded workspace usage, not a per-run total
+uv run ekb pipeline resume RUN_UUID
+```
+
+Set `EKB_CONFIG_FILE` in both terminals when using a nondefault profile; `--config` selects only the
+invocation on which it appears. Status includes run, stage and check IDs, attempts and error types.
+After interruption, resume the same run rather than resetting it. The pipeline's renewable lease
+prevents concurrent owners; a crashed lease expires after up to 120 seconds, while an individual
+processing-task lease can take five minutes. `ekb scan` and `ekb worker --directory PATH --once`
+remain available for indexing-only operation.
+
+Task pages cover at most 1,000 tasks in identifier order; pass the last ID as `--after` for the
+next page. Usage summarizes the first 1,000 tasks and marks `tasks_truncated` if more exist;
+both may include earlier runs. Usage reports committed tokens, model calls, latency and validation
+failures. Aggregate `configured_cost` is null if any included task lacks a price; an explicitly
+priced zero stays zero.
+This is not an invoice: failed/uncommitted calls can still incur charges. Older task records written
+before the usage-accounting fix may lack model-call counts or contain partial priced subtotals;
+token-bearing tasks with missing call counts make aggregate calls and cost null. Other missing
+historical information cannot be reconstructed, so do not treat old task amounts as complete.
 
 `--fresh` clears **only EKB tables** (including model, embedding, comparison and workflow caches),
 `data_dir\artifacts` and the generated benchmark cache. It retains Alembic state, unrelated tables,
@@ -256,7 +288,7 @@ The browser separates looking things up from doing governed work:
 | Reference | `/knowledge`, `/concepts/{id}`, `/explore`: interpretations, provenance and visual navigation |
 | Reference | `/benchmarks`, `/reconciliation`: publisher records, proposal ledger and decision history |
 | Reference | `/ontology`: read-only OWL concepts, relations and exact definitions |
-| Work | `/review`: active reconciliation backlog and issue triage; `/pipeline`: ingestion activity |
+| Work | `/review`: active reconciliation backlog and issue triage |
 | Operations | `/data`: read-only EKB tables and foreign-key drill-down; `/logs`: recent application events |
 
 Source detail links preserve the evidenced version via `?version_id=...`. Graphs navigate
@@ -280,22 +312,20 @@ diagnostic fields are served; raw exception messages, traces and model payloads 
 Use **Refresh logs** to reread the tails; older files remain on disk.
 
 ```powershell
-uv run ekb tui --directory tests\fixtures\local
-# Or: uv run ekb tui --manifest sources\public.yaml
+uv run ekb tui
 
-$env:EKB_SOURCE_DIRECTORY = "C:\documents"
 uv run ekb web
 # Open http://127.0.0.1:8000
 
 uv run ekb mcp
 ```
 
-The TUI supports source inventory, scan/resume, per-source progress, failures, concepts,
-provenance, relationship inspection and usage statistics. The React/shadcn browser workspace targets
+The TUI supports source inventory, concepts, provenance, relationship inspection and review.
+It does not execute or monitor ingestion. The React/shadcn browser workspace targets
 desktop/PC use, not mobile. It provides
 a consolidation workspace (`/`), shared language (`/ontology`), cursor-paged interpretations
 (`/knowledge`), source curation (`/sources`), visual validation (`/explore`), issue/proposal review
-(`/review`), benchmarks (`/benchmarks`) and ingestion activity (`/pipeline`).
+(`/review`) and benchmarks (`/benchmarks`).
 Start with the shared definitions, then inspect source context, interpretations, relationships and
 scoped decisions. The four-step path is navigation guidance, not saved progress or approval.
 Source selection stays in operator configuration; source curation checks do not change source status.
@@ -390,8 +420,7 @@ Already concise, standalone modal assertions retain their exact wording without 
 Rules-only inference cannot semantically rephrase and is rejected rather than silently used.
 The nullable assertion cache records provider-reported usage; unpriced costs remain unknown.
 
-The web scan button uses the server-configured `EKB_SOURCE_DIRECTORY` and/or the public manifest.
-It does not accept arbitrary filesystem paths from a browser. Non-health web/API routes reject
+The web application does not start, monitor or own ingestion runs. Non-health web/API routes reject
 non-loopback clients and forwarded-proxy headers. Enterprise authentication and network hardening
 are not implemented; do not expose this service through a proxy.
 

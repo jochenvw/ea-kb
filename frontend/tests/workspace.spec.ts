@@ -198,23 +198,12 @@ const finding = {
   passages: [],
   recorded_at: timestamp,
 };
-const execution = {
-  id,
-  kind: "pipeline",
-  status: "done",
-  started_at: timestamp,
-  finished_at: timestamp,
-  attempts: 1,
-  statistics: {},
-};
-
 async function fixture(page: Page, governance = false) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = decodeURIComponent(url.pathname);
     let data: unknown;
-    if (path === "/api/ui/config")
-      data = { governance_enabled: governance, scan_running: false };
+    if (path === "/api/ui/config") data = { governance_enabled: governance };
     else if (path === "/api/ontology") data = ontology;
     else if (path === "/api/sources") data = [source];
     else if (path === "/api/source-groups") data = [sourceGroup];
@@ -344,29 +333,6 @@ async function fixture(page: Page, governance = false) {
             },
           ]
         : [];
-    else if (path === "/api/pipeline/status")
-      data = {
-        run: execution,
-        executions: ["indexing", "enrichment", "issues"].map((stage) => ({
-          ...execution,
-          kind: "stage",
-          processor_id: stage,
-        })),
-      };
-    else if (path === "/api/scans")
-      data = [
-        { ...execution, discovered: 4, processed: 3, skipped: 1, failed: 0 },
-      ];
-    else if (path === "/api/statistics")
-      data = {
-        task_count: 3,
-        failures: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        configured_cost: null,
-        model_latency_ms: 0,
-        validation_failures: 0,
-      };
     else if (path === "/api/inspection/tables")
       data = [
         { name: "sources", count: 1 },
@@ -720,7 +686,6 @@ test("architect workflow leads from shared language to scoped decisions", async 
   await expect(
     page.getByRole("link", { name: "View queue", exact: true }),
   ).toHaveAttribute("href", "/review?view=issues");
-  await expect(page.getByText("Indexing", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
   await page.getByRole("link", { name: "Start with shared language" }).click();
   await expect(
@@ -741,16 +706,13 @@ test("architect workflow leads from shared language to scoped decisions", async 
   ).not.toContainText("Strategic goal");
 });
 
-test("empty workspace guides ingestion without claiming completed review", async ({
+test("empty workspace directs ingestion to the CLI without claiming completed review", async ({
   page,
 }) => {
   await page.route("**/api/source-groups", (route) =>
     route.fulfill({ json: [] }),
   );
   await page.route("**/api/issues?**", (route) => route.fulfill({ json: [] }));
-  await page.route("**/api/pipeline/status", (route) =>
-    route.fulfill({ json: null }),
-  );
   await page.goto("/");
   await expect(
     page.getByText("No open issues recorded", { exact: true }),
@@ -767,13 +729,9 @@ test("empty workspace guides ingestion without claiming completed review", async
     page.getByText("No sources registered", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Configure source directories or manifests/),
+    page.getByText(/Configure sources and run ingestion with the CLI/),
   ).toBeVisible();
-  await page
-    .getByRole("link", { name: "Ingestion & processing", exact: true })
-    .last()
-    .click();
-  await expect(page).toHaveURL(/\/pipeline$/);
+  await expect(page.locator('a[href^="/pipeline"]')).toHaveCount(0);
 });
 
 test("source search distinguishes no matches from an empty registry", async ({
@@ -850,7 +808,7 @@ test("selected version never inherits another version's approval", async ({
   page,
 }) => {
   await page.route("**/api/ui/config", (route) =>
-    route.fulfill({ json: { governance_enabled: true, scan_running: false } }),
+    route.fulfill({ json: { governance_enabled: true } }),
   );
   await page.route(`**/api/concepts/${id}`, (route) =>
     route.fulfill({
@@ -1400,24 +1358,45 @@ test("Bold Wikipedia tokens style primitives and custom views in both modes with
   ).toBe(true);
 });
 
-test("pipeline distinguishes indexing scans from all three phases", async ({
+test("workspace has no ingestion controls, monitoring links or requests", async ({
   page,
 }) => {
-  await page.goto("/pipeline");
+  const requests: string[] = [];
+  page.on("request", (request) =>
+    requests.push(new URL(request.url()).pathname),
+  );
+  for (const path of [
+    "/",
+    "/sources",
+    `/sources/${sourceId}`,
+    "/reconciliation",
+  ]) {
+    await page.goto(path);
+    await expect(page.locator('a[href^="/pipeline"]')).toHaveCount(0);
+    await expect(page.locator('form[action="/scans"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Ingestion & processing" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Latest pipeline", { exact: true }),
+    ).toHaveCount(0);
+  }
   await expect(
-    page.getByRole("heading", { name: "Every phase, accounted for." }),
+    page.getByRole("link", { name: "Issue review events" }),
   ).toBeVisible();
-  await expect(page.getByText("PHASE 3", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Reported priced cost", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Unknown", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/This starts source indexing only/),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Scan configured public manifest" }),
-  ).toHaveAttribute("name", "public_manifest");
+    page.locator('a[href="/data?table=pipeline_executions"]'),
+  ).toHaveCount(0);
+  expect(
+    requests.filter((path) =>
+      [
+        "/api/scans",
+        "/api/tasks",
+        "/api/statistics",
+        "/api/pipeline/status",
+      ].includes(path),
+    ),
+  ).toEqual([]);
 });
 
 test("known structured semantic versions retain prerelease and build identifiers", async ({

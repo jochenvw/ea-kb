@@ -49,15 +49,10 @@ export function ReconciliationLog() {
         </TabsContent>
       </Tabs>
       <Panel
-        title="Execution and issue audit"
-        description="Inspect check executions and append-only issue events in the read-only data inspector."
+        title="Issue review audit"
+        description="Inspect append-only issue events in the read-only data inspector."
       >
         <div className="heading-actions">
-          <Button variant="outline" asChild>
-            <a href="/data?table=pipeline_executions">
-              Check execution records
-            </a>
-          </Button>
           <Button variant="outline" asChild>
             <a href="/data?table=issue_events">Issue review events</a>
           </Button>

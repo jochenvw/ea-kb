@@ -355,8 +355,8 @@ These links establish neither equivalence, clause coverage, compliance nor compa
 Missing or ambiguous mappings are not drawn; review proposals are opt-in and dashed.
 
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
-The web scan task is asynchronous and cancelable on shutdown; durable database checkpoints survive
-process loss. The separate worker periodically scans configured connectors using the same pipeline.
+Ingestion runs from the CLI or independent worker; web startup and shutdown do not own or cancel it.
+Durable database checkpoints survive process loss. The worker periodically scans configured connectors.
 Multiple workers may rediscover sources, but atomic claims prevent duplicate committed processing.
 
 Application OpenTelemetry spans cover scans, discovery, comparison, download, parsing, selective
@@ -383,15 +383,14 @@ Restrict the debug/data directory with operating-system ACLs, especially on Wind
 | Interface | Behavior |
 |---|---|
 | Typer CLI | Migration, doctor, scan/resume/dry-run, inventory, concept/provenance/lineage inspection, evaluation and process launch |
-| Textual terminal UI (TUI) | Responsive inventory/progress, concepts, provenance, relationships and usage; invokes the same pipeline |
-| FastAPI + React/shadcn | Local compiled browser assets and JSON inspection; scan submission starts an application-owned async task |
+| Textual terminal UI (TUI) | Source and concept inventory, provenance, relationships and governed review |
+| FastAPI + React/shadcn | Local compiled browser assets, knowledge inspection and authenticated governance |
 | Model Context Protocol (MCP) | Twelve read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
 | Periodic worker | Runs the same pipeline with configured connectors; not a separate implementation or broker consumer |
 
-The web scan form accepts configured sources, not arbitrary browser-supplied filesystem paths.
-Its same-origin checks and single in-process scan slot are not enterprise authentication or
-distributed scheduling. The task is cancelled on shutdown; durable checkpoints support later runs.
-Governance mutations are separately disabled until `EKB_GOVERNANCE_TOKEN` is configured. HTTP
+Web and TUI neither execute ingestion nor provide dedicated processing monitors; the CLI follows
+foreground progress and reads persisted status. Governance mutations are disabled until
+`EKB_GOVERNANCE_TOKEN` is configured. HTTP
 Basic identifies a local operator and requires HTTPS or loopback plus same-origin mutation checks.
 Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. Remote access
 and enterprise identity/tenant authorization are not implemented.
@@ -399,7 +398,7 @@ and enterprise identity/tenant authorization are not implemented.
 The browser starts with a standards-consolidation workspace and the canonical shared language.
 The supported browser target is desktop/PC use only; mobile-specific UX and verification are out of scope.
 Sources, interpretations, visual validation and reconciliation form the architect's work sequence;
-benchmark/decision history is reference material and ingestion/inspection remain operational tools.
+benchmark/decision history is reference material and generic data/log inspection remains available.
 Interpretations show the canonical classification definition and exact evidence before visual validation.
 Evidence and scoped authority belong to the selected version; adoption proposals default to that version.
 Graphs require an explicit starting point and remain bounded concept neighborhoods across versions,
@@ -413,7 +412,7 @@ Vite builds local assets into the Python package. Committed output permits Pytho
 wheel and container operation; source fingerprints reject stale builds. Knowledge and proposal
 lists use exclusive UUID cursors with bounded queries, not fake pagination over a truncated corpus.
 The former Jinja/HTMX presentation is retired; browser routes serve the prebuilt HTML file directly.
-Existing browser addresses and server review POSTs remain.
+Retained knowledge addresses and server review POSTs remain.
 See `decisions\0006-browser-presentation.md` and `frontend\README.md`.
 
 ## Deployment and configuration

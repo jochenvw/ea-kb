@@ -64,14 +64,7 @@ export function Sources() {
         eyebrow="CURATE / SOURCES"
         title="Establish the source context."
         description="Inspect strategy documents, standards and platform guidance before relying on extracted statements. Publisher editions remain separate; originals and retrieval history are retained."
-      >
-        <Button variant="outline" asChild>
-          <a href="/pipeline">
-            Ingestion & processing
-            <ArrowUpRight />
-          </a>
-        </Button>
-      </Heading>
+      />
       <Panel
         title="Registered sources"
         description="Editions stay separate. Original document identities, retrieval history and exact evidence are preserved."
@@ -118,7 +111,7 @@ export function Sources() {
               description={
                 resource.data?.length
                   ? "Clear the search or format filter to see other registered sources."
-                  : "Configure source directories or manifests, then open Ingestion & processing. Discovery and extraction do not establish enterprise approval."
+                  : "Configure sources and run ingestion with the CLI. Discovery and extraction do not establish enterprise approval."
               }
             />
           )}

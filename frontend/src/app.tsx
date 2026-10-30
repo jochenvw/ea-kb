@@ -14,7 +14,6 @@ import {
   Moon,
   ShieldCheck,
   Sun,
-  Workflow,
   Network,
   ScrollText,
   History,
@@ -30,16 +29,15 @@ import {
   Status,
   Empty,
 } from "@/components/workspace";
-import { date, label, useResource } from "@/lib/api";
+import { label, useResource } from "@/lib/api";
 import { Knowledge, ConceptPage } from "@/knowledge";
 import { Review } from "@/review";
 import { Sources, SourcePage } from "@/sources";
 import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
-import { Activity } from "@/activity";
 import { Benchmarks } from "@/benchmarks";
 import { Ontology } from "@/ontology";
-import type { Issue, Pipeline, SourceGroup } from "@/types";
+import type { Issue, SourceGroup } from "@/types";
 
 const navigation = [
   {
@@ -72,12 +70,6 @@ const navigation = [
     name: "Reconciliation backlog",
     icon: CheckCheck,
     group: "Consolidate",
-  },
-  {
-    href: "/pipeline",
-    name: "Ingestion & processing",
-    icon: Workflow,
-    group: "Operations",
   },
   {
     href: "/benchmarks",
@@ -123,7 +115,6 @@ export function App() {
   );
   const config = useResource<{
     governance_enabled: boolean;
-    scan_running: boolean;
   }>("/api/ui/config");
   const governance = config.data?.governance_enabled === true;
 
@@ -243,9 +234,6 @@ export function App() {
           {section === "/reconciliation" && <ReconciliationLog />}
           {section === "/data" && <DataExplorer />}
           {section === "/logs" && <Logs />}
-          {section === "/pipeline" && (
-            <Activity scanRunning={config.data?.scan_running === true} />
-          )}
           {section === "/benchmarks" && <Benchmarks />}
           {section === "/ontology" && <Ontology />}
         </main>
@@ -264,7 +252,6 @@ export function App() {
 function Overview() {
   const sources = useResource<SourceGroup[]>("/api/source-groups");
   const issues = useResource<Issue[]>("/api/issues?status=open&limit=1000");
-  const pipeline = useResource<Pipeline | null>("/api/pipeline/status");
   return (
     <>
       <Heading
@@ -324,7 +311,7 @@ function Overview() {
           ))}
         </ol>
       </Panel>
-      <div className="metrics-grid">
+      <div className="metrics-grid overview-metrics">
         <Metric
           title="Registered sources"
           value={sources.data?.length}
@@ -347,130 +334,62 @@ function Overview() {
           }
           detail="Human review needed; not a compliance verdict"
         />
-        <Metric
-          title="Latest pipeline"
-          value={
-            pipeline.data
-              ? label(pipeline.data.run.status)
-              : pipeline.loading || pipeline.error
-                ? undefined
-                : "Not run"
-          }
-          detail="Indexing → enrichment → issues"
-        />
       </div>
-      <div className="overview-grid">
-        <Panel
-          title="Needs your attention"
-          description="Open issues, with higher severity first."
-          action={
-            <Button variant="ghost" size="sm" asChild>
-              <a href="/review?view=issues">
-                View queue
-                <ArrowUpRight />
-              </a>
-            </Button>
-          }
-        >
-          <LoadState resource={issues}>
-            {issues.data?.length === 0 ? (
-              <Empty
-                title="No open issues recorded"
-                description="This is not evidence of coverage or approval. Inspect the sources and processing history before concluding that review is complete."
-              />
-            ) : (
-              <div className="attention-list">
-                {[...(issues.data ?? [])]
-                  .sort(
-                    (a, b) =>
-                      ["critical", "high", "medium", "low"].indexOf(
-                        a.severity,
-                      ) -
-                      ["critical", "high", "medium", "low"].indexOf(b.severity),
-                  )
-                  .slice(0, 5)
-                  .map((issue) => (
-                    <a
-                      key={issue.id}
-                      href={`/review?issue_id=${issue.id}`}
-                      className="attention-item"
-                    >
-                      <span
-                        className={`severity-mark severity-${issue.severity}`}
-                        aria-hidden="true"
-                      />
-                      <span>
-                        <strong>{label(issue.issue_type)}</strong>
-                        <small>{issue.explanation}</small>
-                      </span>
-                      <Status value={issue.severity} />
-                      <ChevronRight size={16} />
-                    </a>
-                  ))}
-              </div>
-            )}
-            {!!issues.data?.length && (
-              <p className="table-note">
-                Showing {Math.min(5, issues.data.length)} of{" "}
-                {issues.data.length}
-                {issues.data.length === 1000 ? "+" : ""} loaded open issues.
-              </p>
-            )}
-          </LoadState>
-        </Panel>
-        <Panel
-          title="Latest pipeline"
-          description="Durable stages, without automatic promotion."
-          action={
-            <Button variant="ghost" size="icon" asChild>
-              <a href="/pipeline" aria-label="View pipeline activity">
-                <ArrowUpRight />
-              </a>
-            </Button>
-          }
-        >
-          <LoadState resource={pipeline}>
-            {pipeline.data ? (
-              <>
-                <div className="stage-list">
-                  {["indexing", "enrichment", "issues"].map((stage, index) => {
-                    const execution = pipeline.data!.executions.find(
-                      (item) =>
-                        item.kind === "stage" && item.processor_id === stage,
-                    );
-                    return (
-                      <div key={stage}>
-                        <span className="stage-number">{index + 1}</span>
-                        <span>
-                          <strong>{label(stage)}</strong>
-                          <small>
-                            {
-                              [
-                                "Originals, segments and candidates",
-                                "Evidence-backed reconciliation",
-                                "Persistent, reviewable exceptions",
-                              ][index]
-                            }
-                          </small>
-                        </span>
-                        <Status value={execution?.status ?? "not_run"} />
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="table-note">
-                  Started {date(pipeline.data.run.started_at)}
-                </p>
-              </>
-            ) : (
-              <Empty
-                title="No pipeline run recorded"
-                description="Run ekb pipeline run to process all three stages."
-              />
-            )}
-          </LoadState>
-        </Panel>
-      </div>
+      <Panel
+        title="Needs your attention"
+        description="Open issues, with higher severity first."
+        action={
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/review?view=issues">
+              View queue
+              <ArrowUpRight />
+            </a>
+          </Button>
+        }
+      >
+        <LoadState resource={issues}>
+          {issues.data?.length === 0 ? (
+            <Empty
+              title="No open issues recorded"
+              description="This is not evidence of coverage or approval. Inspect the sources and evidence before concluding that review is complete."
+            />
+          ) : (
+            <div className="attention-list">
+              {[...(issues.data ?? [])]
+                .sort(
+                  (a, b) =>
+                    ["critical", "high", "medium", "low"].indexOf(a.severity) -
+                    ["critical", "high", "medium", "low"].indexOf(b.severity),
+                )
+                .slice(0, 5)
+                .map((issue) => (
+                  <a
+                    key={issue.id}
+                    href={`/review?issue_id=${issue.id}`}
+                    className="attention-item"
+                  >
+                    <span
+                      className={`severity-mark severity-${issue.severity}`}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      <strong>{label(issue.issue_type)}</strong>
+                      <small>{issue.explanation}</small>
+                    </span>
+                    <Status value={issue.severity} />
+                    <ChevronRight size={16} />
+                  </a>
+                ))}
+            </div>
+          )}
+          {!!issues.data?.length && (
+            <p className="table-note">
+              Showing {Math.min(5, issues.data.length)} of {issues.data.length}
+              {issues.data.length === 1000 ? "+" : ""} loaded open issues.
+            </p>
+          )}
+        </LoadState>
+      </Panel>
       <Panel
         title="Evidence before authority"
         description="Three distinct questions. Never one approval badge."

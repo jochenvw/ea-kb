@@ -4,7 +4,8 @@
 `static\ui` contains committed production HTML/CSS/JavaScript, source fingerprints and licenses.
 `static\theme.css` holds the Bold Wikipedia light/dark palette, typography, radius and shadows.
 FastAPI serves the built shell and existing JSON services; production needs no Node.js process.
-The UI groups Work (backlog/pipeline), Reference (sources/knowledge/graph/ledger) and Operations.
+The UI groups consolidation, reference knowledge and read-only data/log inspection.
+Ingestion execution and progress belong to the CLI, not a browser dashboard.
 Source details show evidenced versions; table/log inspection is bounded and strictly read-only.
 Knowledge and proposals use server cursors; evidence and identifiers sit behind drill-downs.
 Governance forms retain authenticated server handlers, explicit rationale and append-only auditing.

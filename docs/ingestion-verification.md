@@ -6,20 +6,19 @@ failures. A Windows telemetry rotation collision discovered during the run was f
 
 ## Browse the results
 
-The local UI is running on <http://127.0.0.1:8000>.
+These are historical results; start `uv run ekb web` to browse an available local workspace.
 
 | Page | Inspect |
 |---|---|
-| `/` | Workspace metrics, open exceptions and latest three-phase status |
+| `/` | Workspace metrics and open exceptions |
 | `/knowledge` | Search and cursor-page all concept candidates |
 | `/sources` | Searchable source registry, retrieval status and publisher metadata |
 | `/concepts/{uuid}` | Candidate versions, exact evidence, original source references and lineage |
 | `/review` | Issue shortlist, reconciliation proposals and supporting passages |
 | `/benchmarks` | Publisher controls, mappings, edition comparisons and evidence |
-| `/pipeline` | Phase/check records, ingestion history and scan controls |
 | `/docs` | Interactive API documentation |
 | `/api/issues?limit=1000` | JSON inspection of up to 1,000 issues |
-| `/api/pipeline/status` | Latest pipeline and individual stage/check executions |
+| `uv run ekb pipeline status` | CLI snapshot of the latest pipeline and stage/check executions |
 
 This instance permits browsing but disables HTTP governance writes. No source was automatically
 approved, merged or promoted to canonical. The shadcn review queue filters up to 1,000 issues;
@@ -85,7 +84,7 @@ uv run ekb pipeline run
 uv run ekb web
 ```
 
-The web server is already running; the last command is for restarting it after stopping that instance.
+The web command starts optional result inspection; it does not run or own ingestion.
 For raw database inspection, use the local PostgreSQL `ekb` database, normally port 5432.
 Read `sources`, `source_revisions`, `segments`, `concept_versions`, `occurrences`,
 `enrichment_findings`, `knowledge_issues` and `pipeline_executions`.
@@ -120,7 +119,8 @@ Actual CLI replay `12ace3ff-a594-4703-b7a0-5e21f804a6f9` completed all durable s
 **235 found, 235 known, 0 unknown; 1 downloaded, 229 reused, 5 metadata-only; 0 processed,
 235 skipped, 0 failures**. Enrichment and issue detection each reused six checks. Persisted
 knowledge totals above remained unchanged. This replay used deterministic rules, not paid inference.
-The live browser rendered the updated pipeline records, review queue and knowledge library.
+The then-current browser rendered pipeline records, the review queue and knowledge library.
+Pipeline monitoring has since moved to the CLI.
 
 Two deployments were added to an existing Sweden Central Foundry account: `ekb-student`
 (`gpt-5.4-mini`, version `2026-03-17`) and `ekb-embedding` (`text-embedding-3-small`, version `1`).
@@ -160,7 +160,7 @@ Six reference/work/operations pages were checked at desktop and mobile sizes wit
 errors or horizontal page overflow. The instance stayed read-only; no mutations, model calls,
 new ingestion or governance decisions were performed by these checks.
 
-The sidebar now separates Work (backlog and pipeline), Reference (sources, knowledge, visual
+The sidebar separates Work (backlog), Reference (sources, knowledge, visual
 explorer, benchmarks and reconciliation ledger), and Operations (data and log inspection).
 The reference ledger retains historical proposals; the work backlog excludes accepted/rejected
 heads and proposals outside the latest successful enrichment output, except manual proposals.

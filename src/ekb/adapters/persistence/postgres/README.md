@@ -14,6 +14,7 @@
 - Knowledge counts query persisted totals without loading the complete knowledge snapshot.
 - `inspection.py` joins source-bound extractions, bounded graphs/backlog and linked table previews.
 - Processing claims use owner IDs and renewable leases; segment commits must fence stale workers.
+- Committed task usage retains model-call counts; one unpriced contribution makes total cost unknown.
 - Publication assessments are immutable; semantic versions may be unknown and authority is scoped.
 - `benchmarks.py` stores immutable typed benchmark snapshots and validates exact source bindings.
 - `documents(control_id=...)` selects matching whole documents, not a trimmed control list.

@@ -93,6 +93,9 @@ uv run ekb pipeline run --stages enrichment
 uv run ekb pipeline run --stages issues
 uv run ekb pipeline status
 uv run ekb pipeline resume RUN_UUID
+uv run ekb scans list
+uv run ekb scans tasks
+uv run ekb scans usage
 uv run ekb reconcile list --check published_mapping --limit 20
 uv run ekb reconcile history FINDING_UUID
 uv run ekb reconcile decide FINDING_UUID accepted --actor operator --rationale "Reviewed evidence"
@@ -110,8 +113,9 @@ prerequisites. Decision updates require `--previous` with the latest decision ID
 supports idempotent retries. Reverse an accepted decision explicitly before changing its outcome.
 
 Web `/review` and the TUI Review tab call the same application services. API routes expose
-`/api/knowledge/{id}/resolve`, `/api/knowledge/search`, `/api/reconciliation`, `/api/issues` and
-`/api/pipeline/status`. HTTP mutations are disabled until `EKB_GOVERNANCE_TOKEN` is set; Basic
+`/api/knowledge/{id}/resolve`, `/api/knowledge/search`, `/api/reconciliation` and `/api/issues`.
+Pipeline status is a persisted CLI snapshot, not an HTTP monitor. HTTP mutations are disabled until
+`EKB_GOVERNANCE_TOKEN` is set; Basic
 authentication uses the operator name and token password, requires HTTPS or loopback and rejects
 cross-origin mutations. Local CLI/TUI actors are trusted operator assertions, not enterprise identity.
 Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. No enterprise

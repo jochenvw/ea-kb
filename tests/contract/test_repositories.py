@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select, update
@@ -29,6 +29,7 @@ from ekb.domain.models import (
     now,
     stable_id,
 )
+from ekb.services.knowledge import KnowledgeService
 
 pytestmark = pytest.mark.integration
 
@@ -429,6 +430,134 @@ async def test_expired_lease_can_be_reclaimed_but_wrong_owner_is_fenced(database
         stored = await uow.processing.task(segment.revision_id, "fp")
         assert stored and stored.status == "done" and stored.usage.input_tokens == 10
         assert not await uow.processing.claim(task, owner)
+
+
+async def test_usage_retains_model_calls_and_unknown_cost_through_resume(database):
+    segment = await seed(database)
+    task = ProcessingTask(id=uuid4(), revision_id=segment.revision_id, fingerprint="usage")
+    owner, successor = uuid4(), uuid4()
+    async with database() as uow:
+        assert await uow.processing.claim(task, owner)
+        await uow.processing.accumulate_usage(task.id, owner, Usage(model_calls=1, cost=0))
+        await uow.commit()
+    stats = await KnowledgeService(database).statistics()
+    assert stats.configured_cost == 0 and stats.model_calls == 1 and not stats.tasks_truncated
+
+    async with database() as uow:
+        await uow.processing.accumulate_usage(
+            task.id, owner, Usage(input_tokens=10, model_calls=2, cost=0.25)
+        )
+        await uow.processing.finish(task.model_copy(update={"status": "failed"}), owner)
+        await uow.commit()
+    async with database() as uow:
+        stored = await uow.processing.task(segment.revision_id, "usage")
+        assert stored and stored.usage.cost == pytest.approx(0.25)
+        assert stored.usage.model_calls == 3
+    assert (await KnowledgeService(database).statistics()).model_calls == 3
+    async with database() as uow:
+        assert await uow.processing.claim(task, successor)
+        await uow.processing.accumulate_usage(task.id, successor, Usage(model_calls=1))
+        await uow.processing.accumulate_usage(
+            task.id, successor, Usage(output_tokens=5, model_calls=1, cost=0.5)
+        )
+        await uow.processing.finish(task.model_copy(update={"status": "done"}), successor)
+        await uow.commit()
+
+    other = ProcessingTask(id=uuid4(), revision_id=segment.revision_id, fingerprint="priced")
+    async with database() as uow:
+        assert await uow.processing.claim(other, owner)
+        await uow.processing.accumulate_usage(other.id, owner, Usage(model_calls=1, cost=0.2))
+        await uow.processing.finish(other.model_copy(update={"status": "done"}), owner)
+        await uow.commit()
+    async with database() as uow:
+        stored = await uow.processing.task(segment.revision_id, "usage")
+        assert stored and stored.attempts == 2 and stored.usage.cost is None
+        assert stored.usage.model_calls == 5
+        assert stored.usage.input_tokens == 10 and stored.usage.output_tokens == 5
+    stats = await KnowledgeService(database).statistics()
+    assert stats.configured_cost is None and stats.model_calls == 6
+
+    legacy = ProcessingTask(id=uuid4(), revision_id=segment.revision_id, fingerprint="legacy")
+    async with database() as uow:
+        assert await uow.processing.claim(legacy, owner)
+        await uow.processing.accumulate_usage(legacy.id, owner, Usage(input_tokens=10, cost=0.1))
+        await uow.processing.finish(legacy.model_copy(update={"status": "failed"}), owner)
+        await uow.commit()
+    legacy_stats = await KnowledgeService(database).statistics()
+    assert legacy_stats.configured_cost is None and legacy_stats.model_calls is None
+    async with database() as uow:
+        assert await uow.processing.claim(legacy, successor)
+        await uow.processing.accumulate_usage(legacy.id, successor, Usage(model_calls=1, cost=0.1))
+        await uow.processing.finish(legacy.model_copy(update={"status": "done"}), successor)
+        await uow.commit()
+    async with database() as uow:
+        recorded = await uow.processing.task(segment.revision_id, "legacy")
+        assert recorded and recorded.usage.cost is None
+
+    empty = ProcessingTask(id=uuid4(), revision_id=segment.revision_id, fingerprint="empty")
+    async with database() as uow:
+        assert await uow.processing.claim(empty, owner)
+        await uow.processing.accumulate_usage(empty.id, owner, Usage())
+        await uow.processing.accumulate_usage(empty.id, owner, Usage(model_calls=1, cost=0.3))
+        await uow.processing.finish(empty.model_copy(update={"status": "done"}), owner)
+        await uow.commit()
+    async with database() as uow:
+        recorded = await uow.processing.task(segment.revision_id, "empty")
+        assert recorded and recorded.usage.model_calls == 1 and recorded.usage.cost is None
+
+    retry = ProcessingTask(id=uuid4(), revision_id=segment.revision_id, fingerprint="no-usage")
+    async with database() as uow:
+        assert await uow.processing.claim(retry, owner)
+        await uow.processing.finish(retry.model_copy(update={"status": "failed"}), owner)
+        await uow.commit()
+    async with database() as uow:
+        assert await uow.processing.claim(retry, successor)
+        await uow.processing.accumulate_usage(retry.id, successor, Usage(model_calls=1, cost=0.4))
+        await uow.processing.finish(retry.model_copy(update={"status": "done"}), successor)
+        await uow.commit()
+    async with database() as uow:
+        recorded = await uow.processing.task(segment.revision_id, "no-usage")
+        assert recorded and recorded.usage.cost == pytest.approx(0.4)
+
+
+async def test_processing_task_pages_and_usage_flag_truncated_results(database):
+    segment = await seed(database)
+    tasks = [
+        ProcessingTask(
+            id=UUID(int=index),
+            revision_id=segment.revision_id,
+            fingerprint=f"task-{index}",
+            status="done",
+            attempts=1,
+            usage=Usage(model_calls=1, cost=0),
+        )
+        for index in range(1, 1002)
+    ]
+    async with database() as uow:
+        uow.session.add_all(
+            [
+                TaskRow(
+                    id=task.id,
+                    revision_id=task.revision_id,
+                    fingerprint=task.fingerprint,
+                    status=task.status,
+                    attempts=task.attempts,
+                    payload=task.model_dump(mode="json"),
+                )
+                for task in tasks
+            ]
+        )
+        await uow.commit()
+    async with database() as uow:
+        first = await uow.processing.tasks(limit=2)
+        second = await uow.processing.tasks(limit=2, after=first[-1].id)
+        last = await uow.processing.tasks(limit=2, after=UUID(int=1000))
+        assert [task.id for task in first + second] == [task.id for task in tasks[:4]]
+        assert [task.id for task in last] == [tasks[-1].id]
+        assert not await uow.processing.tasks(limit=2, after=last[-1].id)
+    stats = await KnowledgeService(database).statistics()
+    assert stats.task_count == stats.model_calls == 1000
+    assert stats.tasks_truncated and stats.configured_cost == 0
 
 
 async def test_concurrent_repository_claim_contract(database):

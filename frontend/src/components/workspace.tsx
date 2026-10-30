@@ -112,7 +112,7 @@ export function LoadState({
 
 export function Empty({
   title = "Nothing to show yet",
-  description = "Try another search or filter. New results appear after ingestion.",
+  description = "Try another search or filter.",
 }: {
   title?: string;
   description?: string;

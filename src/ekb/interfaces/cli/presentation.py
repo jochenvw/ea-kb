@@ -32,7 +32,6 @@ def locations(settings: Settings, report: Path) -> dict[str, str]:
     return {
         "workspace": "http://127.0.0.1:8000",
         "issues": "http://127.0.0.1:8000/review",
-        "pipeline": "http://127.0.0.1:8000/pipeline",
         "artifacts": (settings.data_dir / "artifacts").resolve().as_uri(),
         "benchmark_cache": (settings.data_dir / "test-corpus/public/microsoft_security_benchmark")
         .resolve()
@@ -104,6 +103,7 @@ class ScanConsole:
             "reused",
             "metadata_only",
             "processed",
+            "skipped",
             "failed",
         }:
             self.line(f"  [{status:13}] {safe(item.name)}  ({item.id})")
@@ -135,6 +135,7 @@ class ScanConsole:
     def execution(self, execution: Execution) -> None:
         if execution.kind == "pipeline":
             self.run_id = execution.id
+            self.line(f"Run ID: {execution.id} (inspect with ekb pipeline status {execution.id})")
         if execution.kind != "stage":
             return
         if execution.status == "running":
@@ -155,6 +156,15 @@ class ScanConsole:
                 f"new issues={stats.get('new_issues', 0)}, "
                 f"checks done/reused={stats.get('checks_done', 0)}/{stats.get('checks_reused', 0)}."
             )
+
+    def checks(self, executions: tuple[Execution, ...]) -> None:
+        for execution in executions:
+            if execution.kind == "check":
+                error = f"; error={safe(execution.error)}" if execution.error else ""
+                self.line(
+                    f"  Check {safe(execution.processor_id)}: {execution.status} "
+                    f"(id={execution.id}, attempts={execution.attempts}{error})."
+                )
 
     def finish(
         self,

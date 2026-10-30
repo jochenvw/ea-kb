@@ -7,6 +7,7 @@ from ekb.domain.models import (
     Model,
     ProcessingTask,
     Provenance,
+    total_usage,
 )
 from ekb.ports import UnitOfWorkFactory
 
@@ -19,9 +20,11 @@ class LineageResult(Model):
 
 class Statistics(Model):
     task_count: int
+    tasks_truncated: bool
     failures: int
     input_tokens: int
     output_tokens: int
+    model_calls: int | None
     model_latency_ms: float
     configured_cost: float | None
     validation_failures: int
@@ -80,13 +83,23 @@ class KnowledgeService:
     async def statistics(self) -> Statistics:
         async with self.uow() as uow:
             tasks: list[ProcessingTask] = await uow.processing.tasks(limit=1000)
-        costs = [t.usage.cost for t in tasks if t.usage.cost is not None]
+            more = bool(
+                len(tasks) == 1000 and await uow.processing.tasks(limit=1, after=tasks[-1].id)
+            )
+        usage = total_usage([task.usage for task in tasks])
+        # Older accumulators could retain token counts but omit model calls and unknown prices.
+        missing_call_counts = any(
+            not task.usage.model_calls and (task.usage.input_tokens or task.usage.output_tokens)
+            for task in tasks
+        )
         return Statistics(
             task_count=len(tasks),
+            tasks_truncated=more,
             failures=sum(t.status in {"failed", "cancelled"} for t in tasks),
-            input_tokens=sum(t.usage.input_tokens for t in tasks),
-            output_tokens=sum(t.usage.output_tokens for t in tasks),
-            model_latency_ms=sum(t.usage.latency_ms for t in tasks),
-            configured_cost=sum(costs) if costs else None,
-            validation_failures=sum(t.usage.validation_failures for t in tasks),
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            model_calls=None if missing_call_counts else usage.model_calls,
+            model_latency_ms=usage.latency_ms,
+            configured_cost=None if missing_call_counts else usage.cost,
+            validation_failures=usage.validation_failures,
         )

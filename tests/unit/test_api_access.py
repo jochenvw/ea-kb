@@ -1,7 +1,13 @@
+import asyncio
+from typing import cast
+from unittest.mock import Mock
+
 import httpx
 import pytest
 
+from ekb.config import Settings
 from ekb.interfaces.api import create_app
+from ekb.runtime import Runtime
 
 
 @pytest.mark.asyncio
@@ -38,7 +44,6 @@ async def test_workspace_routes_serve_the_prebuilt_shell_without_templates():
             "/",
             "/knowledge",
             "/sources",
-            "/pipeline",
             "/benchmarks",
             "/explore",
             "/reconciliation",
@@ -53,3 +58,47 @@ async def test_workspace_routes_serve_the_prebuilt_shell_without_templates():
             assert response.content == shell.content
         assert (await client.get("/review?status=invalid")).status_code == 422
         assert (await client.get("/review?finding_id=invalid")).status_code == 422
+
+
+async def test_ingestion_routes_and_monitoring_schemas_are_absent():
+    app = create_app()
+    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 41000))
+    async with httpx.AsyncClient(transport=transport, base_url="http://ekb.test") as client:
+        for path in (
+            "/pipeline",
+            "/api/scans",
+            "/api/tasks",
+            "/api/statistics",
+            "/api/pipeline/status",
+        ):
+            assert (await client.get(path)).status_code == 404
+        assert (await client.post("/scans")).status_code == 404
+        schema = (await client.get("/openapi.json")).json()
+        assert "/scans" not in schema["paths"]
+        assert not {"ScanReport", "ProcessingTask", "Statistics"} & set(
+            schema["components"]["schemas"]
+        )
+
+
+async def test_web_lifespan_neither_starts_nor_cancels_ingestion(tmp_path):
+    runtime = Mock(spec=Runtime)
+    runtime.settings = Settings(data_dir=tmp_path)
+    runtime.pipeline.side_effect = AssertionError("Web must not run ingestion")
+    runtime.connectors.side_effect = AssertionError("Web must not select ingestion sources")
+    app = create_app(cast(Runtime, runtime))
+    release = asyncio.Event()
+    external = asyncio.create_task(release.wait())
+    try:
+        async with app.router.lifespan_context(app):
+            assert not hasattr(app.state, "scan_task")
+            transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 41000))
+            async with httpx.AsyncClient(transport=transport, base_url="http://ekb.test") as client:
+                assert (await client.get("/api/ui/config")).json() == {
+                    "governance_enabled": bool(runtime.settings.governance_token.get_secret_value())
+                }
+        assert not external.done()
+        runtime.pipeline.assert_not_called()
+        runtime.connectors.assert_not_called()
+    finally:
+        release.set()
+        await external

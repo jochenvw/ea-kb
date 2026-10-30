@@ -85,7 +85,6 @@ export default defineConfig(({ command }) => ({
     proxy: Object.fromEntries(
       [
         "/api",
-        "/scans",
         "/docs",
         "/openapi.json",
         "/health",

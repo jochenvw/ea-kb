@@ -272,44 +272,6 @@ export interface LogPage {
   truncated: boolean;
 }
 
-export interface Execution {
-  id: string;
-  kind: string;
-  processor_id: string;
-  status: string;
-  started_at: string;
-  finished_at: string | null;
-  attempts: number;
-  error: string | null;
-  statistics: Record<string, number>;
-}
-
-export interface Pipeline {
-  run: Execution;
-  executions: Execution[];
-}
-
-export interface Scan {
-  id: string;
-  started_at: string;
-  status: string;
-  discovered: number;
-  processed: number;
-  skipped: number;
-  failed: number;
-  concepts: number;
-}
-
-export interface Statistics {
-  task_count: number;
-  failures: number;
-  input_tokens: number;
-  output_tokens: number;
-  model_latency_ms: number;
-  configured_cost: number | null;
-  validation_failures: number;
-}
-
 export interface Control {
   control: {
     control: {

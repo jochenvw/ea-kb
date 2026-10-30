@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from ipaddress import ip_address
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
@@ -21,9 +21,7 @@ from ekb.config import Settings
 from ekb.domain.models import (
     ConceptDetail,
     KnowledgeLevel,
-    ProcessingTask,
     Provenance,
-    ScanReport,
     SourceRecord,
 )
 from ekb.domain.ontology import OntologyCatalog
@@ -36,9 +34,8 @@ from ekb.domain.reconciliation import (
 from ekb.domain.sources import SourceGroup, source_groups
 from ekb.interfaces.api.governance import register as register_governance
 from ekb.interfaces.api.inspection import register as register_inspection
-from ekb.observability import log
 from ekb.runtime import Runtime
-from ekb.services.knowledge import LineageResult, Statistics
+from ekb.services.knowledge import LineageResult
 
 WEB = Path(__file__).parent.parent / "web"
 
@@ -51,15 +48,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         active = provided_runtime or Runtime(settings)
         app.state.runtime = active
-        app.state.scan_task = None
         try:
             yield
         finally:
-            task = cast(asyncio.Task[None] | None, app.state.scan_task)
-            if task and not task.done():
-                task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await task
             if provided_runtime is None:
                 await active.__aexit__()
 
@@ -113,28 +104,12 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         async with active(request).database() as uow:
             return source_groups(await uow.sources.list())
 
-    @app.get("/api/scans", response_model=list[ScanReport])
-    async def scans(request: Request):
-        async with active(request).database() as uow:
-            return await uow.processing.scans()
-
-    @app.get("/api/tasks", response_model=list[ProcessingTask])
-    async def tasks(request: Request):
-        async with active(request).database() as uow:
-            return await uow.processing.tasks()
-
-    @app.get("/api/statistics", response_model=Statistics)
-    async def statistics(request: Request):
-        return await active(request).knowledge.statistics()
-
     @app.get("/api/ui/config")
     async def ui_configuration(request: Request) -> dict[str, bool]:
-        task = request.app.state.scan_task
         return {
             "governance_enabled": bool(
                 active(request).settings.governance_token.get_secret_value()
             ),
-            "scan_running": bool(task and not task.done()),
         }
 
     @app.get("/api/benchmarks/compare", response_model=ComparisonReport)
@@ -203,7 +178,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     @app.get("/knowledge", response_class=HTMLResponse)
     @app.get("/sources", response_class=HTMLResponse)
-    @app.get("/pipeline", response_class=HTMLResponse)
     @app.get("/benchmarks", response_class=HTMLResponse)
     @app.get("/explore", response_class=HTMLResponse)
     @app.get("/reconciliation", response_class=HTMLResponse)
@@ -225,40 +199,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     async def concept_page(request: Request, concept_id: UUID):
         await concept(request, concept_id)
         return FileResponse(shell)
-
-    @app.post("/scans")
-    async def start_scan(
-        request: Request,
-        public_manifest: Annotated[bool, Form()] = False,
-    ):
-        origin = request.headers.get("origin")
-        if origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
-            raise HTTPException(403, "Cross-origin scan requests are not allowed")
-        if request.headers.get("sec-fetch-site") == "cross-site":
-            raise HTTPException(403, "Cross-site scan requests are not allowed")
-        running = request.app.state.scan_task
-        if running and not running.done():
-            raise HTTPException(409, "A scan is already running")
-        runtime = active(request)
-        try:
-            connectors = runtime.connectors(
-                manifest=runtime.settings.manifest if public_manifest else None
-            )
-        except ValueError:
-            raise HTTPException(
-                400, "Configure EKB_SOURCE_DIRECTORY or select public sources"
-            ) from None
-
-        async def run_scan() -> None:
-            try:
-                await runtime.pipeline().scan(connectors)
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:
-                log.error("web_scan_failed", error_type=type(error).__name__)
-
-        request.app.state.scan_task = asyncio.create_task(run_scan())
-        return RedirectResponse("/", status_code=303)
 
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health")
     return app

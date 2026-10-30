@@ -193,9 +193,36 @@ def sources_sync(
 
 @scans_app.command("list")
 def scans_list() -> None:
+    """Inspect recent persisted scan reports, including source failure identifiers."""
+
     async def execute():
         async with Runtime() as runtime, runtime.database() as uow:
             return await uow.processing.scans()
+
+    emit(asyncio.run(execute()))
+
+
+@scans_app.command("tasks")
+def scans_tasks(
+    limit: Annotated[int, typer.Option(min=1, max=1000)] = 100,
+    after: Annotated[UUID | None, typer.Option(help="Continue after this task ID.")] = None,
+) -> None:
+    """Inspect processing failures, attempts and per-task usage in bounded pages."""
+
+    async def execute():
+        async with Runtime() as runtime, runtime.database() as uow:
+            return await uow.processing.tasks(limit=limit, after=after)
+
+    emit(asyncio.run(execute()))
+
+
+@scans_app.command("usage")
+def scans_usage() -> None:
+    """Summarize usage of up to 1,000 persisted tasks; unpriced cost is unknown."""
+
+    async def execute():
+        async with Runtime() as runtime:
+            return await runtime.knowledge.statistics()
 
     emit(asyncio.run(execute()))
 
@@ -380,15 +407,12 @@ def eval_benchmarks(
 
 
 @app.command()
-def tui(
-    directory: Annotated[Path | None, typer.Option()] = None,
-    manifest: Annotated[Path | None, typer.Option()] = None,
-) -> None:
+def tui() -> None:
     from ekb.interfaces.tui import KnowledgeApp
 
     async def execute():
         async with Runtime() as runtime:
-            await KnowledgeApp(runtime, directory, manifest).run_async()
+            await KnowledgeApp(runtime).run_async()
 
     asyncio.run(execute())
 
