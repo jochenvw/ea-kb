@@ -3,6 +3,7 @@
 This package runs source-grounded extraction, classification and qualification evaluations.
 `__init__.py` scores the golden dataset; `benchmarks.py` scores attributed source benchmarks.
 `skills.py` uses Pydantic Evals for isolated ontology/scope labeling and gold-routed extraction.
+Its retry totals use provider measurements; incomplete request or retry accounting stays unknown.
 `limits.py` coordinates optional per-request, per-deployment quota reservations for skill runs.
 `history.py` atomically publishes create-only reports and recoverable typed indexes for `eval list/history`.
 `goals.py` checks annual-report goal evidence, abstraction, scope, duplicates and provenance.

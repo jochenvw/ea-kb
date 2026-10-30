@@ -132,12 +132,17 @@ exceeds a configured limit is rejected before inference. Concurrency alone is no
 neither reservations nor post-run quality/cost gates are a provider billing cap.
 
 Reports distinguish observed requests and retries from estimated rate-limit reservations.
+`retry_count` sums explicitly measured retry attempts, not additional model calls: one skill may
+make multiple distinct calls. Built-in providers count started transport and validation retries;
+other providers may report an observed zero, or leave the count unknown. `throttle_count` separately
+counts observed HTTP 429 responses. Either total is null if its measurement is incomplete, including
+when a started case fails without returning usage. Per-case results retain any known counts.
 Provider-returned model IDs and cached-input token counts are retained when available; the actual
 model version, cache counts and throttles remain explicitly unknown when unavailable. A failed
-request may have consumed tokens even if it returned no usage: report total token usage and priced
-cost as unknown in that case, while retaining known partial counts. Cost is calculated from
-reported tokens and configured prices, not an invoice; cached-token discounts are not inferred.
-The current evaluator is deterministic and makes zero judge requests.
+request or successful response without complete token usage may have consumed unknown tokens:
+total token usage and priced cost remain unknown, while `reported_*` fields retain known partial
+counts. Cost is calculated from reported tokens and configured prices, not an invoice;
+cached-token discounts are not inferred. The current evaluator makes zero judge requests.
 
 Each run atomically publishes a uniquely named, create-only JSON report and compact index under
 `data\evaluation-history` by default; `--history-dir` can select another durable location, while
@@ -150,7 +155,9 @@ reports fail explicitly. Point `eval list --history-dir` and
 filters history by dataset or skill and reports deployment, actual IDs, quality and performance
 over time. Reports include dataset/gate hashes, evaluator and skill fingerprints, configuration,
 code revision/dirty state and timestamps.
-Do not edit retained reports; use a new run to preserve comparison history. The optional
+Do not edit retained reports; use a new run to preserve comparison history. Older reports remain
+readable and unchanged; their historic retry counts may have been estimated from request counts.
+The optional
 `--compare-concurrency` runs sequential and bounded-parallel arms only with explicit `--live`
 authorization and sufficient budget for equivalent work. It records both child reports and the
 comparison; interrupted comparisons retain their status and links to any started child runs.

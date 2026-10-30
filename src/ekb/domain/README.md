@@ -1,7 +1,8 @@
 # Domain values and evidence rules
 
 - `models.py` defines frozen schemas, identity/fingerprint helpers, scope, versions and provenance.
-- Strategic-goal level and request-count usage are evaluation metadata; neither creates OWL vocabulary.
+- Strategic-goal level and request/retry usage are evaluation metadata, not OWL vocabulary.
+  Retry counts are optional measurements, not inferred from multiple model calls.
 - `publication.py` assesses evidenced maturity and projects time/scoped authority independently.
 - `grounding.py` checks exact evidence substrings and relationship candidate references.
 - `skills.py` validates labeled scope evidence and extraction routing/qualifiers without model calls.

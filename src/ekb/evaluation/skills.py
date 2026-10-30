@@ -768,6 +768,16 @@ async def evaluate_skills(
             )
             for case, result in zip(cases, executions, strict=True)
         )
+        if not requests_complete:
+            usage = usage.model_copy(
+                update={
+                    "cost": None,
+                    "unmetered_model_calls": None,
+                    "retry_count": None,
+                    "throttles": None,
+                    "cached_input_tokens": None,
+                }
+            )
         metered = (
             requests_complete
             and usage.unmetered_model_calls == 0
@@ -860,11 +870,7 @@ async def evaluate_skills(
                 "reported_model_requests": usage.model_calls,
                 "reported_input_tokens": usage.input_tokens,
                 "reported_output_tokens": usage.output_tokens,
-                "retry_count": (
-                    sum(max(item.model_calls - 1, 0) for item in usages)
-                    if requests_complete
-                    else None
-                ),
+                "retry_count": usage.retry_count if requests_complete else None,
                 "throttle_count": usage.throttles if requests_complete else None,
                 "cache_hits": 0,
                 "provider_cache_hits": None,

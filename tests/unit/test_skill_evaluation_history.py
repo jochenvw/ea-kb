@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import threading
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 import httpx
@@ -35,6 +35,7 @@ from ekb.evaluation.skills import (
     EvalDataset,
     SkillCase,
     SkillDataset,
+    SkillExecution,
     SkillQualityEvaluator,
     compare_skill_concurrency,
     evaluate_skills,
@@ -100,6 +101,8 @@ class FixtureSkills(RulesInference):
                     output_tokens=5,
                     model_calls=1,
                     cost=0.001,
+                    retry_count=0,
+                    throttles=0,
                     cached_input_tokens=0,
                 ),
                 model_id="label-deployment",
@@ -122,6 +125,8 @@ class FixtureSkills(RulesInference):
                 output_tokens=5,
                 model_calls=1,
                 cost=0.001,
+                retry_count=0,
+                throttles=0,
                 cached_input_tokens=0,
             ),
             model_id="extract-deployment",
@@ -132,6 +137,52 @@ class FixtureSkills(RulesInference):
 
 def dataset() -> SkillDataset:
     return SkillDataset.model_validate_json(DATASET.read_bytes())
+
+
+def single_test_case_dataset(tmp_path):
+    original = dataset()
+    cases = tuple(
+        next(case for case in original.cases if case.split == split)
+        for split in ("train", "validation", "test")
+    )
+    path = tmp_path / "single-case-dataset.json"
+    path.write_text(
+        original.model_copy(update={"cases": cases}).model_dump_json(), encoding="utf-8"
+    )
+    return path, cases[-1]
+
+
+@asynccontextmanager
+async def mock_transport_adapter(provider, settings, handle):
+    if provider == "framework":
+        pytest.importorskip("agent_framework_openai")
+        transport = pytest.importorskip("httpx2")
+        from openai import AsyncOpenAI
+
+        async with transport.AsyncClient(
+            transport=transport.MockTransport(lambda request: handle(transport, request))
+        ) as client:
+            sdk = AsyncOpenAI(
+                api_key="synthetic",
+                base_url="https://example.test/v1",
+                http_client=client,
+                max_retries=0,
+            )
+            adapter = AgentFrameworkInference(settings, sdk_client=sdk)
+            try:
+                yield adapter
+            finally:
+                await adapter.close()
+                await sdk.close()
+    else:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda request: handle(httpx, request))
+        ) as client:
+            adapter = OpenAIInference(settings, client=client)
+            try:
+                yield adapter
+            finally:
+                await adapter.close()
 
 
 async def test_framework_scores_match_domain_scorer_for_errors_and_scope(tmp_path):
@@ -171,6 +222,15 @@ async def test_framework_scores_match_domain_scorer_for_errors_and_scope(tmp_pat
     assert not run["performance"]["usage_complete"]
     assert run["performance"]["measured_model_requests"] is None
     assert run["performance"]["reported_model_requests"] > 0
+    assert run["performance"]["retry_count"] is None
+    assert run["performance"]["throttle_count"] is None
+    assert run["usage"]["retry_count"] is None and run["usage"]["throttles"] is None
+    assert (
+        next(row for row in rows if row["result"]["error"] is None)["result"]["usage"][
+            "retry_count"
+        ]
+        == 0
+    )
     assert run["actual_model_ids"] == ["label-snapshot-v1"]
     assert 1 < inference.max_active <= 3
     assert "sensitive exception marker" not in json.dumps(report)
@@ -181,6 +241,87 @@ async def test_framework_scores_match_domain_scorer_for_errors_and_scope(tmp_pat
     assert label_entry["status"] == "partial"
     assert label_entry["latest_deployment"] == "label-deployment"
     assert label_entry["latest_actual_model_ids"] == ["label-snapshot-v1"]
+
+
+@pytest.mark.parametrize("reported", ["unknown", "none", "one", "mixed"])
+async def test_multicall_provider_reports_only_explicitly_observed_retries(tmp_path, reported):
+    selected = [case for case in dataset().cases if case.split == "test"]
+
+    class MultiCallSkills(FixtureSkills):
+        max_requests_per_skill = 2
+
+        async def label(self, segment):
+            result = await super().label(segment)
+            case = self.cases[segment.id]
+            count = (
+                None
+                if reported == "unknown" or (reported == "mixed" and case.id == selected[0].id)
+                else 0
+                if reported == "none"
+                else 1
+            )
+            return result.model_copy(
+                update={
+                    "usage": result.usage.model_copy(
+                        update={"model_calls": 2, "unmetered_model_calls": 0, "retry_count": count}
+                    )
+                }
+            )
+
+    report = await evaluate_skills(
+        DATASET,
+        GATES,
+        tmp_path / "latest.json",
+        MultiCallSkills(dataset()),
+        skill="labeling",
+        live=True,
+        max_model_calls=2 * len(selected),
+        history_dir=tmp_path / "history",
+    )
+    run = report["skills"]["labeling"]
+    expected = (
+        None if reported in {"unknown", "mixed"} else len(selected) if reported == "one" else 0
+    )
+    assert run["performance"]["measured_model_requests"] == 2 * len(selected)
+    assert run["performance"]["retry_count"] == run["usage"]["retry_count"] == expected
+    assert run["performance"]["throttle_count"] == 0
+    assert run["performance"]["usage_complete"]
+    if reported == "mixed":
+        assert run["cases"][0]["result"]["usage"]["retry_count"] is None
+        assert run["cases"][1]["result"]["usage"]["retry_count"] == 1
+
+
+async def test_legacy_skill_result_and_history_remain_readable(tmp_path):
+    legacy = {"requires_model": True, "usage": {"model_calls": 2, "input_tokens": 10}}
+    result = SkillExecution.model_validate(legacy)
+    assert result.usage.model_calls == 2 and result.usage.retry_count is None
+    report = {
+        "run_id": "legacy",
+        "recorded_at": "2026-01-01T00:00:00Z",
+        "status": "completed",
+        "dataset_path": str(DATASET),
+        "dataset_version": "v1",
+        "dataset_sha256": "legacy",
+        "split": "test",
+        "model_id": "legacy-model",
+        "live": True,
+        "errors": 0,
+        "passed": True,
+        "skills": {
+            "labeling": {
+                "metrics": {},
+                "quality_gates": {},
+                "performance": {"retry_count": 1},
+                "qualified": False,
+                "errors": 0,
+                "cases": [{"id": "legacy-case", "result": legacy}],
+            }
+        },
+    }
+    path = await persist_run(report, history=tmp_path)
+    original = path.read_bytes()
+    assert skill_history(history=tmp_path)[0]["performance"]["retry_count"] == 1
+    assert path.read_bytes() == original
 
 
 async def test_framework_submission_and_result_association_are_bounded(tmp_path, monkeypatch):
@@ -507,6 +648,7 @@ async def test_provider_retries_stay_within_reservation_and_report_actual_models
     assert run["performance"]["model_call_budget_reserved"] == 6
     assert run["performance"]["rate_limit_estimated_requests"] == 6
     assert run["performance"]["retry_count"] == 5
+    assert run["cases"][0]["result"]["usage"]["retry_count"] == 5
     assert run["performance"]["throttle_count"] == 4
     assert run["performance"]["unmetered_model_requests"] == 4
     assert not run["performance"]["usage_complete"]
@@ -515,6 +657,170 @@ async def test_provider_retries_stay_within_reservation_and_report_actual_models
     assert run["actual_model_ids"] == ["snapshot-a", "snapshot-b"]
     assert run["cases"][0]["result"]["provider_model_identity_complete"] is False
     assert report["status"] == "partial"
+
+
+@pytest.mark.parametrize("provider", ["direct", "framework"])
+async def test_validation_retry_with_missing_usage_is_not_priced(tmp_path, provider):
+    dataset_path, case = single_test_case_dataset(tmp_path)
+    responses = 0
+
+    def handle(transport, _request):
+        nonlocal responses
+        responses += 1
+        response = {
+            "id": "offline-response",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "snapshot",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {
+                        "role": "assistant",
+                        "content": "not-json"
+                        if responses == 1
+                        else case.labeling.model_dump_json(),
+                    },
+                }
+            ],
+        }
+        if responses > 1:
+            response["usage"] = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        return transport.Response(200, json=response)
+
+    settings = Settings(
+        model_id="deployment", model_retries=1, model_input_price=1, model_output_price=1
+    )
+    async with mock_transport_adapter(provider, settings, handle) as adapter:
+        report = await evaluate_skills(
+            dataset_path,
+            GATES,
+            tmp_path / "latest.json",
+            adapter,
+            skill="labeling",
+            live=True,
+            max_model_calls=6,
+            history_dir=tmp_path / "history",
+        )
+    run = report["skills"]["labeling"]
+    performance = run["performance"]
+    assert responses == performance["measured_model_requests"] == 2
+    assert performance["retry_count"] == 1 and performance["throttle_count"] == 0
+    assert performance["unmetered_model_requests"] == 1
+    assert performance["reported_input_tokens"] == 10 and performance["reported_output_tokens"] == 5
+    assert performance["measured_input_tokens"] is performance["measured_cost"] is None
+    assert not performance["usage_complete"] and not run["qualified"]
+    assert run["usage"]["unmetered_model_calls"] == 1 and run["usage"]["cost"] is None
+
+
+async def test_framework_counts_real_wrapped_transport_and_validation_retries(monkeypatch):
+    case = next(case for case in dataset().cases if case.split == "test")
+    responses = 0
+
+    def handle(transport, request):
+        nonlocal responses
+        responses += 1
+        if responses == 1:
+            return transport.Response(429, json={"error": {"message": "offline throttle"}})
+        if responses == 2:
+            raise transport.ConnectError("offline connection failure", request=request)
+        if responses == 4:
+            return transport.Response(503, json={"error": {"message": "offline server failure"}})
+        return transport.Response(
+            200,
+            json={
+                "id": "offline-response",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "snapshot",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "not-json" if responses == 3 else case.labeling.model_dump_json()
+                            ),
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            },
+        )
+
+    async def fast_retry(operation):
+        return await retry(operation, base_delay=0)
+
+    monkeypatch.setattr(inference_module, "retry", fast_retry)
+    limiter = DeploymentRateLimiter(requests_per_minute=5)
+    settings = Settings(
+        model_id="deployment", model_retries=1, model_input_price=1, model_output_price=1
+    )
+    async with mock_transport_adapter("framework", settings, handle) as adapter:
+        with adapter.limit_model_requests(limiter):
+            result = await adapter.label(case.segment())
+    assert responses == result.usage.model_calls == 5
+    assert result.usage.retry_count == 4 and result.usage.throttles == 1
+    assert result.usage.validation_failures == 1
+    assert result.usage.unmetered_model_calls == 3 and result.usage.cost is None
+    assert limiter.requests_reserved() == {"deployment": 5}
+    assert result.provider_model_identity_complete is False
+
+
+async def test_framework_does_not_retry_wrapped_nontransient_errors():
+    case = next(case for case in dataset().cases if case.split == "test")
+    responses = 0
+
+    def handle(transport, _request):
+        nonlocal responses
+        responses += 1
+        return transport.Response(401, json={"error": {"message": "offline authorization failure"}})
+
+    async with mock_transport_adapter(
+        "framework", Settings(model_id="deployment"), handle
+    ) as adapter:
+        with pytest.raises(httpx.HTTPStatusError) as raised:
+            await adapter.label(case.segment())
+    assert responses == 1 and raised.value.response.status_code == 401
+
+
+async def test_failed_framework_retries_keep_totals_unknown(tmp_path, monkeypatch):
+    dataset_path, _ = single_test_case_dataset(tmp_path)
+    responses = 0
+
+    def handle(transport, _request):
+        nonlocal responses
+        responses += 1
+        return transport.Response(429, json={"error": {"message": "offline throttle"}})
+
+    async def fast_retry(operation):
+        return await retry(operation, base_delay=0)
+
+    monkeypatch.setattr(inference_module, "retry", fast_retry)
+    limiter = DeploymentRateLimiter(requests_per_minute=3)
+    async with mock_transport_adapter(
+        "framework", Settings(model_id="deployment", model_retries=0), handle
+    ) as adapter:
+        report = await evaluate_skills(
+            dataset_path,
+            GATES,
+            tmp_path / "latest.json",
+            adapter,
+            skill="labeling",
+            live=True,
+            max_model_calls=3,
+            history_dir=tmp_path / "history",
+            rate_limiter=limiter,
+        )
+    performance = report["skills"]["labeling"]["performance"]
+    usage = report["skills"]["labeling"]["usage"]
+    assert report["status"] == "failed" and responses == 3
+    assert performance["rate_limit_estimated_requests"] == 3
+    assert performance["measured_model_requests"] is None
+    assert performance["retry_count"] is performance["throttle_count"] is None
+    assert usage["retry_count"] is usage["throttles"] is usage["unmetered_model_calls"] is None
 
 
 async def test_framework_sdk_retries_cannot_bypass_adapter_request_bound():

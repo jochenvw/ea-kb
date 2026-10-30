@@ -11,8 +11,10 @@ Canonical OWL definitions are appended by task; definition/schema changes invali
   A separate labeling deployment is optional; unknown layers remain explicit.
 - Rules are an explicitly limited offline baseline, not an automatic model-failure fallback.
 - Model output must pass schema/exact-evidence validation; retries and context limits are bounded.
-- Successful skill results count requests/retries/throttles and preserve provider-reported model IDs
-  and cached-input tokens when available; failed requests can leave token usage and cost unknown.
+- Successful skill results measure started transport/validation retries and throttles, and preserve
+  provider model IDs and cached-input tokens when available. Missing usage keeps cost unknown.
+- Agent Framework wraps SDK transport errors; the adapter maps their underlying status/connection
+  errors to the same bounded retry policy as direct HTTP without retrying non-transient failures.
 - Each configured adapter exposes its maximum requests per skill, including transient and validation
   attempts. Injected SDK clients and HTTP transports must disable their own retries. A scoped request
   limiter reserves each transport attempt for the actual deployment; use a dedicated evaluation instance.

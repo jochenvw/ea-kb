@@ -377,6 +377,7 @@ class Usage(Model):
     cost: float | None = Field(default=None, ge=0)
     validation_failures: int = Field(default=0, ge=0)
     unmetered_model_calls: int | None = Field(default=None, ge=0)
+    retry_count: int | None = Field(default=None, ge=0)
     throttles: int | None = Field(default=None, ge=0)
     cached_input_tokens: int | None = Field(default=None, ge=0)
 
@@ -388,6 +389,14 @@ def total_usage(usages: list[Usage]) -> Usage:
         else 0
         if usage.model_calls == 0
         or (usage.model_calls == 1 and usage.input_tokens > 0 and usage.output_tokens > 0)
+        else None
+        for usage in usages
+    ]
+    retries = [
+        usage.retry_count
+        if usage.retry_count is not None
+        else 0
+        if usage.model_calls == 0
         else None
         for usage in usages
     ]
@@ -415,6 +424,11 @@ def total_usage(usages: list[Usage]) -> Usage:
         unmetered_model_calls=(
             sum(value for value in unmetered if value is not None)
             if all(value is not None for value in unmetered)
+            else None
+        ),
+        retry_count=(
+            sum(value for value in retries if value is not None)
+            if all(value is not None for value in retries)
             else None
         ),
         throttles=(

@@ -149,6 +149,7 @@ async def test_two_skills_route_mixed_scope_and_account_for_separate_models():
     assert result.extraction == extraction
     assert result.labeling and result.labeling.model_id == "tiny-labeler"
     assert result.usage.input_tokens == 20
+    assert result.usage.model_calls == 2 and result.usage.retry_count == 0
     assert result.usage.cost == pytest.approx(0.00006)
 
 

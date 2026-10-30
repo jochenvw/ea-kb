@@ -70,6 +70,14 @@ SCOPED_INSTRUCTIONS = (
 LABEL_PROMPT_VERSION = "ontology-labeling-v1:" + fingerprint(prompt=LABEL_INSTRUCTIONS)
 SCOPED_PROMPT_VERSION = "scoped-extraction-v1:" + fingerprint(prompt=SCOPED_INSTRUCTIONS)
 
+type _Completion = tuple[str, int | None, int | None, str | None, int | None]
+
+
+def _reported_token_count(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
 
 def _rules_extraction(segment: Segment) -> Extraction:
     candidates = []
@@ -285,11 +293,11 @@ class OpenAIInference:
         content, input_tokens, output_tokens, _, _ = await self._complete_with_metadata(
             messages, schema
         )
-        return content, input_tokens, output_tokens
+        return content, input_tokens or 0, output_tokens or 0
 
     async def _complete_with_metadata(
         self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
-    ) -> tuple[str, int, int, str | None, int | None]:
+    ) -> _Completion:
         payload: dict[str, Any] = {
             "model": self.settings.labeling_model_id or self.capabilities.model_id
             if schema is ContentLabeling
@@ -321,7 +329,8 @@ class OpenAIInference:
         content = body["choices"][0]["message"]["content"]
         if not isinstance(content, str):
             raise ValueError("Model did not return text content")
-        usage = body.get("usage", {})
+        reported_usage = body.get("usage")
+        usage = reported_usage if isinstance(reported_usage, dict) else {}
         provider_model = body.get("model")
         input_details = usage.get("prompt_tokens_details")
         cached_tokens = (
@@ -329,10 +338,10 @@ class OpenAIInference:
         )
         return (
             content,
-            usage.get("prompt_tokens", 0),
-            usage.get("completion_tokens", 0),
+            _reported_token_count(usage.get("prompt_tokens")),
+            _reported_token_count(usage.get("completion_tokens")),
             provider_model if isinstance(provider_model, str) else None,
-            cached_tokens if isinstance(cached_tokens, int) and cached_tokens >= 0 else None,
+            _reported_token_count(cached_tokens),
         )
 
     async def extract(self, segment: Segment) -> InferenceResult:
@@ -405,24 +414,29 @@ class OpenAIInference:
             if schema is ContentLabeling
             else self.capabilities.model_id
         )
-        input_tokens, output_tokens, failures, model_calls = 0, 0, 0, 0
-        successful_responses = throttles = 0
+        input_tokens, output_tokens, failures, model_calls, retry_count = 0, 0, 0, 0, 0
+        successful_responses = metered_responses = throttles = 0
         cached_input_tokens = 0
         cache_usage_known = True
         provider_identity_known = True
         provider_model_ids: list[str] = []
 
-        async def complete() -> tuple[str, int, int, str | None, int | None]:
-            nonlocal model_calls, throttles
-            model_calls += 1
-            try:
-                return await self._complete_with_metadata(messages, schema)
-            except httpx.HTTPStatusError as error:
-                if error.response.status_code == 429:
-                    throttles += 1
-                raise
-
         for attempt in range(self.settings.model_retries + 1):
+            transport_attempts = 0
+
+            async def complete(validation_attempt: int = attempt) -> _Completion:
+                nonlocal model_calls, retry_count, throttles, transport_attempts
+                if validation_attempt > 0 or transport_attempts > 0:
+                    retry_count += 1
+                transport_attempts += 1
+                model_calls += 1
+                try:
+                    return await self._complete_with_metadata(messages, schema)
+                except httpx.HTTPStatusError as error:
+                    if error.response.status_code == 429:
+                        throttles += 1
+                    raise
+
             if (
                 sum(len(message["content"].encode()) for message in messages)
                 + self.settings.model_max_output_tokens
@@ -450,10 +464,14 @@ class OpenAIInference:
                     provider_model_ids.append(provider_model)
                 else:
                     provider_identity_known = False
-                input_tokens += tokens_in
-                output_tokens += tokens_out
-                span.set_attribute("model.input_tokens", tokens_in)
-                span.set_attribute("model.output_tokens", tokens_out)
+                if tokens_in is not None:
+                    input_tokens += tokens_in
+                    span.set_attribute("model.input_tokens", tokens_in)
+                if tokens_out is not None:
+                    output_tokens += tokens_out
+                    span.set_attribute("model.output_tokens", tokens_out)
+                if tokens_in is not None and tokens_out is not None:
+                    metered_responses += 1
                 await self._debug(
                     segment,
                     messages,
@@ -499,7 +517,7 @@ class OpenAIInference:
                 if (
                     price_in is not None
                     and price_out is not None
-                    and successful_responses == model_calls
+                    and metered_responses == model_calls
                 ):
                     cost = (input_tokens * price_in + output_tokens * price_out) / 1_000_000
                 return (
@@ -511,7 +529,8 @@ class OpenAIInference:
                         latency_ms=(time.monotonic() - started) * 1000,
                         cost=cost,
                         validation_failures=failures,
-                        unmetered_model_calls=model_calls - successful_responses,
+                        unmetered_model_calls=model_calls - metered_responses,
+                        retry_count=retry_count,
                         throttles=throttles,
                         cached_input_tokens=(
                             cached_input_tokens
@@ -590,8 +609,9 @@ class AgentFrameworkInference(OpenAIInference):
 
     async def _complete_with_metadata(
         self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
-    ) -> tuple[str, int, int, str | None, int | None]:
+    ) -> _Completion:
         from agent_framework import ChatOptions, Message
+        from agent_framework.exceptions import ChatClientException
         from openai import APIConnectionError, APIStatusError
 
         try:
@@ -613,22 +633,25 @@ class AgentFrameworkInference(OpenAIInference):
                 messages=[Message(role=m["role"], contents=[m["content"]]) for m in messages],
                 options=cast(ChatOptions[Any], options),
             )
-        except APIStatusError as error:
-            request = httpx.Request("POST", self.settings.model_endpoint)
-            raise httpx.HTTPStatusError(
-                "Model endpoint returned an error",
-                request=request,
-                response=httpx.Response(error.status_code, request=request),
-            ) from None
-        except APIConnectionError:
-            raise httpx.ConnectError("Model endpoint connection failed") from None
+        except (APIStatusError, APIConnectionError, ChatClientException) as error:
+            underlying = error.__cause__ if isinstance(error, ChatClientException) else error
+            if isinstance(underlying, APIStatusError):
+                request = httpx.Request("POST", self.settings.model_endpoint)
+                raise httpx.HTTPStatusError(
+                    "Model endpoint returned an error",
+                    request=request,
+                    response=httpx.Response(underlying.status_code, request=request),
+                ) from None
+            if isinstance(underlying, APIConnectionError):
+                raise httpx.ConnectError("Model endpoint connection failed") from None
+            raise
         usage = response.usage_details or {}
         return (
             response.text,
-            usage.get("input_token_count") or 0,
-            usage.get("output_token_count") or 0,
+            _reported_token_count(usage.get("input_token_count")),
+            _reported_token_count(usage.get("output_token_count")),
             response.model,
-            usage.get("cache_read_input_token_count"),
+            _reported_token_count(usage.get("cache_read_input_token_count")),
         )
 
     async def close(self) -> None:

@@ -70,6 +70,7 @@ async def test_model_validation_retry_and_usage_accounting():
     assert calls[0]["response_format"]["type"] == "json_schema"
     assert result.usage.input_tokens == 20 and result.usage.output_tokens == 10
     assert result.usage.model_calls == 2
+    assert result.usage.retry_count == 1
     assert result.usage.validation_failures == 1
     assert result.usage.cost == pytest.approx(0.00004)
 

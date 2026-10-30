@@ -9,7 +9,8 @@ cache-only discovery, resumable downloads, parser replay and corruption rejectio
 `test_ingestion_skills.py` covers labeling/routing, scope/qualifier gates, SDK transport and replay.
 It also checks Pydantic Evals concurrency/budgets, immutable history, mixed labels and source evidence.
 `test_skill_evaluation_history.py` covers scorer parity, bounded submission, quota accounting,
-provider identity/cache evidence, cancellation, atomic history and incomparable run conditions.
+multi-call/retry measurements, provider identity/cache evidence, partial usage, cancellation,
+atomic history and incomparable run conditions using offline transports.
 `test_nist_evaluation.py` covers supplied references, native PDF hierarchy, evidence, replay and unrun negatives.
 `test_ontology.py` checks exact OWL definitions, domain/SQL/browser parity and read-only access.
 `test_frugal_evaluation.py` covers split leakage, train-only exports, quality/cost gates and suite failure.

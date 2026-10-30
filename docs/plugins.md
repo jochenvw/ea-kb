@@ -64,7 +64,10 @@ the supplied `ModelRequestLimiter` immediately before every actual provider requ
 retries, using the actual deployment ID. The scoped hook must restore state on cancellation; use a
 dedicated inference instance for the evaluation. Report provider model IDs in response order and
 mark identity completeness only when every request's identity is known. Injected HTTP transports
-must disable their own retries so these bounds cannot be bypassed.
+must disable their own retries so these bounds cannot be bypassed. Set `Usage.retry_count` only
+when retry attempts actually started are measured, including validation and transport retries but
+not distinct model calls. Leave it null if unknown; `Usage.throttles` likewise requires observed
+429 responses. Older usage records without retry metadata remain valid and default to unknown.
 
 Labels use the existing replay store with an empty extraction and typed `labeling` result; its
 checkpoint commits before extraction, including newly incurred labeling usage under ownership fencing.
