@@ -217,7 +217,9 @@ async def test_framework_scores_match_domain_scorer_for_errors_and_scope(tmp_pat
         assert {key: row["scores"][key]["value"] for key in ("tp", "fp", "fn")} == {
             key: expected[key] for key in ("tp", "fp", "fn")
         }
-    assert not rows[0]["assertions"]["case_exact_match"]["value"]
+    rows_by_id = {row["id"]: row for row in rows}
+    for case_id in ("source-boundary-protection", "test-conceptual", "test-mixed-scopes"):
+        assert not rows_by_id[case_id]["assertions"]["case_exact_match"]["value"]
     assert report["status"] == "partial" and not run["safety_gates"]["no_errors"]
     assert not run["performance"]["usage_complete"]
     assert run["performance"]["measured_model_requests"] is None
