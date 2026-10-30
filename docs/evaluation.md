@@ -173,8 +173,12 @@ request or unknown cache accounting makes the comparison incomparable, not impli
 Provider-reported model identifiers are not necessarily immutable model versions; versions remain
 unknown unless explicitly available. Offline, live without cached input, live with cached input and
 unknown-cache runs are identified separately; there is no skill-evaluation-layer cache. A comparison
-may incur provider cost. No live comparison was authorized for this implementation, so live speedup,
-throttling and cost remain unverified.
+may incur provider cost. The 2026-10-30 extraction test-split pilot on the configured GPT-6
+deployment preserved identical case scores and quality metrics. Eight-way execution reduced wall
+time from 37.6 seconds to 19.0 seconds (1.98x), with nine requests per arm and no failures,
+retries or throttles. Parallel p95 case latency increased from 4.7 seconds to 18.9 seconds and
+failed the latency gate, so the result does not justify raising concurrency indiscriminately.
+Provider pricing was not configured, so cost remains unknown rather than zero.
 
 ### Document classification and mixed ontology layers
 
