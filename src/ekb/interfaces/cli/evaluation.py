@@ -14,6 +14,7 @@ from ekb.domain.models import content_hash
 from ekb.evaluation.dataset import Split, load_dataset
 from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
+from ekb.evaluation.skills import SkillSelection, evaluate_skills
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
 
@@ -67,8 +68,8 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             selected = TypeAdapter(Split).validate_python(split)
             if live:
                 settings = Settings()
-                if settings.inference != "openai":
-                    raise ValueError("Set EKB_INFERENCE=openai for live qualification")
+                if settings.inference not in {"openai", "agent-framework"}:
+                    raise ValueError("Select agent-framework or openai for live qualification")
                 async with Runtime(settings) as runtime:
                     return await qualify(
                         dataset,
@@ -105,6 +106,47 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                 return await export_training(dataset, output, teacher, max_cases)
             finally:
                 await teacher.close()
+
+        execute(operation)
+
+    @evaluations.command("skills")
+    def skills(
+        skill: Annotated[str, typer.Option()] = "both",
+        live: Annotated[bool, typer.Option()] = False,
+        split: Annotated[str, typer.Option()] = "test",
+        dataset: Annotated[Path, typer.Option()] = Path("evals") / "skills-v1.json",
+        output: Annotated[Path, typer.Option()] = Path("data") / "skill-evaluation.json",
+        max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
+    ):
+        """Evaluate labeling and gold-routed extraction independently; paid calls require --live."""
+
+        async def operation():
+            selection = TypeAdapter(SkillSelection).validate_python(skill)
+            selected = TypeAdapter(Split).validate_python(split)
+            if live:
+                settings = Settings()
+                if settings.inference not in {"openai", "agent-framework"}:
+                    raise ValueError("Select agent-framework or openai for live skill evaluation")
+                async with Runtime(settings) as runtime:
+                    return await evaluate_skills(
+                        dataset,
+                        GATES,
+                        output,
+                        runtime.inference,
+                        skill=selection,
+                        split=selected,
+                        live=True,
+                        max_cases=max_cases,
+                    )
+            return await evaluate_skills(
+                dataset,
+                GATES,
+                output,
+                RulesInference(),
+                skill=selection,
+                split=selected,
+                max_cases=max_cases,
+            )
 
         execute(operation)
 

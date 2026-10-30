@@ -1,15 +1,16 @@
-# Enterprise Knowledge Base — formal ontology v0.1.0-draft.1
+# Enterprise Knowledge Base — formal ontology v0.1.0-draft.2
 
 A deliberately small OWL 2 / RDF vocabulary, serialized in Turtle.
 
-Stored here as supplied; application loading, validation and reasoning are not yet integrated.
+The ingestion skills use these semantic class names in typed labels and extraction contracts.
+Runtime OWL loading, SHACL enforcement and reasoning are not integrated.
 Run the optional commands below from the repository root.
 
 ## Files
 
-- `ontology/ekb.ttl` — normative vocabulary: **six classes** across four layers, **seven semantic relationships** and two classification properties.
+- `ontology/ekb.ttl` — normative vocabulary: **seven classes**, including organizational scope, across four architecture layers; seven semantic relationships and four scope/classification properties.
 - `ontology/ekb.shacl.ttl` — minimal validation of instance data.
-- `examples/security-chain.ttl` — synthetic example illustrating a four-layer lineage chain; **not an assertion about any real company's policy**.
+- `examples/security-chain.ttl` — neutral examples of a four-layer lineage chain and nested organizational scopes; **not an assertion about any real company's policy**.
 
 ## Layers
 
@@ -18,13 +19,21 @@ Run the optional commands below from the repository root.
 3. **Logical:** `TechnicalRequirement`.
 4. **Platform:** `PlatformRequirement`.
 
+## Organizational scope
+
+`OrganizationalScope` represents an organizational unit or boundary. `subScopeOf` points from
+narrower to broader scope and is transitive. `appliesToScope` records the scope explicitly associated
+with a goal or requirement. The ontology does not infer that applicability automatically propagates
+to sub-scopes.
+
 ## Seven semantic relationships
 
 `refines`, `supports`, `constrains`, `mapsTo`, `dependsOn`, `tensionWith`, `conflictsWith`.
 
 `refines` always points from a **specific** requirement to a **broader** one. `mapsTo` never implies that the items are identical or that compliance is achieved. Tension and conflict are distinct claims, and are symmetric.
 
-`inDomain` and `platformName` are classification metadata, not additional business-semantic relationship types.
+`inDomain`, `platformName`, and the two scope properties are metadata/structure, not additional
+business-semantic relationship types.
 
 ## Intentionally separate from this ontology
 

@@ -21,7 +21,7 @@ from ekb.domain.models import fingerprint
 from ekb.observability import configure, flush
 from ekb.orchestration import PipelineOrchestrator, StageRegistry
 from ekb.pipeline import IngestionPipeline
-from ekb.ports import ArtifactStore, InferencePort, SourceConnector
+from ekb.ports import ArtifactStore, IngestionSkills, SourceConnector
 from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
 from ekb.services.assertions import AssertionService
 from ekb.services.issue_service import IssueService
@@ -56,7 +56,7 @@ class Runtime:
                 / "public"
                 / "microsoft_security_benchmark",
             )
-        self.inference: InferencePort
+        self.inference: IngestionSkills
         match self.settings.inference:
             case "openai":
                 self.inference = OpenAIInference(self.settings)
@@ -138,7 +138,7 @@ class Runtime:
                     ingestion.progress = progress.source
                 report = await ingestion.scan(
                     connectors,
-                    staged=staged,
+                    staged=True,
                     phase=progress.phase if progress else None,
                     initial_downloads=downloads,
                 )
@@ -153,6 +153,8 @@ class Runtime:
                     fingerprint(
                         parser=self.parser.version,
                         inference=self.inference.prompt_version,
+                        labeling=self.inference.label_fingerprint,
+                        extraction=self.inference.extraction_fingerprint,
                         model=self.inference.capabilities.model_id,
                         temperature=self.settings.model_temperature,
                         token_parameter=self.settings.model_max_token_parameter,

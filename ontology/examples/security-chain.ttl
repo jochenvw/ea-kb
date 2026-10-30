@@ -31,3 +31,22 @@ ex:AzureWafGuideline a ekb:PlatformRequirement ;
     ekb:platformName "Azure" ;
     ekb:inDomain ex:NetworkSecurity ;
     ekb:refines ex:WafProtection .
+
+ex:ExampleOrganization a ekb:OrganizationalScope ;
+    rdfs:label "Example organization"@en .
+
+ex:ExampleBusinessUnit a ekb:OrganizationalScope ;
+    rdfs:label "Example business unit"@en ;
+    ekb:subScopeOf ex:ExampleOrganization .
+
+ex:ExampleTeam a ekb:OrganizationalScope ;
+    rdfs:label "Example team"@en ;
+    ekb:subScopeOf ex:ExampleBusinessUnit .
+
+ex:BusinessUnitGoal a ekb:StrategicGoal ;
+    rdfs:label "Improve business-unit service quality"@en ;
+    ekb:appliesToScope ex:ExampleBusinessUnit .
+
+ex:OrganizationRequirement a ekb:StrategicRequirement ;
+    rdfs:label "Protect organizational information"@en ;
+    ekb:appliesToScope ex:ExampleOrganization .

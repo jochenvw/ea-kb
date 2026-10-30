@@ -19,9 +19,11 @@ from ekb.domain.models import (
     Capabilities,
     ConceptDetail,
     ConceptVersion,
+    ContentLabeling,
     FetchResult,
     InferenceResult,
     KnowledgeLevel,
+    LabelingResult,
     ProcessingTask,
     Provenance,
     PublicationMetadata,
@@ -70,6 +72,16 @@ class InferencePort(Protocol):
     prompt_version: str
 
     async def extract(self, segment: Segment) -> InferenceResult: ...
+
+
+class IngestionSkills(InferencePort, Protocol):
+    label_fingerprint: str
+    extraction_fingerprint: str
+
+    async def label(self, segment: Segment) -> LabelingResult: ...
+    async def extract_scoped(
+        self, segment: Segment, labeling: ContentLabeling
+    ) -> InferenceResult: ...
 
 
 class AssertionWriter(Protocol):

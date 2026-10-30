@@ -83,6 +83,11 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   must preserve identity, evidence, checkpoint and transaction semantics, not just method names.
 - Keep provider-specific capability checks, credentials, retry details and optional SDK imports
   in adapters. Do not assume structured output, vision or embeddings are supported.
+- Prefer Microsoft Agent Framework for model-backed skills, behind typed ports. Separate distinct
+  semantic responsibilities into independently versioned prompts, contracts, replay and evaluations.
+  Keep file indexing and sufficient deterministic transformations outside model calls. Select the
+  smallest model that meets measured precision, grounding, scope and recall gates; never weaken
+  precision to reduce cost or silently fall back to an unqualified model.
 - Keep CLI, TUI, web and MCP interfaces thin and backed by shared application services.
 
 ## Protect efficiency, provenance and durable state

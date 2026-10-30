@@ -1,6 +1,6 @@
 # Select with EKB_CONFIG_FILE=config/azure.yaml. Set endpoint/database/model values in environment.
 data_dir: /data
-inference: openai
+inference: agent-framework
 model_managed_identity: true
 artifact_backend: azure
 blob_container: ekb

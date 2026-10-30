@@ -55,7 +55,7 @@ def test_foundry_profile_requires_explicit_https_endpoint(monkeypatch):
     assert "input_value" not in invalid.output and "ValidationError" not in invalid.output
     monkeypatch.setenv("EKB_MODEL_ENDPOINT", "https://example.openai.azure.com/openai/v1")
     settings = Settings(config_file=Path("config/foundry.yaml"))
-    assert settings.model_managed_identity and settings.inference == "openai"
+    assert settings.model_managed_identity and settings.inference == "agent-framework"
     assert settings.artifact_backend == "filesystem"
 
 

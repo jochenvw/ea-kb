@@ -40,7 +40,7 @@ class FilesystemConnector:
             for directory, _, filenames in self.root.walk(on_error=on_error, follow_symlinks=False):
                 for filename in sorted(filenames):
                     path = directory / filename
-                    if path.suffix.casefold() not in FORMATS or path.is_symlink():
+                    if path.is_symlink():
                         continue
                     stat = path.stat()
                     yield SourceItem(
@@ -50,7 +50,18 @@ class FilesystemConnector:
                         name=path.name,
                         format=path.suffix[1:].casefold(),
                         indicator=f"{stat.st_mtime_ns}:{stat.st_size}:{stat.st_ctime_ns}",
-                        metadata={"path": str(path), "size": stat.st_size},
+                        metadata={
+                            "path": str(path),
+                            "size": stat.st_size,
+                            **(
+                                {
+                                    "metadata_only": True,
+                                    "unsupported_format": True,
+                                }
+                                if path.suffix.casefold() not in FORMATS
+                                else {}
+                            ),
+                        },
                     )
 
         iterator = walk()

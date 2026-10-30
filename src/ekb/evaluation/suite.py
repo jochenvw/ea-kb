@@ -12,6 +12,7 @@ from ekb.adapters.inference import RulesInference
 from ekb.config import Settings
 from ekb.evaluation.dataset import write_json
 from ekb.evaluation.frugal import qualify
+from ekb.evaluation.skills import evaluate_skills
 from ekb.runtime import Runtime
 
 
@@ -105,7 +106,7 @@ async def run_suite(
     if not unit_only and not os.environ.get("EKB_TEST_DATABASE_URL"):
         raise ValueError("Set EKB_TEST_DATABASE_URL for the full suite, or select --unit-only")
     if live and (
-        settings.inference != "openai"
+        settings.inference not in {"openai", "agent-framework"}
         or not settings.model_id
         or not settings.reconciliation_model_id
         or not settings.embedding_model_id
@@ -117,6 +118,7 @@ async def run_suite(
     frontend = await browser_tests(output) if ui else None
     tests = await code_tests(output, unit_only)
     evaluation = None
+    skills = None
     error = None
     code_passed = tests["passed"] and (frontend is None or frontend["passed"])
     if code_passed:
@@ -133,6 +135,13 @@ async def run_suite(
                         live=True,
                         embedding_input_price=settings.embedding_input_price,
                     )
+                    skills = await evaluate_skills(
+                        Path("evals") / "skills-v1.json",
+                        gates,
+                        output / "skills.json",
+                        runtime.inference,
+                        live=True,
+                    )
             else:
                 evaluation = await qualify(
                     dataset,
@@ -140,15 +149,24 @@ async def run_suite(
                     output / "evaluation.json",
                     RulesInference(),
                 )
+                skills = await evaluate_skills(
+                    Path("evals") / "skills-v1.json",
+                    gates,
+                    output / "skills.json",
+                    RulesInference(),
+                )
         except Exception as exc:
             error = type(exc).__name__
     report = {
         "profile": "live" if live else "offline",
         "unit_only": unit_only,
-        "passed": code_passed and bool(evaluation and evaluation["passed"]),
+        "passed": code_passed
+        and bool(evaluation and evaluation["passed"])
+        and bool(skills and skills["passed"]),
         "tests": tests,
         "frontend": frontend,
         "evaluation": evaluation,
+        "skills": skills,
         "evaluation_error": error,
         "coverage": {
             "indexing_provenance": "pipeline/integration/contract tests + benchmark eval",

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     inference: Literal["rules", "openai", "agent-framework"] = "rules"
     model_endpoint: str = "http://localhost:5272/v1"
     model_id: str = ""
+    labeling_model_id: str = ""
+    labeling_input_price: float | None = Field(default=None, ge=0)
+    labeling_output_price: float | None = Field(default=None, ge=0)
     reconciliation_model_id: str = ""
     embedding_model_id: str = ""
     model_api_key: SecretStr = SecretStr("")

@@ -11,7 +11,7 @@
 - `pipeline run` supports source/profile selection, guarded `--fresh`, `--json` and saved reports.
 - `presentation.py` renders ASCII branding, file/check progress, accurate summaries and safe links.
 - `eval workflow` demonstrates retained real sources and explicitly simulated isolated governance.
-- `evaluation.py` adds `test`, `eval qualify/verify-corpus/distill`; live calls require explicit opt-in.
+- `evaluation.py` adds `test`, `eval qualify/verify-corpus/distill/skills`; live calls require opt-in.
 - `test --ui` includes frontend checks/build and local Playwright regressions before Python/evals.
 - `eval`, `doctor`, `tui`, `web`, `mcp` and `worker` expose evaluation, diagnostics and process launch.
 - Async use cases enter `Runtime`; keep `asyncio.run` at this synchronous process boundary.

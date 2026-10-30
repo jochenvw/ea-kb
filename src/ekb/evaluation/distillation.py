@@ -4,9 +4,19 @@ import asyncio
 import json
 from pathlib import Path
 
-from ekb.adapters.inference import INSTRUCTIONS
+from ekb.adapters.inference import SCOPED_INSTRUCTIONS
 from ekb.domain.grounding import validate_evidence
-from ekb.domain.models import Candidate, Extraction, Scope, Segment, content_hash, now, stable_id
+from ekb.domain.models import (
+    Candidate,
+    ContentLabel,
+    ContentLabeling,
+    Extraction,
+    Scope,
+    Segment,
+    content_hash,
+    now,
+    stable_id,
+)
 from ekb.evaluation.dataset import extraction_cases, load_dataset
 from ekb.ports import InferencePort
 
@@ -55,6 +65,21 @@ async def export_training(
             result = await teacher.extract(segment)
             validate_evidence(result.extraction, segment)
             extraction = result.extraction
+            labeling = (
+                result.labeling.labeling
+                if result.labeling
+                else ContentLabeling(
+                    labels=[
+                        ContentLabel(
+                            excerpt=c.excerpt,
+                            scope=c.scope,
+                            semantic_type=c.semantic_type,
+                            uncertainty="Training annotation does not establish an ontology layer.",
+                        )
+                        for c in extraction.candidates
+                    ]
+                )
+            )
             tokens += result.usage.input_tokens + result.usage.output_tokens
         else:
             extraction = Extraction(
@@ -69,12 +94,22 @@ async def export_training(
                     for e in case.expected
                 ]
             )
+            labeling = ContentLabeling(
+                labels=[
+                    ContentLabel(
+                        excerpt=c.excerpt,
+                        scope=c.scope,
+                        uncertainty="Existing teacher labels do not establish an ontology layer.",
+                    )
+                    for c in extraction.candidates
+                ]
+            )
         rows.append(
             {
                 "messages": [
                     {
                         "role": "system",
-                        "content": INSTRUCTIONS
+                        "content": SCOPED_INSTRUCTIONS
                         + "\nSchema:\n"
                         + json.dumps(Extraction.model_json_schema()),
                     },
@@ -84,6 +119,7 @@ async def export_training(
                             {
                                 "source_reference": str(segment.id),
                                 "text": segment.text,
+                                "labeling": labeling.model_dump(mode="json"),
                             }
                         ),
                     },

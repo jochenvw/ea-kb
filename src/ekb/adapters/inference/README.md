@@ -3,8 +3,11 @@
 `__init__.py` implements `RulesInference`, `OpenAIInference` and optional `AgentFrameworkInference`.
 `reconciliation.py` adds explicitly configured small-model verification and bounded embeddings.
 `assertions.py` rephrases selected candidates as source-grounded single-sentence assertions.
+`skills\labeling.md` and `skills\extraction.md` are independently hashed, bounded runtime prompts.
 
 - Input is a persisted segment; output is typed extraction, provider identity and measured usage.
+- `label` identifies ontology spans/scopes; `extract_scoped` cannot broaden their scope or type.
+  A separate labeling deployment is optional; unknown layers remain explicit.
 - Rules are an explicitly limited offline baseline, not an automatic model-failure fallback.
 - Model output must pass schema/exact-evidence validation; retries and context limits are bounded.
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.

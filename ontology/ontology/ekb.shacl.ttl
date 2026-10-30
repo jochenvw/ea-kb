@@ -3,14 +3,15 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-# Minimal ingestion validation: labels for all six semantic types.
+# Minimal ingestion validation: labels for semantic types and organizational scopes.
 # Missing relationships or authority do not fail validation: sparse sources
 # and pre-reconciliation candidates are expected.
 
 ekb:LabeledConceptShape a sh:NodeShape ;
     sh:targetClass ekb:StrategicGoal, ekb:StrategicRequirement,
         ekb:ArchitectureDomain, ekb:ConceptualRequirement,
-        ekb:TechnicalRequirement, ekb:PlatformRequirement ;
+        ekb:TechnicalRequirement, ekb:PlatformRequirement,
+        ekb:OrganizationalScope ;
     sh:property [
         sh:path rdfs:label ;
         sh:minCount 1 ;
@@ -35,4 +36,12 @@ ekb:DomainReferenceShape a sh:NodeShape ;
         sh:path ekb:inDomain ;
         sh:class ekb:ArchitectureDomain ;
         sh:message "inDomain must reference an ArchitectureDomain."@en
+    ] .
+
+ekb:ScopeReferenceShape a sh:NodeShape ;
+    sh:targetSubjectsOf ekb:subScopeOf, ekb:appliesToScope ;
+    sh:property [
+        sh:path [ sh:alternativePath ( ekb:subScopeOf ekb:appliesToScope ) ] ;
+        sh:class ekb:OrganizationalScope ;
+        sh:message "Organizational scope relationships must reference an OrganizationalScope."@en
     ] .

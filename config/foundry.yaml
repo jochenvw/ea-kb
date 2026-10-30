@@ -2,7 +2,7 @@
 # Set EKB_MODEL_ENDPOINT to https://ACCOUNT.openai.azure.com/openai/v1 before use.
 data_dir: data
 artifact_backend: filesystem
-inference: openai
+inference: agent-framework
 model_endpoint: ""
 model_managed_identity: true
 model_id: ekb-student

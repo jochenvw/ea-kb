@@ -36,6 +36,15 @@ class ConceptKind(StrEnum):
     REQUIREMENT = "requirement"
 
 
+class SemanticType(StrEnum):
+    STRATEGIC_GOAL = "StrategicGoal"
+    STRATEGIC_REQUIREMENT = "StrategicRequirement"
+    ARCHITECTURE_DOMAIN = "ArchitectureDomain"
+    CONCEPTUAL_REQUIREMENT = "ConceptualRequirement"
+    TECHNICAL_REQUIREMENT = "TechnicalRequirement"
+    PLATFORM_REQUIREMENT = "PlatformRequirement"
+
+
 class KnowledgeLevel(StrEnum):
     TOP_LEVEL = "top_level"
     IMPLEMENTATION = "implementation"
@@ -292,11 +301,29 @@ class Candidate(Model):
     confidence: float = Field(default=0.5, ge=0, le=1)
     source_key: str | None = None
     uncertainty: str | None = None
+    semantic_type: SemanticType | None = None
 
     @model_validator(mode="after")
     def objective_has_no_modality(self) -> Self:
         if self.kind == ConceptKind.OBJECTIVE and self.modality != Modality.UNSPECIFIED:
             raise ValueError("Objectives do not have requirement modality")
+        if self.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
+            raise ValueError("Architecture domains classify content; they are not requirements")
+        if self.semantic_type is not None:
+            objective = self.semantic_type == SemanticType.STRATEGIC_GOAL
+            if objective != (self.kind == ConceptKind.OBJECTIVE):
+                raise ValueError("Ontology type must agree with objective/requirement kind")
+            if self.semantic_type == SemanticType.PLATFORM_REQUIREMENT and not self.scope.platform:
+                raise ValueError("Platform requirements must identify a platform")
+            if (
+                self.semantic_type
+                in {
+                    SemanticType.CONCEPTUAL_REQUIREMENT,
+                    SemanticType.TECHNICAL_REQUIREMENT,
+                }
+                and self.scope.platform
+            ):
+                raise ValueError("Conceptual and technical requirements are platform independent")
         return self
 
 
@@ -325,6 +352,42 @@ class Usage(Model):
     latency_ms: float = Field(default=0, ge=0)
     cost: float | None = Field(default=None, ge=0)
     validation_failures: int = Field(default=0, ge=0)
+
+
+def total_usage(usages: list[Usage]) -> Usage:
+    return Usage(
+        input_tokens=sum(u.input_tokens for u in usages),
+        output_tokens=sum(u.output_tokens for u in usages),
+        latency_ms=sum(u.latency_ms for u in usages),
+        cost=sum(u.cost for u in usages if u.cost is not None)
+        if usages and all(u.cost is not None for u in usages)
+        else None,
+        validation_failures=sum(u.validation_failures for u in usages),
+    )
+
+
+class ContentLabel(Model):
+    semantic_type: SemanticType | None = None
+    excerpt: str = Field(min_length=1)
+    scope: Scope = Field(default_factory=Scope)
+    uncertainty: str | None = None
+
+    @model_validator(mode="after")
+    def unknown_is_explicit(self) -> Self:
+        if self.semantic_type is None and not self.uncertainty:
+            raise ValueError("Unknown ontology layers require an uncertainty explanation")
+        return self
+
+
+class ContentLabeling(Model):
+    labels: list[ContentLabel] = Field(default_factory=list, max_length=32)
+
+
+class LabelingResult(Model):
+    labeling: ContentLabeling
+    usage: Usage = Field(default_factory=Usage)
+    model_id: str
+    prompt_version: str
 
 
 class AssertionDraft(Model):
@@ -357,6 +420,7 @@ class InferenceResult(Model):
     usage: Usage = Field(default_factory=Usage)
     model_id: str
     prompt_version: str
+    labeling: LabelingResult | None = None
 
 
 class Capabilities(Model):

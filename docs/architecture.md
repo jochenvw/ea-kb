@@ -30,8 +30,9 @@ testing and concerns reference. Coding rules live in `AGENTS.md`; extension cont
 | `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, read-only MCP | Direct ORM queries (except database health checks) |
 | `runtime.py` | Explicit dependency injection and resource lifetimes | Nothing implicit or global for business state |
 
-`SourceConnector -> change detection -> ArtifactStore -> DocumentParser -> Segment ->
-InferencePort -> evidence validation -> KnowledgeRepository`
+`SourceConnector -> deterministic inventory/acquisition barrier -> ArtifactStore ->
+DocumentParser -> Segment -> labeling skill -> scoped extraction skill ->
+evidence/scope validation -> KnowledgeRepository`
 
 Independent discovery producers feed a bounded queue. Worker count limits source downloads;
 separate semaphores bound blocking parsers/OCR and inference. Blocking Office/PDF libraries run
@@ -48,6 +49,48 @@ incrementality. A renewable 120-second lease fences concurrent runs; heartbeat f
 Successful upstream artifacts are checked for matching contracts, source revision and producer
 configuration before partial runs. Independent checks persist their own execution/cache records.
 See `phase3.md` for plugin registration and the actual-corpus vertical slice.
+
+### Bounded skills and precision-gated frugality
+
+Microsoft Agent Framework is the preferred model execution adapter, not the domain or a second
+orchestrator. Model-backed profiles select `agent-framework`; `openai` remains an explicit
+replaceable transport and `rules` remains the limited, no-paid-call default. No autonomous agent,
+tool loop, dynamic planner or extra inference pass is needed for deterministic work.
+
+Separate distinct semantic responsibilities into skills with typed inputs/outputs, editable prompt
+assets, independent fingerprints and evaluations. The implemented ingestion skills are:
+
+| Phase | Mechanism | Durable output |
+|---|---|---|
+| Inventory/acquire | Deterministic connector discovery, revision checks and bounded retrieval | Source inventory and original revisions; unsupported local formats are metadata-only |
+| Parse | Deterministic parsers/OCR and parse replay | Exact source segments and locations |
+| Label | `IngestionSkills.label`, `skills\labeling.md` | Evidence-backed, multi-label ontology types and explicit scopes |
+| Extract within labels | `IngestionSkills.extract_scoped`, `skills\extraction.md` | Typed candidates/relationships restricted to the labeled evidence, type and scope |
+
+Inventory/acquisition completes before semantic processing starts, including ordinary `scan`.
+The historical `indexing` orchestration stage still wraps the complete ingestion use case; its name
+does not mean all of its internal work is model-free. Structured benchmark materialization remains
+deterministic and bypasses both skills instead of paying a model to reproduce native records.
+
+Architecture layer and applicability are independent: a business-unit goal is still a
+`StrategicGoal`, not a technical requirement. Typed labels follow the six semantic class names in
+`ontology\ontology\ekb.ttl`; `OrganizationalScope` describes applicability. Unknown layers remain
+null with an explanation. Architecture-domain labels remain classification metadata and are not
+materialized as requirements. There is no OWL runtime loader/reasoner or inferred scope inheritance.
+
+Label checkpoints commit separately before extraction, reusing the existing typed JSON replay
+store without a schema migration. Extraction-only changes/failures reuse labels; a successful
+segment still commits candidates, evidence, extraction replay and newly incurred extraction usage
+atomically. Label results are retained in extraction replay for audit. Existing historical concept
+versions/identities are not rewritten when a new label becomes available.
+
+Use the smallest/cheapest model **that passes the task's precision and safety gates**, not simply
+the smallest deployment. `EKB_LABELING_MODEL_ID` can select a separate cheaper labeler on the same
+endpoint; blank reuses the extraction deployment. Separate labeler prices prevent unknown cost
+from becoming zero. Failed validation stays a failure after bounded retries; there is no silent
+model downgrade. Grounding and scope checks are necessary, not proof of semantic correctness.
+Model/prompt changes require independently evaluated skill results and end-to-end checks on
+document-family-isolated validation/test data. See `evaluation.md` and decision `0007`.
 
 ## Components and runtime composition
 
@@ -97,9 +140,10 @@ disabled by default. Configuration/deployment does not establish provider qualit
 3. An atomic database claim selects one owner for a revision/fingerprint. A completed or actively
    leased task is skipped. Existing parse checkpoints are reused; otherwise the parser produces
    stable segments with page, heading, table, slide or structured-control locations.
-4. Each usable segment checks extraction replay before invoking bounded inference. Results must
-   satisfy schema and exact-substring grounding. Image-only segments remain references and do not
-   enter text inference.
+4. Each usable segment reuses or executes its labeling skill, commits that checkpoint, then reuses
+   or executes extraction within the labeled spans/scopes. Results must satisfy schema, exact
+   grounding, ontology/kind consistency and qualifier/scope checks. Domain-only and irrelevant
+   content skips model extraction. Image-only segments remain references and do not enter text inference.
 5. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
    usage commit together. Task/scan records expose completion, partial failure or cancellation.
 6. Inspection bypasses ingestion: an interface calls `KnowledgeService`, which opens a unit of
@@ -154,7 +198,7 @@ between workers. Use a local volume supporting hard links, such as NTFS or ext4.
 
 Parsing identity includes parser implementation/library versions, OCR mode, segment size,
 format and selected pages/control identifiers. Processing identity additionally includes source
-content, schema, model capabilities, prompt and extraction configuration. Metadata filters avoid
+content, schemas, model capabilities, independent labeling/extraction prompts and configuration. Metadata filters avoid
 unnecessary downloads where possible; SHA-256 is authoritative when bytes are fetched.
 HTTP conditional requests still contact the server. No unchanged document is parsed or extracted
 again when its processing fingerprint matches.

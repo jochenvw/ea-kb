@@ -31,6 +31,8 @@ uv run ekb concepts list
 
 The second scan skips unchanged sources without parsing or extraction. The local fixture is
 explicitly synthetic; it is not an external publication or approved policy.
+All non-symlink local files are inventoried; unsupported formats remain metadata-only and never
+enter parsing/inference. Inventory/acquisition completes before semantic processing starts.
 
 Scan a private directory containing PDF, DOCX, PPTX, TXT, Markdown or OSCAL JSON:
 
@@ -71,8 +73,9 @@ visible passes are:
    Benchmark synchronization happens automatically here; its `cache_known`/`cache_new` labels
    refer to the download cache, separately from DB identity. Provider discovery may normalize
    structured publisher content to follow its links; generic concept extraction has not begun.
-2. **Extract:** after acquisition completes, bounded workers open prepared originals, reuse
-   parsing/model checkpoints, validate exact evidence and persist candidates. An ephemeral
+2. **Label and extract:** after acquisition completes, bounded workers open prepared originals,
+   reuse parsing, independently checkpoint ontology/scope labels, then extract only within those
+   labels. Exact evidence, qualifiers and scope are validated before candidates persist. An ephemeral
    disk-spooled inventory avoids keeping downloaded documents or an unbounded job list in RAM.
    The summary distinguishes processed/skipped files and emitted candidate results (not unique concepts).
 3. **Reconcile and detect issues:** the existing durable enrichment and issue stages run in order.
@@ -100,11 +103,16 @@ Do not use `--fresh` merely to retry failed work; ordinary reruns reuse valid ch
 deploy those names in your existing account, and select its **OpenAI v1** endpoint:
 
 ```powershell
+uv sync --extra agent-framework
 $env:EKB_MODEL_ENDPOINT = "https://YOUR-ACCOUNT.openai.azure.com/openai/v1"
-uv run ekb pipeline run --config config\foundry.yaml
+uv run --extra agent-framework ekb pipeline run --config config\foundry.yaml
 ```
 
 The profile requires HTTPS/Entra authentication, structured output and completion-token parameters.
+It uses Microsoft Agent Framework for the two bounded ingestion skills. Optionally select a
+cheaper labeling deployment with `EKB_LABELING_MODEL_ID`; blank uses `EKB_MODEL_ID` for both.
+This override shares the endpoint/capability limits but needs its own labeling token prices.
+Use `ekb eval skills --skill labeling` / `--skill extraction` to evaluate each independently.
 Environment/`.env` overrides still apply; check the printed provider/model IDs before starting.
 Keep account-specific profiles under ignored `data`, never commit tokens or keys. An existing
 deployment and a successful smoke test prove access, not quality: run the held-out qualification

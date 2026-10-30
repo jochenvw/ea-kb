@@ -7,7 +7,15 @@ from pydantic import SecretStr
 
 from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference
 from ekb.config import Settings
-from ekb.domain.models import Candidate, ConceptKind, Extraction, Modality, Segment
+from ekb.domain.models import (
+    Candidate,
+    ConceptKind,
+    ContentLabel,
+    ContentLabeling,
+    Extraction,
+    Modality,
+    Segment,
+)
 
 
 def segment():
@@ -26,6 +34,12 @@ def output(excerpt):
             )
         ]
     ).model_dump_json()
+
+
+def labels():
+    return ContentLabeling(
+        labels=[ContentLabel(excerpt=segment().text, uncertainty="Layer not specified in source.")]
+    )
 
 
 async def test_model_validation_retry_and_usage_accounting():
@@ -51,7 +65,7 @@ async def test_model_validation_retry_and_usage_accounting():
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         adapter = OpenAIInference(settings, client=client)
-        result = await adapter.extract(segment())
+        result = await adapter.extract_scoped(segment(), labels())
     assert len(calls) == 2
     assert calls[0]["response_format"]["type"] == "json_schema"
     assert result.usage.input_tokens == 20 and result.usage.output_tokens == 10
@@ -70,7 +84,7 @@ async def test_invalid_model_output_is_rejected_after_bounded_attempts():
     settings = Settings(model_id="test", model_retries=1)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         with pytest.raises(ValueError, match="2 validation attempts"):
-            await OpenAIInference(settings, client=client).extract(segment())
+            await OpenAIInference(settings, client=client).extract_scoped(segment(), labels())
     assert calls == 2
 
 
@@ -90,7 +104,7 @@ async def test_reasoning_model_can_omit_temperature_and_select_completion_budget
         model_max_output_tokens=1024,
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        await OpenAIInference(settings, client=client).extract(segment())
+        await OpenAIInference(settings, client=client).extract_scoped(segment(), labels())
 
 
 async def test_null_temperature_environment_and_verifier_cache_identity(monkeypatch):
@@ -122,7 +136,7 @@ async def test_debug_is_opt_in_and_payloads_are_separate_from_telemetry(tmp_path
         model_api_key=SecretStr("test-secret"),
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        await OpenAIInference(settings, client=client).extract(segment())
+        await OpenAIInference(settings, client=client).extract_scoped(segment(), labels())
     artifacts = list((tmp_path / "debug").glob("*.json"))
     assert len(artifacts) == 1
     text = artifacts[0].read_text()
@@ -133,18 +147,18 @@ async def test_debug_is_opt_in_and_payloads_are_separate_from_telemetry(tmp_path
 async def test_optional_agent_framework_uses_verified_chat_api(monkeypatch):
     pytest.importorskip("agent_framework_openai")
     from agent_framework import ChatResponse, Message
-    from agent_framework.openai import OpenAIChatClient
+    from agent_framework.openai import OpenAIChatCompletionClient
 
     async def fake_response(self, messages, *, options):
         assert isinstance(messages[0], Message)
         assert messages[1].role == "user"
-        assert options["max_tokens"] == 2048 and options["temperature"] == 0
+        assert options["extra_body"]["max_tokens"] == 2048 and options["temperature"] == 0
         return ChatResponse(messages=[Message(role="assistant", contents=[output(segment().text)])])
 
-    monkeypatch.setattr(OpenAIChatClient, "get_response", fake_response)
+    monkeypatch.setattr(OpenAIChatCompletionClient, "get_response", fake_response)
     adapter = AgentFrameworkInference(Settings(model_id="test"))
     try:
-        result = await adapter.extract(segment())
+        result = await adapter.extract_scoped(segment(), labels())
         assert result.extraction.candidates[0].excerpt == segment().text
     finally:
         await adapter.close()

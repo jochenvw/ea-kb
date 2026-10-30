@@ -1,0 +1,9 @@
+# Bounded ingestion skills
+
+- `labeling.md` labels exact content spans by ontology class and explicit organizational/platform scope.
+- `extraction.md` extracts candidates only within those labeled spans and scopes.
+- Prompts are runtime assets; their content hashes independently invalidate skill replay.
+- Both skills use typed domain inputs/outputs through `IngestionSkills`, with no tools or loops.
+- Unknown layers stay unknown; architecture-domain labels do not become requirement candidates.
+- Test/evaluate each skill independently before selecting a cheaper model or editing a prompt.
+- See `docs\evaluation.md` for split isolation, precision gates and live qualification limits.

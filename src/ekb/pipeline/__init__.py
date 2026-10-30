@@ -13,8 +13,9 @@ from ekb.domain.benchmarks import (
     NormalizedBenchmarkDocument,
     StoredBenchmarkDocument,
 )
-from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
+    Extraction,
+    InferenceResult,
     ProcessingTask,
     ScanReport,
     Segment,
@@ -27,13 +28,15 @@ from ekb.domain.models import (
     now,
     parsing_fingerprint,
     stable_id,
+    total_usage,
 )
 from ekb.domain.publication import assess_publication, publication_fingerprint
+from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
 from ekb.ports import (
     ArtifactStore,
     DocumentParser,
-    InferencePort,
+    IngestionSkills,
     SourceConnector,
     UnitOfWorkFactory,
 )
@@ -47,7 +50,7 @@ class IngestionPipeline:
         uow: UnitOfWorkFactory,
         artifacts: ArtifactStore,
         parser: DocumentParser,
-        inference: InferencePort,
+        inference: IngestionSkills,
         *,
         concurrency: int = 4,
         parse_concurrency: int = 2,
@@ -66,6 +69,8 @@ class IngestionPipeline:
             schema="concept-v1",
             model=inference.capabilities.model_dump(),
             prompt=inference.prompt_version,
+            labeling=inference.label_fingerprint,
+            extraction=inference.extraction_fingerprint,
             config=inference_config,
         )
         self.progress = progress or (lambda item, status: None)
@@ -93,7 +98,7 @@ class IngestionPipeline:
         connectors: list[SourceConnector],
         *,
         dry_run: bool = False,
-        staged: bool = False,
+        staged: bool = True,
         phase: Callable[[str, ScanReport], None] | None = None,
         initial_downloads: int = 0,
     ) -> ScanReport:
@@ -491,14 +496,43 @@ class IngestionPipeline:
             if segment.quality in {"image_only", "ocr_no_text", "document_metadata"}:
                 log.info("segment_skipped", segment_id=str(segment.id), reason=segment.quality)
                 continue
-            cache_fp = fingerprint(
-                inference=self.inference_fingerprint,
+            context = dict(
                 source=item.id,
                 text=segment.text,
                 heading=segment.heading,
                 control=segment.location.get("control_id"),
                 part=segment.location.get("part_id"),
                 structured=segment.location.get("structured_control"),
+            )
+            label_fp = fingerprint(skill=self.inference.label_fingerprint, **context)
+            async with self.uow() as uow:
+                cached_label = await uow.processing.cached(segment.id, label_fp)
+            if cached_label is None:
+                async with self.model_gate:
+                    self.progress(item, f"labeling segment {segment.ordinal + 1}/{len(segments)}")
+                    labeling = await self.inference.label(segment)
+                validate_labeling(labeling.labeling, segment)
+                cached_label = InferenceResult(
+                    extraction=Extraction(),
+                    labeling=labeling,
+                    usage=labeling.usage,
+                    model_id=labeling.model_id,
+                    prompt_version=labeling.prompt_version,
+                )
+                async with self.uow() as uow:
+                    await uow.processing.heartbeat(task_id, owner)
+                    await uow.processing.cache(segment.id, label_fp, cached_label)
+                    await uow.processing.accumulate_usage(task_id, owner, labeling.usage)
+                    await uow.commit()
+                usages.append(labeling.usage)
+            labeling = cached_label.labeling
+            if labeling is None:
+                raise ValueError("Labeling checkpoint is missing its typed labeling result")
+            validate_labeling(labeling.labeling, segment)
+            cache_fp = fingerprint(
+                inference=self.inference_fingerprint,
+                labeling=labeling.labeling.model_dump(mode="json"),
+                **context,
             )
             async with self.uow() as uow:
                 result = await uow.processing.cached(segment.id, cache_fp)
@@ -513,14 +547,16 @@ class IngestionPipeline:
                             "prompt.version": self.inference.prompt_version,
                         },
                     ):
-                        result = await self.inference.extract(segment)
+                        result = await self.inference.extract_scoped(segment, labeling.labeling)
+                        result = result.model_copy(update={"labeling": labeling})
                 with tracer.start_as_current_span("schema.validation"):
-                    validate_evidence(result.extraction, segment)
+                    validate_scoped_extraction(result.extraction, segment, labeling.labeling)
                 usages.append(result.usage)
                 called_model = True
             else:
                 log.info("segment_replayed", segment_id=str(segment.id))
                 called_model = False
+            validate_scoped_extraction(result.extraction, segment, labeling.labeling)
             async with self.uow() as uow:
                 await uow.processing.heartbeat(task_id, owner)
                 ids = await uow.knowledge.persist(segment, result)
@@ -529,15 +565,7 @@ class IngestionPipeline:
                     await uow.processing.accumulate_usage(task_id, owner, result.usage)
                 await uow.commit()
             count += len(set(ids))
-        cost_values = [u.cost for u in usages if u.cost is not None]
-        usage = Usage(
-            input_tokens=sum(u.input_tokens for u in usages),
-            output_tokens=sum(u.output_tokens for u in usages),
-            latency_ms=sum(u.latency_ms for u in usages),
-            cost=sum(cost_values) if cost_values else None,
-            validation_failures=sum(u.validation_failures for u in usages),
-        )
-        return count, usage
+        return count, total_usage(usages)
 
     async def _execute_benchmark(
         self,

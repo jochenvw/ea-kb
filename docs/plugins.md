@@ -31,11 +31,26 @@ references, with no model calls. Parser configuration must change its fingerprin
 may change. Preserve originals; normalized text is an intermediate artifact, not a substitute.
 
 `InferencePort` exposes capabilities, prompt version and validated structured extraction.
+`IngestionSkills` adds `label(segment)` and `extract_scoped(segment, labeling)` with independent
+label/extraction fingerprints. Labeling returns exact evidence spans, nullable ontology classes
+and explicit scopes; extraction must retain each candidate's matching class/scope and evidence.
+Domain classification is not a requirement. Unknown layers require an uncertainty explanation.
+Prompt assets live in `adapters\inference\skills` and their content hashes enter replay identity.
+Implement both skills for an interchangeable ingestion provider; `extract` is the combined
+model-backed entry point used by end-to-end evaluations. Rules remain a limited diagnostic baseline.
+
 Use explicit model configuration; do not assume every endpoint supports native JSON schemas,
 vision, embeddings or a particular context length. Adapter output is validated against Pydantic
 and exact source evidence before persistence. Inference has bounded concurrency, transient retries,
 bounded schema retries and replayable results. The supplied optional Agent Framework adapter uses
-a chat client, not an autonomous agent.
+a bounded Chat Completions client, not an autonomous agent. It preserves configured temperature and
+token-budget parameter names and disables SDK-internal retries in favor of the shared retry boundary.
+Model-backed profiles prefer this adapter; the direct OpenAI-compatible transport remains available.
+
+Labels use the existing replay store with an empty extraction and typed `labeling` result; its
+checkpoint commits before extraction, including newly incurred labeling usage under ownership fencing.
+Extraction replay includes routing content and configuration and retains the label result.
+Adapters must not turn a cache hit into another model call or bill cached usage again.
 
 Extraction also proposes directly evidenced local relationships. Enrichment independently runs
 bounded deterministic checks; optional `SemanticVerifier` / `EmbeddingPort` implementations reuse

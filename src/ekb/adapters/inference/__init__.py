@@ -4,26 +4,36 @@ import asyncio
 import json
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 import httpx
 from opentelemetry import trace
 from pydantic import BaseModel, ValidationError
 
 from ekb.config import Settings
-from ekb.domain.grounding import GroundingError, validate_evidence
+from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     Candidate,
     Capabilities,
     ConceptKind,
+    ContentLabel,
+    ContentLabeling,
     Extraction,
     InferenceResult,
+    LabelingResult,
     Modality,
     Segment,
+    SemanticType,
     Usage,
     fingerprint,
+    total_usage,
 )
+from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
 from ekb.services.retry import retry
 
@@ -40,6 +50,50 @@ Keep unrelated statements separate. Confidence reflects uncertainty, not authori
 Propose relationships only when the exact excerpt explicitly connects the two candidates.
 Candidate indexes are zero-based. Do not infer cross-document relationships.
 Return a JSON object matching the supplied schema, with no prose or Markdown fences."""
+_SKILLS = Path(__file__).with_name("skills")
+LABEL_INSTRUCTIONS = (_SKILLS / "labeling.md").read_text(encoding="utf-8")
+SCOPED_INSTRUCTIONS = (_SKILLS / "extraction.md").read_text(encoding="utf-8")
+LABEL_PROMPT_VERSION = "ontology-labeling-v1:" + fingerprint(prompt=LABEL_INSTRUCTIONS)
+SCOPED_PROMPT_VERSION = "scoped-extraction-v1:" + fingerprint(prompt=SCOPED_INSTRUCTIONS)
+
+
+def _rules_extraction(segment: Segment) -> Extraction:
+    candidates = []
+    structured = bool(segment.location.get("structured_control"))
+    for raw in re.split(r"(?<=[.!?])\s+(?=[A-Z])|\n+", segment.text):
+        text = raw.strip().removeprefix("#").strip()
+        if not text or len(text) > 4000:
+            continue
+        modality = Modality.UNSPECIFIED
+        if re.search(r"\b(must|shall|mandatory|required to)\b", text, re.I):
+            kind = ConceptKind.REQUIREMENT
+            modality = Modality.MANDATED
+        elif re.search(r"\b(should|recommended)\b", text, re.I):
+            kind = ConceptKind.REQUIREMENT
+            modality = Modality.RECOMMENDED
+        elif re.search(
+            r"\b(aim to|aims to|objective|our goal|we target|we will reduce|"
+            r"we will improve|we will increase|we seek to)\b",
+            text,
+            re.I,
+        ):
+            kind = ConceptKind.OBJECTIVE
+        elif structured:
+            kind = ConceptKind.REQUIREMENT
+        else:
+            continue
+        candidates.append(
+            Candidate(
+                kind=kind,
+                statement=text,
+                excerpt=text,
+                modality=modality,
+                confidence=0.6,
+                source_key=segment.location.get("part_id"),
+                uncertainty="Offline rule candidate; human review required.",
+            )
+        )
+    return Extraction(candidates=candidates)
 
 
 class RulesInference:
@@ -47,46 +101,51 @@ class RulesInference:
 
     capabilities = Capabilities(model_id="offline-rules-v1")
     prompt_version = "rules-v1"
+    label_fingerprint = fingerprint(skill="rules-labeling-v1")
+    extraction_fingerprint = fingerprint(skill="rules-scoped-extraction-v1")
+
+    async def label(self, segment: Segment) -> LabelingResult:
+        return LabelingResult(
+            labeling=ContentLabeling(
+                labels=[
+                    ContentLabel(
+                        semantic_type=SemanticType.STRATEGIC_GOAL
+                        if candidate.kind == ConceptKind.OBJECTIVE
+                        else None,
+                        excerpt=candidate.excerpt,
+                        uncertainty="Offline rules do not establish requirement layers.",
+                    )
+                    for candidate in _rules_extraction(segment).candidates
+                ]
+            ),
+            model_id=self.capabilities.model_id,
+            prompt_version="rules-labeling-v1",
+        )
+
+    async def extract_scoped(self, segment: Segment, labeling: ContentLabeling) -> InferenceResult:
+        validate_labeling(labeling, segment)
+        result = await self.extract(segment)
+        candidates = [
+            candidate.model_copy(update={"semantic_type": label.semantic_type})
+            for candidate in result.extraction.candidates
+            for label in labeling.labels
+            if candidate.excerpt in label.excerpt
+            and candidate.scope == label.scope
+            and label.semantic_type != SemanticType.ARCHITECTURE_DOMAIN
+            and (
+                label.semantic_type is None
+                or (label.semantic_type == SemanticType.STRATEGIC_GOAL)
+                == (candidate.kind == ConceptKind.OBJECTIVE)
+            )
+        ]
+        extraction = Extraction(candidates=candidates)
+        validate_scoped_extraction(extraction, segment, labeling)
+        return result.model_copy(update={"extraction": extraction})
 
     async def extract(self, segment: Segment) -> InferenceResult:
         start = time.monotonic()
-        candidates = []
-        structured = bool(segment.location.get("structured_control"))
-        for raw in re.split(r"(?<=[.!?])\s+(?=[A-Z])|\n+", segment.text):
-            text = raw.strip().removeprefix("#").strip()
-            if not text or len(text) > 4000:
-                continue
-            modality = Modality.UNSPECIFIED
-            if re.search(r"\b(must|shall|mandatory|required to)\b", text, re.I):
-                kind = ConceptKind.REQUIREMENT
-                modality = Modality.MANDATED
-            elif re.search(r"\b(should|recommended)\b", text, re.I):
-                kind = ConceptKind.REQUIREMENT
-                modality = Modality.RECOMMENDED
-            elif re.search(
-                r"\b(aim to|aims to|objective|our goal|we target|we will reduce|"
-                r"we will improve|we will increase|we seek to)\b",
-                text,
-                re.I,
-            ):
-                kind = ConceptKind.OBJECTIVE
-            elif structured:
-                kind = ConceptKind.REQUIREMENT
-            else:
-                continue
-            candidates.append(
-                Candidate(
-                    kind=kind,
-                    statement=text,
-                    excerpt=text,
-                    modality=modality,
-                    confidence=0.6,
-                    source_key=segment.location.get("part_id"),
-                    uncertainty="Offline rule candidate; human review required.",
-                )
-            )
         return InferenceResult(
-            extraction=Extraction(candidates=candidates),
+            extraction=_rules_extraction(segment),
             usage=Usage(latency_ms=(time.monotonic() - start) * 1000),
             model_id=self.capabilities.model_id,
             prompt_version=self.prompt_version,
@@ -103,7 +162,28 @@ class OpenAIInference:
             structured_output=settings.model_structured_output,
             context_tokens=settings.model_context_tokens,
         )
-        self.prompt_version = PROMPT_VERSION
+        self.prompt_version = SCOPED_PROMPT_VERSION
+        common = dict(
+            provider=type(self).__name__,
+            endpoint=settings.model_endpoint,
+            context=settings.model_context_tokens,
+            structured=settings.model_structured_output,
+            output_tokens=settings.model_max_output_tokens,
+            temperature=settings.model_temperature,
+            token_parameter=settings.model_max_token_parameter,
+        )
+        self.label_fingerprint = fingerprint(
+            **common,
+            model=settings.labeling_model_id or settings.model_id,
+            prompt=LABEL_PROMPT_VERSION,
+            schema=ContentLabeling.model_json_schema(),
+        )
+        self.extraction_fingerprint = fingerprint(
+            **common,
+            model=settings.model_id,
+            prompt=self.prompt_version,
+            schema=Extraction.model_json_schema(),
+        )
         self.owned_client = client is None
         self.client = client or httpx.AsyncClient(timeout=180)
         self.credential: Any = None
@@ -119,13 +199,24 @@ class OpenAIInference:
             token = access.token
         return {"Authorization": f"Bearer {token}"} if token else {}
 
-    def _messages(self, segment: Segment) -> list[dict[str, str]]:
-        schema = json.dumps(Extraction.model_json_schema())
+    def _messages(
+        self,
+        segment: Segment,
+        instructions: str = INSTRUCTIONS,
+        schema: type[BaseModel] = Extraction,
+        labeling: ContentLabeling | None = None,
+    ) -> list[dict[str, str]]:
+        content: dict[str, object] = {"source_reference": str(segment.id), "text": segment.text}
+        if labeling is not None:
+            content["labeling"] = labeling.model_dump(mode="json")
         return [
-            {"role": "system", "content": INSTRUCTIONS + "\nSchema:\n" + schema},
+            {
+                "role": "system",
+                "content": instructions + "\nSchema:\n" + json.dumps(schema.model_json_schema()),
+            },
             {
                 "role": "user",
-                "content": json.dumps({"source_reference": str(segment.id), "text": segment.text}),
+                "content": json.dumps(content),
             },
         ]
 
@@ -133,7 +224,9 @@ class OpenAIInference:
         self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
     ) -> tuple[str, int, int]:
         payload: dict[str, Any] = {
-            "model": self.capabilities.model_id,
+            "model": self.settings.labeling_model_id or self.capabilities.model_id
+            if schema is ContentLabeling
+            else self.capabilities.model_id,
             "messages": messages,
             self.settings.model_max_token_parameter: self.settings.model_max_output_tokens,
         }
@@ -163,36 +256,102 @@ class OpenAIInference:
         return content, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
 
     async def extract(self, segment: Segment) -> InferenceResult:
-        messages = self._messages(segment)
-        # Conservative UTF-8 upper bound prevents silent input truncation.
-        if (
-            sum(len(message["content"].encode()) for message in messages)
-            + self.settings.model_max_output_tokens
-            > self.capabilities.context_tokens
+        labeling = await self.label(segment)
+        result = await self.extract_scoped(segment, labeling.labeling)
+        return result.model_copy(
+            update={"labeling": labeling, "usage": total_usage([labeling.usage, result.usage])}
+        )
+
+    async def label(self, segment: Segment) -> LabelingResult:
+        labeling, usage = await self._run_skill(
+            segment,
+            self._messages(segment, LABEL_INSTRUCTIONS, ContentLabeling),
+            ContentLabeling,
+            lambda value: validate_labeling(value, segment),
+            LABEL_PROMPT_VERSION,
+        )
+        return LabelingResult(
+            labeling=labeling,
+            usage=usage,
+            model_id=self.settings.labeling_model_id or self.capabilities.model_id,
+            prompt_version=LABEL_PROMPT_VERSION,
+        )
+
+    async def extract_scoped(self, segment: Segment, labeling: ContentLabeling) -> InferenceResult:
+        validate_labeling(labeling, segment)
+        if not any(
+            label.semantic_type != SemanticType.ARCHITECTURE_DOMAIN for label in labeling.labels
         ):
-            raise ValueError("Segment exceeds configured model context; lower parser segment size")
+            return InferenceResult(
+                extraction=Extraction(),
+                usage=Usage(cost=0),
+                model_id=self.capabilities.model_id,
+                prompt_version=self.prompt_version,
+            )
+        extraction, usage = await self._run_skill(
+            segment,
+            self._messages(segment, SCOPED_INSTRUCTIONS, Extraction, labeling),
+            Extraction,
+            lambda value: validate_scoped_extraction(value, segment, labeling),
+            self.prompt_version,
+        )
+        return InferenceResult(
+            extraction=extraction,
+            usage=usage,
+            model_id=self.capabilities.model_id,
+            prompt_version=self.prompt_version,
+        )
+
+    async def _run_skill[T: BaseModel](
+        self,
+        segment: Segment,
+        messages: list[dict[str, str]],
+        schema: type[T],
+        validate: Callable[[T], None],
+        prompt_version: str,
+    ) -> tuple[T, Usage]:
         started = time.monotonic()
+        model_id = (
+            self.settings.labeling_model_id or self.capabilities.model_id
+            if schema is ContentLabeling
+            else self.capabilities.model_id
+        )
         input_tokens, output_tokens, failures = 0, 0, 0
         for attempt in range(self.settings.model_retries + 1):
+            if (
+                sum(len(message["content"].encode()) for message in messages)
+                + self.settings.model_max_output_tokens
+                > self.capabilities.context_tokens
+            ):
+                raise ValueError(
+                    "Segment exceeds configured model context; lower parser segment size"
+                )
             with tracer.start_as_current_span(
-                "model.inference",
+                "model.skill",
                 attributes={
                     "segment.id": str(segment.id),
-                    "model.id": self.capabilities.model_id,
-                    "prompt.version": self.prompt_version,
+                    "model.id": model_id,
+                    "prompt.version": prompt_version,
                     "validation.attempt": attempt,
                 },
             ) as span:
-                text, tokens_in, tokens_out = await retry(lambda: self._complete(messages))
+                text, tokens_in, tokens_out = await retry(lambda: self._complete(messages, schema))
                 input_tokens += tokens_in
                 output_tokens += tokens_out
                 span.set_attribute("model.input_tokens", tokens_in)
                 span.set_attribute("model.output_tokens", tokens_out)
-                await self._debug(segment, messages, text, attempt)
+                await self._debug(
+                    segment,
+                    messages,
+                    text,
+                    attempt,
+                    model_id=model_id,
+                    prompt_version=prompt_version,
+                )
                 try:
                     with tracer.start_as_current_span("schema.validation"):
-                        extraction = Extraction.model_validate_json(text)
-                        validate_evidence(extraction, segment)
+                        value = schema.model_validate_json(text)
+                        validate(value)
                 except (ValidationError, GroundingError) as error:
                     failures += 1
                     span.set_attribute("validation.failed", True)
@@ -218,30 +377,34 @@ class OpenAIInference:
                     )
                     continue
                 cost = None
-                if (
-                    self.settings.model_input_price is not None
-                    and self.settings.model_output_price is not None
-                ):
-                    cost = (
-                        input_tokens * self.settings.model_input_price
-                        + output_tokens * self.settings.model_output_price
-                    ) / 1_000_000
-                return InferenceResult(
-                    extraction=extraction,
-                    usage=Usage(
+                price_in, price_out = (
+                    (self.settings.labeling_input_price, self.settings.labeling_output_price)
+                    if schema is ContentLabeling and self.settings.labeling_model_id
+                    else (self.settings.model_input_price, self.settings.model_output_price)
+                )
+                if price_in is not None and price_out is not None:
+                    cost = (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+                return (
+                    value,
+                    Usage(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         latency_ms=(time.monotonic() - started) * 1000,
                         cost=cost,
                         validation_failures=failures,
                     ),
-                    model_id=self.capabilities.model_id,
-                    prompt_version=self.prompt_version,
                 )
         raise AssertionError("Unreachable extraction retry")
 
     async def _debug(
-        self, segment: Segment, messages: list[dict[str, str]], output: str, attempt: int
+        self,
+        segment: Segment,
+        messages: list[dict[str, str]],
+        output: str,
+        attempt: int,
+        *,
+        model_id: str | None = None,
+        prompt_version: str | None = None,
     ) -> None:
         if not self.settings.debug_artifacts:
             return
@@ -253,8 +416,8 @@ class OpenAIInference:
             {
                 "trace_id": f"{context.trace_id:032x}",
                 "segment_id": str(segment.id),
-                "model_id": self.capabilities.model_id,
-                "prompt_version": self.prompt_version,
+                "model_id": model_id or self.capabilities.model_id,
+                "prompt_version": prompt_version or self.prompt_version,
                 "messages": messages,
                 "output": output,
             }
@@ -274,14 +437,21 @@ class OpenAIInference:
 class AgentFrameworkInference(OpenAIInference):
     """Uses the framework chat client without agents, tools or autonomous loops."""
 
-    def __init__(self, settings: Settings):
-        super().__init__(settings)
-        from agent_framework.openai import OpenAIChatClient
+    def __init__(self, settings: Settings, *, sdk_client: AsyncOpenAI | None = None):
+        from agent_framework.openai import OpenAIChatCompletionClient
+        from openai import AsyncOpenAI
 
-        self.chat = OpenAIChatClient(
+        super().__init__(settings)
+        self.owned_chat = sdk_client is None
+        self.chat = OpenAIChatCompletionClient(
             model=settings.model_id,
-            api_key=self._access_key,
-            base_url=settings.model_endpoint,
+            async_client=sdk_client
+            or AsyncOpenAI(
+                api_key=self._access_key,
+                base_url=settings.model_endpoint,
+                max_retries=0,
+                timeout=180,
+            ),
         )
 
     async def _access_key(self) -> str:
@@ -295,15 +465,22 @@ class AgentFrameworkInference(OpenAIInference):
         from openai import APIConnectionError, APIStatusError
 
         try:
-            options: ChatOptions[Any] = {
-                "temperature": 0.0,
-                "max_tokens": self.settings.model_max_output_tokens,
+            options: dict[str, Any] = {
+                "model": self.settings.labeling_model_id or self.settings.model_id
+                if schema is ContentLabeling
+                else self.settings.model_id,
+                # The SDK otherwise translates max_tokens to max_completion_tokens.
+                "extra_body": {
+                    self.settings.model_max_token_parameter: self.settings.model_max_output_tokens
+                },
             }
+            if self.settings.model_temperature is not None:
+                options["temperature"] = self.settings.model_temperature
             if self.capabilities.structured_output:
                 options["response_format"] = schema
             response = await self.chat.get_response(
                 messages=[Message(role=m["role"], contents=[m["content"]]) for m in messages],
-                options=options,
+                options=cast(ChatOptions[Any], options),
             )
         except APIStatusError as error:
             request = httpx.Request("POST", self.settings.model_endpoint)
@@ -322,5 +499,6 @@ class AgentFrameworkInference(OpenAIInference):
         )
 
     async def close(self) -> None:
-        await self.chat.client.close()
+        if self.owned_chat:
+            await self.chat.client.close()
         await super().close()

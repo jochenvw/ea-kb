@@ -84,6 +84,7 @@ class ScanConsole:
         self.line(
             f"Extraction: {settings.inference} / "
             f"{safe(settings.model_id or 'deterministic rules')}; "
+            f"labeling: {safe(settings.labeling_model_id or settings.model_id or 'rules only')}; "
             f"reconciliation: {safe(settings.reconciliation_model_id or 'rules only')}; "
             f"embeddings: {safe(settings.embedding_model_id or 'disabled')}."
         )

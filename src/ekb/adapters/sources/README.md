@@ -4,6 +4,7 @@
 `benchmarks.py` explicitly syncs official Learn Markdown/HTML, discovered workbooks and policy JSON.
 
 - `SourceConnector.discover` yields stable items; `fetch` returns bytes or explicit not-modified.
+- Filesystem discovery inventories all non-symlink files; unsupported formats are metadata-only.
 - Preserve revision indicators and conditional headers; inaccessible discovery is not mass deletion.
 - `ekb.connectors` entry points map provider names to factories loaded by `load_plugin`.
 - Runtime currently selects built-ins explicitly; registering a plugin does not activate it.

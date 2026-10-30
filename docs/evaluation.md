@@ -77,6 +77,42 @@ not proof that all possible document formats, adversarial inputs or enterprise b
 
 ## Qualification and efficiency gates
 
+### Independently evaluating ingestion skills
+
+```powershell
+uv run ekb eval skills --skill labeling --output data\labeling-offline.json
+uv run ekb eval skills --skill extraction --output data\extraction-offline.json
+# After explicit provider/model/price configuration:
+uv run --extra agent-framework ekb eval skills --live --split validation
+uv run --extra agent-framework ekb eval skills --live --split test
+```
+
+`--skill both` is the default. Labeling sees only raw segment text; extractor evaluation uses the
+gold routing labels as inputs, not expected candidates, so a labeling error cannot hide extractor
+behavior. Normal ingestion and the existing teacher evaluation exercise the combined model-backed
+path. Prompt/model selection uses validation; reserve test for the final comparison.
+
+`evals\skills-v1.json` contains 16 provisional cases: three attributed excerpts reused verbatim
+from the existing teacher corpus, retaining its family/split/hash/attribution, and 13 neutral
+synthetic cases. Cases cover mixed organizational scope, six semantic types, unknown layer,
+negation/exception/numeric qualifiers, domain-only content and an untrusted annotation.
+Families, original URLs/hashes and duplicate text cannot cross splits. These are regression and
+provisional qualification cases, not independent human gold or production coverage.
+
+Each skill reports its own fingerprint, precision/recall, errors, false mandates, p95 latency,
+tokens and priced cost, using the existing gates below. Label accuracy includes ontology type
+and scope; extraction matching additionally requires kind, modality and retained qualifiers.
+`qualified` means only that a live held-out run met these **provisional** gates. Sparse or
+domain-only input deliberately needs no extraction call. Unknown/missing prices and unmetered
+model calls cannot pass cost gates. `EKB_LABELING_MODEL_ID` optionally selects a different labeler;
+set its `EKB_LABELING_INPUT_PRICE` / `EKB_LABELING_OUTPUT_PRICE` separately.
+
+`uv run ekb test` now also runs both offline skill evaluations and persists `skills.json`.
+Offline pass/fail covers software/safety, never model precision qualification. Cost and latency
+gates remain post-run measurements, not hard provider spending caps.
+
+### End-to-end model qualification
+
 ```powershell
 uv run ekb eval qualify --output data\qualification-offline.json
 uv run ekb eval qualify --live --split validation --output data\qualification-validation.json

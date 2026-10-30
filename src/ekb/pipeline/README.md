@@ -6,6 +6,8 @@
 - Staged scans spool metadata to disk and finish acquisition before parallel extraction begins.
 - Progress separates known/unknown identities, actual transfers, reuse and metadata-only sources.
 - `_execute` reuses parsing/extraction checkpoints and commits exact knowledge/evidence atomically.
+- All scans finish inventory/acquisition before labeling and scoped extraction; labels checkpoint
+  independently so extractor failures/prompt changes do not repay unchanged labeling.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Keep downloads, parsing and inference outside database transactions.

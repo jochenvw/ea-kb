@@ -6,8 +6,8 @@
 
 <https://example.org/ekb/ontology> a owl:Ontology ;
     rdfs:label "Enterprise Knowledge Base — minimal enterprise architecture ontology"@en ;
-    rdfs:comment "Six semantic classes across four architecture layers. Source evidence, governance authority, versions and reconciliation are managed by the knowledge system, not forced into this business ontology."@en ;
-    owl:versionInfo "0.1.0-draft.1" .
+    rdfs:comment "Six semantic classes across four architecture layers, with separate organizational scope. Source evidence, governance authority, versions and reconciliation are managed by the knowledge system, not forced into this business ontology."@en ;
+    owl:versionInfo "0.1.0-draft.2" .
 
 # Layer 1 — company
 
@@ -18,6 +18,21 @@ ekb:StrategicGoal a owl:Class ;
 ekb:StrategicRequirement a owl:Class ;
     rdfs:label "Strategic requirement"@en ;
     rdfs:comment "A fundamental enterprise-level obligation or guardrail, whether externally imposed or internally adopted."@en .
+
+ekb:OrganizationalScope a owl:Class ;
+    rdfs:label "Organizational scope"@en ;
+    rdfs:comment "An organizational unit or boundary to which a goal or requirement may apply."@en .
+
+ekb:subScopeOf a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:label "sub-scope of"@en ;
+    rdfs:domain ekb:OrganizationalScope ;
+    rdfs:range ekb:OrganizationalScope ;
+    rdfs:comment "Relates a narrower organizational scope to a broader scope; transitive from narrower to broader."@en .
+
+ekb:appliesToScope a owl:ObjectProperty ;
+    rdfs:label "applies to scope"@en ;
+    rdfs:range ekb:OrganizationalScope ;
+    rdfs:comment "Identifies the organizational scope explicitly associated with a goal or requirement. Does not itself imply inheritance to sub-scopes."@en .
 
 # Layer 2 — conceptual (platform-independent)
 
