@@ -99,6 +99,12 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   Keep file indexing and sufficient deterministic transformations outside model calls. Select the
   smallest model that meets measured precision, grounding, scope and recall gates; never weaken
   precision to reduce cost or silently fall back to an unqualified model.
+- Use Pydantic Evals as the execution and reporting framework for new or materially changed
+  model-backed skill evaluations. Keep domain-specific scoring, gates, provenance checks and
+  gold-data isolation explicit; ordinary pytest remains for software behavior and contracts.
+  Bound case concurrency and call budgets, and retain immutable reports with model, prompt,
+  dataset and performance metadata. Pydantic Evals complements the inference port and does not
+  replace Microsoft Agent Framework or route inference through Pydantic AI.
 - Keep CLI, TUI, web and MCP interfaces thin and backed by shared application services.
 
 ## Protect efficiency, provenance and durable state
@@ -136,7 +142,10 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   commit generated assets with their source; source fingerprints and licenses must stay current.
   Model/prompt/retrieval changes also need source-grounded, split-isolated qualification cases.
   Keep strong-teacher labels provisional, export only training data, and require measured live
-  quality plus priced cost/latency gates before calling a cheap model qualified. See `docs\evaluation.md`.
+  quality plus priced cost/latency gates before calling a cheap model qualified. Use
+  `uv run ekb eval skills` for Pydantic Evals-backed skill regressions; live concurrency
+  comparisons require explicit `--live --compare-concurrency` authorization. See
+  `docs\evaluation.md`.
 - Run the existing quality gates for code changes:
 
   ```powershell

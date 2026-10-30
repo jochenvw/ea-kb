@@ -15,8 +15,13 @@ from ekb.evaluation.dataset import Split, load_dataset
 from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
 from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_latest
+from ekb.evaluation.history import HISTORY, list_skill_catalog, skill_history
 from ekb.evaluation.nist import evaluate_nist
-from ekb.evaluation.skills import SkillSelection, evaluate_skills
+from ekb.evaluation.skills import (
+    SkillSelection,
+    compare_skill_concurrency,
+    evaluate_skills,
+)
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
 
@@ -118,18 +123,61 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         split: Annotated[str, typer.Option()] = "test",
         dataset: Annotated[Path, typer.Option()] = Path("evals") / "skills-v1.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "skill-evaluation.json",
+        history_dir: Annotated[
+            Path, typer.Option(help="Directory for immutable evaluation history.")
+        ] = HISTORY,
         max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
+        max_concurrency: Annotated[int, typer.Option(min=1, max=32)] = 8,
+        max_model_calls: Annotated[int, typer.Option(min=1, max=100000)] = 10_000,
+        compare_concurrency: Annotated[
+            bool,
+            typer.Option(
+                help="Run sequential and bounded parallel live evaluations for comparison."
+            ),
+        ] = False,
     ):
-        """Evaluate labeling and gold-routed extraction independently; paid calls require --live."""
+        """Evaluate skills with bounded parallel cases; live calls require --live."""
 
         async def operation():
             selection = TypeAdapter(SkillSelection).validate_python(skill)
             selected = TypeAdapter(Split).validate_python(split)
+            settings = Settings() if live or compare_concurrency else None
+            if compare_concurrency and not live:
+                raise ValueError("--compare-concurrency requires explicit --live authorization")
+            run_metadata = (
+                {
+                    "provider": settings.inference,
+                    "deployment": settings.model_id,
+                    "labeling_deployment": settings.labeling_model_id or settings.model_id,
+                    "model_version": None,
+                    "temperature": settings.model_temperature,
+                    "retries": settings.model_retries,
+                    "structured_output": settings.model_structured_output,
+                }
+                if settings
+                else {"provider": "offline-rules"}
+            )
+            calls_per_case = 6 * (settings.model_retries + 1) if settings else 1
             if live:
-                settings = Settings()
+                assert settings is not None
                 if settings.inference not in {"openai", "agent-framework"}:
                     raise ValueError("Select agent-framework or openai for live skill evaluation")
                 async with Runtime(settings) as runtime:
+                    if compare_concurrency:
+                        return await compare_skill_concurrency(
+                            dataset,
+                            GATES,
+                            output,
+                            runtime.inference,
+                            skill=selection,
+                            split=selected,
+                            max_cases=max_cases,
+                            max_concurrency=max_concurrency,
+                            max_model_calls=max_model_calls,
+                            calls_per_case=calls_per_case,
+                            run_metadata=run_metadata,
+                            history_dir=history_dir,
+                        )
                     return await evaluate_skills(
                         dataset,
                         GATES,
@@ -139,6 +187,11 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                         split=selected,
                         live=True,
                         max_cases=max_cases,
+                        max_concurrency=max_concurrency,
+                        max_model_calls=max_model_calls,
+                        calls_per_case=calls_per_case,
+                        run_metadata=run_metadata,
+                        history_dir=history_dir,
                     )
             return await evaluate_skills(
                 dataset,
@@ -148,9 +201,40 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                 skill=selection,
                 split=selected,
                 max_cases=max_cases,
+                max_concurrency=max_concurrency,
+                max_model_calls=max_model_calls,
+                calls_per_case=calls_per_case,
+                run_metadata=run_metadata,
+                history_dir=history_dir,
             )
 
         execute(operation)
+
+    @evaluations.command("list")
+    def list_evaluations(
+        history_dir: Annotated[Path, typer.Option()] = HISTORY,
+    ):
+        """List skill/dataset pairs, latest quality/performance, and never-run cases."""
+
+        emit(list_skill_catalog(history=history_dir))
+
+    @evaluations.command("history")
+    def evaluation_history(
+        dataset: Annotated[Path | None, typer.Option()] = None,
+        skill: Annotated[str | None, typer.Option()] = None,
+        history_dir: Annotated[Path, typer.Option()] = HISTORY,
+    ):
+        """List immutable skill evaluation reports with quality and performance history."""
+
+        if skill not in {None, "labeling", "extraction", "both"}:
+            raise typer.BadParameter("Skill must be labeling, extraction, or both")
+        emit(
+            skill_history(
+                dataset=dataset,
+                skill=None if skill in {None, "both"} else skill,
+                history=history_dir,
+            )
+        )
 
     @evaluations.command("documents")
     def documents(

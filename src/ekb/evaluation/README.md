@@ -1,29 +1,15 @@
 # Extraction evaluation
 
-`__init__.py` runs the golden dataset and writes predictions, metrics and a concise report.
-`benchmarks.py` scores attributed actual benchmark excerpts: extraction, reconciliation and lineage.
-`workflow.py` reuses retained originals in persistent schema `ekb_phase3_demo`; governance is simulated.
-`dataset.py` materializes split-isolated teacher cases; `frugal.py` qualifies quality and efficiency.
+This package runs source-grounded extraction, classification and qualification evaluations.
+`__init__.py` scores the golden dataset; `benchmarks.py` scores attributed source benchmarks.
+`skills.py` uses Pydantic Evals for isolated ontology/scope labeling and gold-routed extraction.
+`history.py` stores create-only skill reports and indexes used by `eval list/history`.
+`goals.py` checks annual-report goal evidence, abstraction, scope, duplicates and provenance.
+`nist.py` scores CSF structure, provisional mappings, provenance and explicit negative decisions.
+`dataset.py` materializes split-isolated cases; `frugal.py` applies quality/efficiency gates.
 `distillation.py` exports train-only labels; `suite.py` combines code tests and offline/live evals.
-`skills.py` independently scores ontology/scope labeling and gold-routed extraction on isolated cases.
-It also audits document references and scores organizational coverage and mixed ontology layers.
-`goals.py` verifies source-page evidence and evaluates goal detection, abstraction, scope,
-duplicates, provenance, provisional hierarchy and efficiency.
-`nist.py` scores supplied CSF structure, provisional mappings, provenance and explicit negative decisions.
-
-- Labels live in `tests\golden\dataset.json`; keep real attributed excerpts distinct from synthetic cases.
-- Score grounding, ontology class/modality/scope and duplicates; invented mandates receive extra penalties.
-- Preserve dataset/provider identity so different runs can be compared honestly.
-- Unclassified gold cases measure extraction, not class quality; use the independently labeled skill evals.
-
-Run `uv run ekb eval run --baseline --output data\evaluation-rules.json` from the repository root.
-Run `uv run ekb eval goals --compare-strategies` for the source-audited strategic-goal diagnostic.
-The offline baseline is not a paid-model benchmark; see `tests\unit\test_evaluation.py`.
-Run `uv run ekb eval benchmarks`; `--configured` explicitly opts into the configured small model.
-Run `uv run ekb eval workflow` after actual corpus sync/indexing; see `docs\phase3.md`.
-Run `uv run ekb test --ui` for Python/browser tests and evals; omit `--ui` for Python-only checks.
-Run `uv run ekb eval skills --skill labeling` or `--skill extraction`; `--live` opts into paid models.
-Run `uv run ekb eval documents --verify-sources` for annual/NIST passages and ISO metadata.
-Run `uv run ekb eval nist`; `--excerpts-only` replays committed, source-audited NIST passages.
-Frontend checks require Node.js and an installed Playwright browser; no live corpus or model.
-See `docs\evaluation.md` for gates and teacher provenance.
+Labels are provisional unless independently reviewed; offline rules do not qualify a live model.
+Run `uv run ekb eval skills --skill labeling` or `--skill extraction`; live calls require `--live`.
+Use `--max-concurrency` to bound cases; `--compare-concurrency` also requires explicit `--live`.
+Run `uv run ekb eval goals --compare-strategies`, `uv run ekb eval nist`, or `uv run ekb test`.
+Detailed commands, reports and interpretation limits are documented in `docs\evaluation.md`.

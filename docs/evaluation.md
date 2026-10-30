@@ -82,17 +82,49 @@ not proof that all possible document formats, adversarial inputs or enterprise b
 ### Independently evaluating ingestion skills
 
 ```powershell
-uv run ekb eval skills --skill labeling --output data\labeling-offline.json
-uv run ekb eval skills --skill extraction --output data\extraction-offline.json
+uv run ekb eval skills --skill labeling --max-concurrency 8 --output data\labeling-offline.json
+uv run ekb eval skills --skill extraction --max-concurrency 8 --output data\extraction-offline.json
+uv run ekb eval list
+uv run ekb eval history --skill extraction
 # After explicit provider/model/price configuration:
 uv run --extra agent-framework ekb eval skills --live --split validation
 uv run --extra agent-framework ekb eval skills --live --split test
+# Explicitly authorized live performance comparison; budget covers both runs:
+uv run --extra agent-framework ekb eval skills --live --compare-concurrency `
+  --max-concurrency 8 --max-model-calls 10000
 ```
 
 `--skill both` is the default. Labeling sees only raw segment text; extractor evaluation uses the
 gold routing labels as inputs, not expected candidates, so a labeling error cannot hide extractor
 behavior. Normal ingestion and the existing teacher evaluation exercise the combined model-backed
 path. Prompt/model selection uses validation; reserve test for the final comparison.
+
+Skill cases run through Pydantic Evals `Dataset.evaluate` with a typed task and an explicit
+domain-specific evaluator. Existing ontology, scope, extraction, false-mandate and quality-gate
+semantics remain authoritative; Pydantic Evals supplies bounded case execution and per-case
+results, while pytest continues to test software and contracts. Inference still uses the injected
+EKB skill port and configured provider (normally Microsoft Agent Framework); Pydantic Evals is not
+an inference backend. Gold labels remain evaluator metadata and are not sent to labeling or
+extraction inference.
+
+The default is eight concurrent cases, capped at 32; selected case count is capped separately.
+Live calls reserve a conservative per-case model-call allowance against a shared run budget.
+Provider retries remain the inference adapter's responsibility, and actual requests/tokens/cost
+are recorded separately from reservations. When retry or throttle counts are unavailable from an
+adapter, reports leave them unknown rather than claiming zero. Live quality/cost gates are
+measured after execution; call reservations are not a provider billing cap.
+
+Each run creates a uniquely named, create-only JSON report and compact index under
+`data\evaluation-history` by default; `--history-dir` can select another durable location, while
+`--output` is maintained as a latest-report alias. Point `eval list --history-dir` and
+`eval history --history-dir` at the same location to inspect custom history. The index lets
+`eval list` show each bundled dataset/skill, including never-run combinations. `eval history`
+filters the retained run index by dataset or skill and reports quality and performance over time.
+Do not edit retained reports; use a new run to preserve comparison history. The optional
+`--compare-concurrency` runs sequential and bounded-parallel arms only with explicit `--live`
+authorization, records both child reports and the comparison, and marks quality/cache-incompatible
+results incomparable. It may incur provider cost. It was not run for this offline implementation,
+so no live speedup or cost result is claimed.
 
 ### Document classification and mixed ontology layers
 

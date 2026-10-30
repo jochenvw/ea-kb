@@ -419,8 +419,19 @@ async def test_combined_suite_requires_code_and_evaluation_success(
     async def browser(*_):
         return {"passed": ui_pass}
 
+    async def skill_evaluation(*_, **kwargs):
+        return {
+            "passed": True,
+            "skills": {name: {"passed": True} for name in ("labeling", "extraction")},
+        }
+
+    async def nist_evaluation(*_, **kwargs):
+        return {"passed": True}
+
     monkeypatch.setattr(suite, "code_tests", code)
     monkeypatch.setattr(suite, "qualify", evaluate)
+    monkeypatch.setattr(suite, "evaluate_skills", skill_evaluation)
+    monkeypatch.setattr(suite, "evaluate_nist", nist_evaluation)
     monkeypatch.setattr(suite, "browser_tests", browser)
     report = await suite.run_suite(
         Settings(), DATASET, GATES, tmp_path, unit_only=True, ui=ui_pass is not None
@@ -506,3 +517,16 @@ def test_cli_live_configuration_split_and_suite_failures_have_nonzero_exit(monke
     monkeypatch.delenv("EKB_TEST_DATABASE_URL", raising=False)
     result = runner.invoke(app, ["test"])
     assert result.exit_code != 0 and "EKB_TEST_DATABASE_URL" in result.output
+
+
+def test_eval_list_and_history_show_available_and_never_run_skill_datasets(tmp_path):
+    runner = CliRunner()
+    listed = runner.invoke(app, ["eval", "list", "--history-dir", str(tmp_path)])
+    assert listed.exit_code == 0
+    assert "never_run" in listed.output
+    assert "skills-v1.json" in listed.output and "documents-v1.json" in listed.output
+    history = runner.invoke(
+        app,
+        ["eval", "history", "--history-dir", str(tmp_path), "--skill", "labeling"],
+    )
+    assert history.exit_code == 0 and history.output.strip() == "[]"

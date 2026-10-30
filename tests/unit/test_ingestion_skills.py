@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -34,9 +35,11 @@ from ekb.domain.models import (
 )
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.evaluation.dataset import load_dataset
+from ekb.evaluation.history import list_skill_catalog, skill_history
 from ekb.evaluation.skills import (
     SkillDataset,
     _audit_document_sources,
+    compare_skill_concurrency,
     document_metrics,
     evaluate_skills,
     label_metrics,
@@ -46,6 +49,32 @@ from ekb.pipeline import IngestionPipeline
 DATASET = Path("evals") / "skills-v1.json"
 GATES = Path("evals") / "gates.json"
 DOCUMENTS = Path("evals") / "documents-v1.json"
+
+
+def matching_labeler(dataset, *, delay=0.0):
+    cases = {case.segment().id: case for case in dataset.cases if case.split == "test"}
+    state = {"active": 0, "max_active": 0, "calls": 0}
+
+    class Labeler(RulesInference):
+        capabilities = Capabilities(model_id="synthetic-concurrent-model")
+
+        async def label(self, segment):
+            case = cases[segment.id]
+            state["active"] += 1
+            state["max_active"] = max(state["max_active"], state["active"])
+            try:
+                await asyncio.sleep(delay)
+                state["calls"] += 1
+                return LabelingResult(
+                    labeling=case.labeling,
+                    model_id=self.capabilities.model_id,
+                    prompt_version="synthetic-v1",
+                    usage=Usage(input_tokens=10, output_tokens=5, model_calls=1, cost=0.001),
+                )
+            finally:
+                state["active"] -= 1
+
+    return Labeler(), state
 
 
 def scoped_input():
@@ -459,6 +488,7 @@ async def test_skill_evaluation_is_split_isolated_independent_and_not_offline_qu
         tmp_path / "skills.json",
         IndependentExtractor(),
         skill="extraction",
+        history_dir=tmp_path / "evaluation-history",
     )
     assert report["passed"] and set(report["skills"]) == {"extraction"}
     assert report["skills"]["extraction"]["metrics"]["precision"] == 1
@@ -466,6 +496,10 @@ async def test_skill_evaluation_is_split_isolated_independent_and_not_offline_qu
     with pytest.raises(ValueError, match="budget"):
         await evaluate_skills(
             DATASET, GATES, tmp_path / "too-many.json", RulesInference(), max_cases=1
+        )
+    with pytest.raises(ValueError, match="budget"):
+        await evaluate_skills(
+            DATASET, GATES, tmp_path / "oversized-budget.json", RulesInference(), max_cases=1001
         )
 
 
@@ -493,6 +527,7 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
                     "usage": Usage(
                         input_tokens=10,
                         output_tokens=5,
+                        model_calls=1,
                         cost=0.001 if self.priced else None,
                     ),
                 }
@@ -506,6 +541,7 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
         labeler,
         skill="labeling",
         live=True,
+        history_dir=tmp_path / "evaluation-history",
     )
     assert report["passed"] and report["skills"]["labeling"]["qualified"]
     labeler.priced = False
@@ -516,6 +552,7 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
         labeler,
         skill="labeling",
         live=True,
+        history_dir=tmp_path / "evaluation-history",
     )
     assert not unknown["passed"]
     assert not unknown["skills"]["labeling"]["quality_gates"]["priced_cost"]
@@ -576,7 +613,12 @@ async def test_document_eval_uses_only_source_text_and_keeps_iso_negative(tmp_pa
             )
 
     report = await evaluate_skills(
-        DOCUMENTS, GATES, tmp_path / "documents.json", Reader(), split="all"
+        DOCUMENTS,
+        GATES,
+        tmp_path / "documents.json",
+        Reader(),
+        split="all",
+        history_dir=tmp_path / "evaluation-history",
     )
     assert report["skills"]["labeling"]["document_classification"]["coverage"]["accuracy"] == 1
     assert report["skills"]["extraction"]["metrics"]["recall"] == 1
@@ -594,11 +636,132 @@ async def test_document_eval_uses_only_source_text_and_keeps_iso_negative(tmp_pa
             )
 
     missing = await evaluate_skills(
-        DOCUMENTS, GATES, tmp_path / "missing.json", MissingCoverage(), split="all", live=True
+        DOCUMENTS,
+        GATES,
+        tmp_path / "missing.json",
+        MissingCoverage(),
+        split="all",
+        live=True,
+        history_dir=tmp_path / "evaluation-history",
     )
     assert missing["skills"]["labeling"]["metrics"]["recall"] == 1
     assert not missing["skills"]["labeling"]["quality_gates"]["document_coverage"]
     assert not missing["passed"]
+
+
+async def test_pydantic_evals_bounds_work_and_persists_indexed_skill_history(tmp_path):
+    dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
+    inference, state = matching_labeler(dataset, delay=0.005)
+    output = tmp_path / "skill-report.json"
+    report = await evaluate_skills(
+        DATASET,
+        GATES,
+        output,
+        inference,
+        skill="labeling",
+        live=True,
+        max_concurrency=3,
+        max_model_calls=100,
+        calls_per_case=1,
+        history_dir=tmp_path / "evaluation-history",
+    )
+    run = report["skills"]["labeling"]
+    assert run["evaluation_runner"] == "pydantic-evals"
+    assert run["evaluation_runner_version"] == "2.60.0"
+    assert run["performance"]["max_observed_concurrency"] == state["max_active"]
+    assert 1 < state["max_active"] <= 3
+    assert run["performance"]["configured_concurrency"] == 3
+    assert run["metrics"]["precision"] == run["metrics"]["recall"] == 1
+    assert [row["id"] for row in run["cases"]] == [
+        case.id for case in dataset.cases if case.split == "test"
+    ]
+    assert all(row["assertions"]["case_exact_match"]["value"] for row in run["cases"])
+    history_dir = output.parent / "evaluation-history"
+    assert await asyncio.to_thread(Path(report["history_path"]).is_file)
+    assert (history_dir / f"skill-index-{report['run_id']}.json").is_file()
+    entry = next(
+        item for item in list_skill_catalog((DATASET,), history_dir) if item["skill"] == "labeling"
+    )
+    assert entry["status"] == "completed" and entry["runs"] == 1
+    history = skill_history(dataset=DATASET, skill="labeling", history=history_dir)
+    assert len(history) == 1 and history[0]["run_id"] == report["run_id"]
+
+
+async def test_pydantic_evals_model_budget_yields_partial_report_without_overspend(tmp_path):
+    dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
+    inference, state = matching_labeler(dataset, delay=0.002)
+    output = tmp_path / "budget-report.json"
+    report = await evaluate_skills(
+        DATASET,
+        GATES,
+        output,
+        inference,
+        skill="labeling",
+        live=True,
+        max_concurrency=4,
+        max_model_calls=2,
+        calls_per_case=1,
+        history_dir=tmp_path / "evaluation-history",
+    )
+    result = report["skills"]["labeling"]
+    assert state["calls"] == result["usage"]["model_calls"] == 2
+    assert result["performance"]["model_call_budget_reserved"] == 2
+    assert report["status"] == "partial" and not report["passed"]
+    assert result["errors"] == len(result["cases"]) - 2
+    assert sum(bool(row["result"]["error"]) for row in result["cases"]) == result["errors"]
+
+
+async def test_cancelled_skill_eval_persists_partial_history_and_propagates(tmp_path):
+    dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
+    inference, _ = matching_labeler(dataset, delay=0.1)
+    output = tmp_path / "cancelled-report.json"
+    task = asyncio.create_task(
+        evaluate_skills(
+            DATASET,
+            GATES,
+            output,
+            inference,
+            skill="labeling",
+            live=True,
+            max_concurrency=2,
+            max_model_calls=100,
+            calls_per_case=1,
+            history_dir=tmp_path / "evaluation-history",
+        )
+    )
+    await asyncio.sleep(0.02)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    persisted = json.loads(output.read_bytes())
+    assert persisted["status"] == "cancelled" and not persisted["passed"]
+    assert await asyncio.to_thread(Path(persisted["history_path"]).is_file)
+
+
+async def test_live_concurrency_comparison_uses_equivalent_uncached_work(tmp_path):
+    dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
+    inference, _ = matching_labeler(dataset, delay=0.01)
+    report = await compare_skill_concurrency(
+        DATASET,
+        GATES,
+        tmp_path / "comparison.json",
+        inference,
+        skill="labeling",
+        split="test",
+        max_cases=100,
+        max_concurrency=4,
+        max_model_calls=100,
+        calls_per_case=1,
+        run_metadata={"provider": "synthetic"},
+        history_dir=tmp_path / "evaluation-history",
+    )
+    assert report["compatible"] and report["passed"]
+    assert report["aggregate"]["speedup"] > 1
+    assert (
+        report["aggregate"]["sequential_model_requests"]
+        == (report["aggregate"]["parallel_model_requests"])
+    )
+    assert report["quality_parity"]["labeling"]["same_quality_metrics"]
 
 
 def test_coverage_and_document_annotations_must_resolve_to_source_passages():
