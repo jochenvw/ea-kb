@@ -160,6 +160,52 @@ pre {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 20px;
 }
+.ontology-diagram {
+  margin: 16px 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-bg-elevated);
+}
+.ontology-diagram svg .node rect,
+.ontology-diagram svg .node polygon,
+.ontology-diagram svg .node circle {
+  fill: var(--cp-surface) !important;
+  stroke: var(--cp-border-strong) !important;
+}
+.ontology-diagram svg .cluster rect,
+.ontology-diagram svg .edgeLabel rect {
+  fill: var(--cp-bg-elevated) !important;
+  stroke: var(--cp-border) !important;
+}
+.ontology-diagram svg text,
+.ontology-diagram svg .label,
+.ontology-diagram svg .nodeLabel p {
+  fill: var(--cp-text) !important;
+  color: var(--cp-text) !important;
+}
+.ontology-diagram svg {
+  display: block;
+  margin: 0 auto;
+}
+.ontology-diagram svg .edgeLabel p {
+  background: var(--cp-bg-elevated) !important;
+  color: var(--cp-text) !important;
+}
+.ontology-diagram svg .flowchart-link {
+  stroke: var(--cp-text-muted) !important;
+}
+.ontology-diagram svg marker path {
+  fill: var(--cp-text-muted) !important;
+  stroke: var(--cp-text-muted) !important;
+}
+.ontology-mermaid-source {
+  margin-top: 12px;
+  padding: 16px;
+  overflow: auto;
+  background: var(--cp-bg-elevated);
+  white-space: pre;
+}
 .ontology-term {
   border: 1px solid var(--cp-border);
   border-radius: var(--radius);

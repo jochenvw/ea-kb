@@ -103,6 +103,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       output: {
         entryFileNames: "app.js",
+        chunkFileNames: "[name]-[hash].js",
         assetFileNames: (asset) =>
           asset.names.some((name) => /\.woff2?$/.test(name))
             ? "[name]-[hash][extname]"

@@ -7,6 +7,7 @@ Workspace, Consolidate, Reference and Operations separate architect tasks from p
 `review.tsx` separates the active backlog from the read-only ledger in `reference.tsx`.
 `reference.tsx` also provides bounded, linked table previews and safe operational log tails.
 `ontology.tsx` reads canonical definitions/IRIs from `/api/ontology`; badges and inline definitions reuse it.
+`ontology-diagram.tsx` lazily renders Mermaid from that catalog; only declared domains/ranges get arrows.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
 `knowledge.tsx` keeps evidence first; visual validation, scoped authority and history have separate tabs.
 Evidence, authority and proposal defaults follow the selected version, not an unrelated latest version.

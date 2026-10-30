@@ -23,3 +23,12 @@ def test_committed_browser_assets_match_their_build_inputs():
         )
     for name in ("app.js", "app.css", "index.html", "LICENSES.txt"):
         assert (assets / name).stat().st_size > 0
+
+
+def test_committed_browser_assets_include_the_mermaid_renderer():
+    assets = (
+        Path(__file__).resolve().parents[2] / "src" / "ekb" / "interfaces" / "web" / "static" / "ui"
+    )
+    chunks = list(assets.glob("mermaid.core-*.js"))
+    assert len(chunks) == 1
+    assert chunks[0].name in (assets / "app.js").read_text(encoding="utf-8")

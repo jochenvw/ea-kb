@@ -49,10 +49,24 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             inventory = await client.get("/")
             assert inventory.status_code == 200 and 'id="root"' in inventory.text
             assert inventory.text.index("scoutTheme") < inventory.text.index("/static/ui/app.js")
-            for path in ("/knowledge", "/sources", "/pipeline", "/review", "/benchmarks"):
+            for path in (
+                "/knowledge",
+                "/sources",
+                "/pipeline",
+                "/review",
+                "/benchmarks",
+                "/ontology",
+            ):
                 page = await client.get(path)
                 assert page.status_code == 200 and "/static/ui/app.js" in page.text
-            for path in ("/static/ui/app.js", "/static/ui/app.css"):
+            renderer = await asyncio.to_thread(
+                lambda: next(
+                    Path("src", "ekb", "interfaces", "web", "static", "ui").glob(
+                        "mermaid.core-*.js"
+                    )
+                )
+            )
+            for path in ("/static/ui/app.js", "/static/ui/app.css", f"/static/ui/{renderer.name}"):
                 asset = await client.get(path)
                 assert asset.status_code == 200 and asset.headers.get("etag")
                 cached = await client.get(path, headers={"If-None-Match": asset.headers["etag"]})

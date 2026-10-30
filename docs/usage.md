@@ -351,6 +351,10 @@ and classification context; these presentation groups imply no subclass or suppo
 Interpretations display their canonical definition inline. Knowledge/source badges link to the
 same catalog; unknown types say
 **Unclassified**. The catalog is available even when no documents have been indexed.
+Open **Show Mermaid diagram** to visualize the complete ontology and inspect its generated Mermaid
+source. Boxes are classes and property types, not enterprise-specific assertions. Only OWL-declared
+domains and ranges are drawn as arrows; semantic properties without declared constraints remain
+unconnected. Search filters the catalog, not the diagram. Rendering is local and read-only.
 
 **Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified
 as `PlatformRequirement`, including unclassified native guidance. Select **Platform implementation**

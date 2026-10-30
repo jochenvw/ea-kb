@@ -604,6 +604,81 @@ test("ontology request failure is explicit and retryable", async ({ page }) => {
   await expect(page.locator("#TechnicalRequirement")).toBeVisible();
 });
 
+test("Mermaid diagram reflects declared ontology terms and constraints", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.goto("/ontology");
+  await page.getByText("Show Mermaid diagram", { exact: true }).click();
+  const diagram = page.getByRole("figure", {
+    name: "Ontology terms and declared domain and range constraints",
+  });
+  await expect(diagram.locator("svg")).toBeVisible();
+  await expect(diagram).toContainText("Strategic goal");
+  await expect(diagram).toContainText("supports");
+  await expect(diagram).toContainText(/sub-scope of\s*\(transitive\)/);
+  await expect(diagram).toContainText("xsd:string");
+  await page.getByText("View Mermaid source", { exact: true }).click();
+  const source = await page.locator(".ontology-mermaid-source").innerText();
+  const scope = source.match(/(t\d+)\["Organizational scope"\]/)?.[1];
+  const subScope = source.match(/(t\d+)\["sub-scope of \(transitive\)"\]/)?.[1];
+  const supports = source.match(/(t\d+)\["supports"\]/)?.[1];
+  expect(scope).toBeTruthy();
+  expect(subScope).toBeTruthy();
+  expect(supports).toBeTruthy();
+  expect(source).toContain(`${subScope} -->|domain| ${scope}`);
+  expect(source).toContain(`${subScope} -->|range| ${scope}`);
+  expect(source).not.toContain(`${supports} -->`);
+  expect(source).not.toMatch(/-->\|(?:domain|range)\|\s+undefined/);
+
+  const node = diagram.locator(".node rect").first();
+  const before = await node.evaluate(
+    (element) => getComputedStyle(element).fill,
+  );
+  await page.getByRole("button", { name: "Use dark theme" }).click();
+  await expect(node).not.toHaveCSS("fill", before);
+  await page.getByText("Hide Mermaid diagram", { exact: true }).click();
+  await expect(diagram).toHaveCount(0);
+});
+
+test("Mermaid escapes ontology labels", async ({ page }) => {
+  await fixture(page);
+  await page.route("**/api/ontology", (route) => {
+    const data = structuredClone(ontology);
+    data.terms[0].label = 'Literal "quote" <img src=x onerror=alert(1)>';
+    return route.fulfill({ json: data });
+  });
+  await page.goto("/ontology");
+  await page.getByText("Show Mermaid diagram", { exact: true }).click();
+  const diagram = page.getByRole("figure", {
+    name: "Ontology terms and declared domain and range constraints",
+  });
+  await expect(diagram.locator("svg")).toBeVisible();
+  await expect(diagram).toContainText('Literal "quote"');
+  await expect(diagram.locator("img, script")).toHaveCount(0);
+});
+
+test("Mermaid loading failures remain visible and retryable", async ({
+  page,
+}) => {
+  await fixture(page);
+  let fail = true;
+  await page.route("**/node_modules/.vite/deps/mermaid.js?*", (route) =>
+    fail ? route.abort() : route.continue(),
+  );
+  await page.goto("/ontology");
+  await page.getByText("Show Mermaid diagram", { exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Could not render the Mermaid diagram",
+  );
+  await expect(page.locator("#TechnicalRequirement")).toContainText(
+    ontology.terms[0].definition,
+  );
+  fail = false;
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator(".ontology-diagram svg")).toBeVisible();
+});
+
 test.beforeEach(async ({ page }) => {
   await fixture(page);
 });

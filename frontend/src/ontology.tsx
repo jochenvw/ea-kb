@@ -14,6 +14,7 @@ import {
   SearchBox,
 } from "@/components/workspace";
 import { useResource } from "@/lib/api";
+import { OntologyDiagram } from "@/ontology-diagram";
 import type { OntologyCatalog, OntologyTerm } from "@/types";
 
 type OntologyResource = ReturnType<typeof useResource<OntologyCatalog>>;
@@ -88,6 +89,7 @@ const conceptLayers = [
 export function Ontology() {
   const resource = useOntology();
   const [query, setQuery] = useState("");
+  const [showDiagram, setShowDiagram] = useState(false);
   const catalog = resource.data;
   useEffect(() => {
     const target = catalog?.terms.find(
@@ -152,6 +154,21 @@ export function Ontology() {
                 <p>
                   SHA-256: <code>{catalog.sha256}</code>
                 </p>
+              </details>
+            </Panel>
+            <Panel
+              title="Ontology diagram"
+              description="Visualize the shared vocabulary and explicitly declared property constraints."
+            >
+              <details
+                onToggle={(event) => setShowDiagram(event.currentTarget.open)}
+              >
+                <summary>
+                  {showDiagram
+                    ? "Hide Mermaid diagram"
+                    : "Show Mermaid diagram"}
+                </summary>
+                {showDiagram && <OntologyDiagram catalog={catalog} />}
               </details>
             </Panel>
             <SearchBox
