@@ -116,6 +116,50 @@ async def test_concurrent_workers_claim_one_task(database, tmp_path):
         assert len(await uow.knowledge.search()) == 1
 
 
+async def test_orchestrated_scan_accepts_task_completed_during_claim_race(
+    database, tmp_path, monkeypatch
+):
+    pipeline, _, inference, source = build(database, tmp_path)
+    (source / "policy.txt").write_text("Users must authenticate.")
+    parsing, release, waiting, finished = (asyncio.Event() for _ in range(4))
+
+    class PausedParser(CountingParser):
+        async def parse(self, item, revision, content):
+            parsing.set()
+            await release.wait()
+            return await super().parse(item, revision, content)
+
+    parser = PausedParser()
+    pipeline.parser = parser
+    strict = IngestionPipeline(
+        database, pipeline.artifacts, parser, inference, require_complete=True
+    )
+    ingest = strict._ingest
+
+    async def wait_for_completion(item, revision, content):
+        waiting.set()
+        await finished.wait()
+        return await ingest(item, revision, content)
+
+    monkeypatch.setattr(strict, "_ingest", wait_for_completion)
+    first = asyncio.create_task(pipeline.scan([FilesystemConnector(source)]))
+    second = None
+    try:
+        await asyncio.wait_for(parsing.wait(), 10)
+        second = asyncio.create_task(strict.scan([FilesystemConnector(source)]))
+        await asyncio.wait_for(waiting.wait(), 10)
+        release.set()
+        assert (await asyncio.wait_for(first, 30)).processed == 1
+        finished.set()
+        result = await asyncio.wait_for(second, 30)
+        assert result.status == "completed" and result.skipped == 1
+        assert parser.calls == inference.calls == 1
+    finally:
+        release.set()
+        finished.set()
+        await asyncio.gather(*(task for task in (first, second) if task), return_exceptions=True)
+
+
 async def test_dry_run_has_no_writes_or_model_calls(database, tmp_path):
     pipeline, parser, inference, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")

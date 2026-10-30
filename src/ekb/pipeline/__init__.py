@@ -43,6 +43,10 @@ from ekb.ports import (
 from ekb.services.benchmarks import BENCHMARK_EXTRACTOR_VERSION, benchmark_extraction
 
 
+class ProcessingIncompleteError(RuntimeError):
+    pass
+
+
 class IngestionPipeline:
     def __init__(
         self,
@@ -56,6 +60,7 @@ class IngestionPipeline:
         model_concurrency: int = 2,
         inference_config: str = "",
         progress: Callable[[SourceItem, str], None] | None = None,
+        require_complete: bool = False,
     ):
         self.uow = uow
         self.artifacts = artifacts
@@ -73,6 +78,7 @@ class IngestionPipeline:
             config=inference_config,
         )
         self.progress = progress or (lambda item, status: None)
+        self.require_complete = require_complete
 
     def _processing_fingerprint(self, content: str, item: SourceItem) -> str:
         if "benchmark_asset" in item.metadata:
@@ -406,6 +412,11 @@ class IngestionPipeline:
             claimed = await uow.processing.claim(task, owner)
             await uow.commit()
         if not claimed:
+            if self.require_complete:
+                async with self.uow() as uow:
+                    current = await uow.processing.task(revision.id, process_fp)
+                if current is None or current.status != "done":
+                    raise ProcessingIncompleteError("Processing task is not complete; retry")
             return "skipped", 0
         stop = asyncio.Event()
         try:

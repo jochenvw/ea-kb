@@ -107,8 +107,10 @@ Set `EKB_CONFIG_FILE` in both terminals when using a nondefault profile; `--conf
 invocation on which it appears. Status includes run, stage and check IDs, attempts and error types.
 After interruption, resume the same run rather than resetting it. The pipeline's renewable lease
 prevents concurrent owners; a crashed lease expires after up to 120 seconds, while an individual
-processing-task lease can take five minutes. `ekb scan` and `ekb worker --directory PATH --once`
-remain available for indexing-only operation.
+processing-task lease can take five minutes. A pipeline resume fails rather than declaring success
+if a required task is still leased; `ekb scans list` identifies `ProcessingIncompleteError`.
+Retry the same run after that task finishes or its lease expires. `ekb scan` and
+`ekb worker --directory PATH --once` remain available for indexing-only operation.
 
 Task pages cover at most 1,000 tasks in identifier order; pass the last ID as `--after` for the
 next page. Usage summarizes the first 1,000 tasks and marks `tasks_truncated` if more exist;
@@ -127,6 +129,9 @@ It refuses active scans/leases, broad/root paths, symlink/junction paths, source
 shared Azure Blob storage. Stop ingestion workers first; a read-only browser may remain open.
 Files are quarantined while the DB reset is transactional and restored if that reset fails.
 Do not use `--fresh` merely to retry failed work; ordinary reruns reuse valid checkpoints.
+A hard process crash can leave a scan report marked `running` indefinitely, even after its pipeline
+and task leases expire or the pipeline is resumed. Reset currently refuses that report because scan
+reports have no fenced liveness record to distinguish it safely from a live standalone scan.
 
 To clear indexed knowledge/runs and owned ingestion caches **without re-indexing**, use
 `uv run ekb reset` (confirmation) or `uv run ekb reset --yes` (automation). The same safety

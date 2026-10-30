@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
@@ -11,7 +12,7 @@ import pytest
 import uvicorn
 import yaml
 from docx import Document
-from sqlalchemy import text
+from sqlalchemy import select, text, update
 from sqlalchemy.engine import make_url
 from typer.testing import CliRunner
 
@@ -19,8 +20,10 @@ from ekb.adapters.artifacts import FilesystemArtifactStore
 from ekb.adapters.inference import RulesInference
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
+from ekb.adapters.persistence.postgres.models import TaskRow, WorkflowLeaseRow
 from ekb.adapters.sources import FilesystemConnector
 from ekb.config import Settings
+from ekb.domain.models import now
 from ekb.interfaces.api import create_app
 from ekb.interfaces.cli import app
 from ekb.maintenance import reset_workspace
@@ -39,6 +42,83 @@ def build(database, tmp_path):
         RulesInference(),
     )
     return pipeline, source
+
+
+async def recovery_cli(database, tmp_path):
+    async with database.engine.connect() as connection:
+        schema = await connection.scalar(text("SELECT current_schema()"))
+    url = make_url(os.environ["EKB_TEST_DATABASE_URL"]).set(
+        query={"dsn": f"postgresql:///?search_path={schema}"}
+    )
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "policy.txt").write_text("Users must authenticate.", encoding="utf-8")
+    profile = tmp_path / "profile.yaml"
+    profile.write_text(
+        yaml.safe_dump(
+            {
+                "data_dir": str(tmp_path / "runtime"),
+                "pipeline": {"stages": {"indexing": {"directory": str(source)}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "EKB_DATABASE_URL": url.render_as_string(hide_password=False),
+            "EKB_CONFIG_FILE": str(profile),
+            "EKB_DATA_DIR": str(tmp_path / "runtime"),
+            "EKB_SOURCE_DIRECTORY": str(source),
+            "EKB_INFERENCE": "rules",
+            "EKB_ARTIFACT_BACKEND": "filesystem",
+            "EKB_RECONCILIATION_MODEL_ID": "",
+            "EKB_EMBEDDING_MODEL_ID": "",
+            "EKB_AZURE_MONITOR_CONNECTION_STRING": "",
+            "EKB_OCR": "false",
+        }
+    )
+    executable = Path(sys.executable).parent / ("ekb.exe" if os.name == "nt" else "ekb")
+
+    def cli(*arguments):
+        return subprocess.run(
+            [str(executable), *arguments],
+            env=env,
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+    return env, cli
+
+
+async def wait_for_blocked_claim(database, process, output_file):
+    observed = None
+    for _ in range(900):
+        if process.returncode is not None:
+            pytest.fail(f"CLI exited before the claim: {output_file.read_text(encoding='utf-8')}")
+        async with database() as uow:
+            tasks = await uow.processing.tasks()
+            scans = await uow.processing.scans()
+            runs = await uow.workflow.executions(limit=1)
+            waiting = await uow.session.scalar(
+                text(
+                    "SELECT pid FROM pg_locks "
+                    "WHERE relation = to_regclass('parse_checkpoints') AND NOT granted LIMIT 1"
+                )
+            )
+            observed = len(runs), len(scans), len(tasks), waiting
+            if tasks and scans and runs and tasks[0].status == "running" and waiting:
+                task = await uow.session.get(TaskRow, tasks[0].id)
+                assert task is not None and task.owner is not None
+                return runs[0].id, scans[0].id, task.id, task.owner, waiting
+        await asyncio.sleep(0.1)
+    pytest.fail(
+        f"CLI did not reach the blocked claim ({observed}): "
+        f"{output_file.read_text(encoding='utf-8')}"
+    )
 
 
 async def test_cli_human_json_replay_and_fresh_use_disposable_state(
@@ -381,3 +461,229 @@ async def test_fresh_refuses_an_active_pipeline_lease(database, tmp_path):
         await uow.commit()
     with pytest.raises(ValueError, match="active"):
         await reset_workspace(Settings(data_dir=tmp_path / "runtime"), database)
+
+
+async def test_fresh_refuses_a_standalone_scan_before_any_task_is_claimed(database, tmp_path):
+    pipeline, source = build(database, tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class PausedConnector(FilesystemConnector):
+        async def discover(self):
+            started.set()
+            await release.wait()
+            async for item in super().discover():
+                yield item
+
+    scan = asyncio.create_task(pipeline.scan([PausedConnector(source)]))
+    try:
+        await asyncio.wait_for(started.wait(), 10)
+        async with database() as uow:
+            assert (await uow.processing.scans())[0].status == "running"
+            assert not await uow.processing.tasks()
+            assert not await uow.session.scalar(select(WorkflowLeaseRow.name).limit(1))
+        with pytest.raises(ValueError, match="active"):
+            async with database.reset():
+                pass
+    finally:
+        release.set()
+        report = await asyncio.wait_for(scan, 30)
+    assert report.status == "completed"
+
+
+async def test_real_cli_cooperative_interrupt_is_diagnosable_and_resumes_same_run(
+    database, tmp_path
+):
+    env, cli = await recovery_cli(database, tmp_path)
+    output_file = tmp_path / "interrupted.log"
+    trigger = tmp_path / "interrupt.trigger"
+    env["EKB_TEST_INTERRUPT_FILE"] = str(trigger)
+    # Windows console control events require a shared console; inject SIGINT in the CLI main thread.
+    launcher = """
+import _thread
+import os
+import sys
+import threading
+import time
+
+def interrupt():
+    while not os.path.isfile(os.environ["EKB_TEST_INTERRUPT_FILE"]):
+        time.sleep(0.05)
+    _thread.interrupt_main()
+    print("INTERRUPT_QUEUED", file=sys.stderr, flush=True)
+
+threading.Thread(target=interrupt, daemon=True).start()
+from ekb.interfaces.cli import app
+app()
+"""
+    process = None
+    async with database.engine.connect() as blocked:
+        transaction = await blocked.begin()
+        await blocked.execute(text("LOCK TABLE parse_checkpoints IN ACCESS EXCLUSIVE MODE"))
+        try:
+            with output_file.open("w", encoding="utf-8") as output:
+                process = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-c",
+                    launcher,
+                    "pipeline",
+                    "run",
+                    "--json",
+                    env=env,
+                    cwd=Path.cwd(),
+                    stdin=asyncio.subprocess.DEVNULL,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                )
+                run_id, scan_id, task_id, _, _ = await wait_for_blocked_claim(
+                    database, process, output_file
+                )
+                trigger.write_text("interrupt", encoding="utf-8")
+                for _ in range(300):
+                    if "INTERRUPT_QUEUED" in output_file.read_text(encoding="utf-8"):
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    pytest.fail("The CLI did not receive the cooperative interrupt")
+                await transaction.rollback()
+                assert await asyncio.wait_for(process.wait(), 120) != 0
+        finally:
+            if transaction.is_active:
+                await transaction.rollback()
+            if process and process.returncode is None:
+                process.kill()
+                await asyncio.wait_for(process.wait(), 30)
+
+    status = await asyncio.to_thread(cli, "pipeline", "status", str(run_id))
+    assert status.returncode == 0, status.stderr
+    cancelled = json.loads(status.stdout)
+    assert cancelled["run"]["id"] == str(run_id)
+    assert cancelled["run"]["status"] == "cancelled"
+    assert cancelled["run"]["error"] == "CancelledError"
+    assert any(
+        item["kind"] == "check" and item["status"] == "cancelled"
+        for item in cancelled["executions"]
+    )
+    async with database() as uow:
+        scan = next(report for report in await uow.processing.scans() if report.id == scan_id)
+        task = next(item for item in await uow.processing.tasks() if item.id == task_id)
+        assert scan.status == "cancelled" and scan.finished_at is not None
+        assert task.status == "cancelled"
+
+    resume = await asyncio.to_thread(cli, "pipeline", "resume", str(run_id))
+    assert resume.returncode == 0, resume.stderr
+    resumed = json.loads(resume.stdout)
+    assert resumed["run"]["id"] == str(run_id)
+    assert resumed["run"]["status"] == "done" and resumed["run"]["attempts"] == 2
+    async with database() as uow:
+        task = next(item for item in await uow.processing.tasks() if item.id == task_id)
+        counts = await uow.knowledge.counts()
+        assert task.status == "done" and task.attempts == 2
+        assert counts.sources == counts.revisions == counts.concepts == 1
+
+
+async def test_crashed_cli_resume_waits_for_task_lease_and_stale_scan_blocks_reset(
+    database, tmp_path
+):
+    env, cli = await recovery_cli(database, tmp_path)
+    executable = Path(sys.executable).parent / ("ekb.exe" if os.name == "nt" else "ekb")
+    output_file = tmp_path / "crashed.log"
+    process = None
+    async with database.engine.connect() as blocked:
+        transaction = await blocked.begin()
+        await blocked.execute(text("LOCK TABLE parse_checkpoints IN ACCESS EXCLUSIVE MODE"))
+        try:
+            with output_file.open("w", encoding="utf-8") as output:
+                process = await asyncio.create_subprocess_exec(
+                    str(executable),
+                    "pipeline",
+                    "run",
+                    "--json",
+                    env=env,
+                    cwd=Path.cwd(),
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                )
+                run_id, scan_id, task_id, old_owner, backend_pid = await wait_for_blocked_claim(
+                    database, process, output_file
+                )
+                process.kill()
+                assert await asyncio.wait_for(process.wait(), 30) != 0
+        finally:
+            if transaction.is_active:
+                await transaction.rollback()
+            if process and process.returncode is None:
+                process.kill()
+                await asyncio.wait_for(process.wait(), 30)
+
+    async with database.engine.connect() as connection:
+        for _ in range(300):
+            exists = await connection.scalar(
+                text("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid = :pid)"),
+                {"pid": backend_pid},
+            )
+            await connection.rollback()
+            if not exists:
+                break
+            await asyncio.sleep(0.1)
+        else:
+            pytest.fail("The crashed CLI's blocked PostgreSQL session did not disconnect")
+
+    with pytest.raises(ValueError, match="active"):
+        async with database.reset():
+            pass
+    async with database.engine.begin() as connection:
+        await connection.execute(
+            update(WorkflowLeaseRow)
+            .where(WorkflowLeaseRow.name == "knowledge-pipeline")
+            .values(expires_at=now() - timedelta(seconds=1))
+        )
+
+    early = await asyncio.to_thread(cli, "pipeline", "resume", str(run_id))
+    assert early.returncode != 0, f"Resume incorrectly succeeded: {early.stdout[:600]}"
+    status = await asyncio.to_thread(cli, "pipeline", "status", str(run_id))
+    assert status.returncode == 0, status.stderr
+    failed = json.loads(status.stdout)
+    assert failed["run"]["id"] == str(run_id)
+    assert failed["run"]["status"] == "failed" and failed["run"]["attempts"] == 2
+    scans = await asyncio.to_thread(cli, "scans", "list")
+    assert scans.returncode == 0, scans.stderr
+    assert any(
+        report["status"] == "partial"
+        and any("ProcessingIncompleteError" in error for error in report["errors"])
+        for report in json.loads(scans.stdout)
+    )
+    async with database() as uow:
+        assert (await uow.knowledge.counts()).concepts == 0
+
+    async with database.engine.begin() as connection:
+        await connection.execute(
+            update(TaskRow)
+            .where(TaskRow.id == task_id)
+            .values(lease_until=now() - timedelta(seconds=1))
+        )
+    resume = await asyncio.to_thread(cli, "pipeline", "resume", str(run_id))
+    assert resume.returncode == 0, resume.stderr
+    resumed = json.loads(resume.stdout)
+    assert resumed["run"]["id"] == str(run_id)
+    assert resumed["run"]["status"] == "done" and resumed["run"]["attempts"] == 3
+    async with database() as uow:
+        task = next(item for item in await uow.processing.tasks() if item.id == task_id)
+        reports = await uow.processing.scans()
+        assert task.status == "done" and task.attempts == 2
+        assert (await uow.knowledge.counts()).concepts == 1
+        assert next(report for report in reports if report.id == scan_id).status == "running"
+        with pytest.raises(RuntimeError, match="Processing lease lost"):
+            await uow.processing.heartbeat(task_id, old_owner)
+    async with database.engine.connect() as connection:
+        assert not await connection.scalar(
+            select(WorkflowLeaseRow.name).where(WorkflowLeaseRow.expires_at > now()).limit(1)
+        )
+        assert not await connection.scalar(
+            select(TaskRow.id)
+            .where(TaskRow.status == "running", TaskRow.lease_until > now())
+            .limit(1)
+        )
+    # Unowned historical scan reports cannot safely be distinguished from live standalone scans.
+    with pytest.raises(ValueError, match="active"):
+        async with database.reset():
+            pass

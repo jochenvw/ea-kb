@@ -133,7 +133,7 @@ class Runtime:
                                 progress.synchronized(synchronized)
                             if synchronized.failed:
                                 raise RuntimeError("Benchmark synchronization has failed assets")
-                ingestion = self.pipeline()
+                ingestion = self.pipeline(require_complete=True)
                 if progress:
                     ingestion.progress = progress.source
                 report = await ingestion.scan(
@@ -177,7 +177,7 @@ class Runtime:
             self._connectors.append(self._benchmarks)
         return self._benchmarks
 
-    def pipeline(self) -> IngestionPipeline:
+    def pipeline(self, *, require_complete: bool = False) -> IngestionPipeline:
         return IngestionPipeline(
             self.database,
             self.artifacts,
@@ -194,6 +194,7 @@ class Runtime:
                 temperature=self.settings.model_temperature,
                 token_parameter=self.settings.model_max_token_parameter,
             ),
+            require_complete=require_complete,
         )
 
     def connectors(

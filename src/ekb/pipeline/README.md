@@ -10,6 +10,7 @@
   independently so extractor failures/prompt changes do not repay unchanged labeling.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
+- Orchestrated scans fail rather than report success for a task still owned by another worker.
 - Keep downloads, parsing and inference outside database transactions.
 - Sources report absence through the port contract; transport retries belong to their adapters.
 - `_execute_benchmark` consumes hash-validated normalized cache and persists typed records/candidates.
