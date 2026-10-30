@@ -195,8 +195,9 @@ class ResolutionStore:
                     ],
                 )
             )
-        findings = tuple(Finding.model_validate(r.payload) for r in await self._bounded(FindingRow))
+        # A visible decision's immutable finding must also be visible in this snapshot.
         decisions = tuple(await self.decisions())
+        findings = tuple(Finding.model_validate(r.payload) for r in await self._bounded(FindingRow))
         enrichment = await Workflow(self.session).successful("enrichment")
         active = set(enrichment.output.record_ids) if enrichment and enrichment.output else set()
         active.update(f.id for f in findings if f.check_id == "manual")

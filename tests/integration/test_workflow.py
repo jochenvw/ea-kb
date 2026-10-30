@@ -7,6 +7,8 @@ import pytest
 from pydantic import SecretStr
 from textual.widgets import Input, Static
 
+from ekb.adapters.persistence.postgres.models import FindingRow
+from ekb.adapters.persistence.postgres.workflow import ResolutionStore
 from ekb.config import Settings
 from ekb.domain.execution import CheckOptions, PipelineConfiguration, StageOptions
 from ekb.domain.models import ConceptVersion, Scope, SemanticVersion, now
@@ -386,6 +388,61 @@ async def test_alias_target_can_change_only_after_explicit_reversal(database, tm
             snapshot = await uow.resolution.snapshot()
         assert active_aliases(snapshot, now().date())[source] == replacement
     finally:
+        await runtime.__aexit__()
+
+
+async def test_alias_snapshot_stays_consistent_with_concurrent_review(
+    database, tmp_path, monkeypatch
+):
+    runtime, _, config = await prepare(database, tmp_path)
+    snapshot_task = None
+    release = asyncio.Event()
+    try:
+        await runtime.orchestrator().run(configuration=config)
+        candidate = next(f for f in await runtime.reconciliation.findings() if f.action == "alias")
+        candidate = candidate.model_copy(update={"id": uuid4(), "check_id": "manual"})
+        findings_read = asyncio.Event()
+        original_bounded = ResolutionStore._bounded
+
+        async def pause_after_findings(store, model):
+            rows = await original_bounded(store, model)
+            if model is FindingRow:
+                findings_read.set()
+                await release.wait()
+            return rows
+
+        monkeypatch.setattr(ResolutionStore, "_bounded", pause_after_findings)
+
+        async def capture():
+            async with database() as uow:
+                return await uow.resolution.snapshot()
+
+        snapshot_task = asyncio.create_task(capture())
+        await asyncio.wait_for(findings_read.wait(), timeout=10)
+        await runtime.reconciliation.propose(candidate)
+        decision = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=candidate.id,
+                outcome="accepted",
+                actor="reviewer",
+                rationale="Concurrent synthetic identity review.",
+            )
+        )
+        release.set()
+        snapshot = await asyncio.wait_for(snapshot_task, timeout=10)
+        assert decision.id not in {item.id for item in snapshot.decisions}
+        assert candidate.concept_ids[0] not in active_aliases(snapshot, now().date())
+        monkeypatch.setattr(ResolutionStore, "_bounded", original_bounded)
+        async with database() as uow:
+            snapshot = await uow.resolution.snapshot()
+        assert (
+            active_aliases(snapshot, now().date())[candidate.concept_ids[0]]
+            == (candidate.concept_ids[1])
+        )
+    finally:
+        release.set()
+        if snapshot_task and not snapshot_task.done():
+            await snapshot_task
         await runtime.__aexit__()
 
 
