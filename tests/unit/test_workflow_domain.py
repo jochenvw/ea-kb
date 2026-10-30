@@ -206,6 +206,8 @@ def test_aliases_follow_effective_and_reversed_decisions_without_a_projection():
     assert active_aliases(snapshot, date(2021, 6, 1)) == {}
     assert active_aliases(snapshot, date(2022, 6, 1)) == {}
     assert active_aliases(snapshot, date(2023, 6, 1)) == {source: replacement}
+    with pytest.raises(ValueError, match="missing finding"):
+        active_aliases(snapshot.model_copy(update={"findings": ()}), date(2020, 6, 1))
 
 
 def test_derived_aliases_reject_competing_targets_and_cycles():
@@ -226,6 +228,8 @@ def test_derived_aliases_reject_competing_targets_and_cycles():
         alias_edges((finding, competing))
     with pytest.raises(ValueError, match="Cyclic"):
         alias_edges((finding, cycle))
+    with pytest.raises(ValueError, match="two different identities"):
+        alias_edges((finding.model_copy(update={"concept_ids": (a,)}),))
 
 
 def test_registry_rejects_unknown_checks_and_dependency_cycles():
