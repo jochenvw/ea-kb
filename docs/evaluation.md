@@ -120,6 +120,7 @@ Each run creates a uniquely named, create-only JSON report and compact index und
 `eval history --history-dir` at the same location to inspect custom history. The index lets
 `eval list` show each bundled dataset/skill, including never-run combinations. `eval history`
 filters the retained run index by dataset or skill and reports quality and performance over time.
+Invalid history indexes fail explicitly rather than hiding retained runs as an empty catalog.
 Do not edit retained reports; use a new run to preserve comparison history. The optional
 `--compare-concurrency` runs sequential and bounded-parallel arms only with explicit `--live`
 authorization, records both child reports and the comparison, and marks quality/cache-incompatible
@@ -281,7 +282,7 @@ provisional qualification cases, not independent human gold or production covera
 
 Each skill reports its own fingerprint, precision/recall, errors, false mandates, p95 latency,
 tokens and priced cost, using the existing gates below. Label accuracy includes ontology type
-and scope; extraction matching additionally requires kind, modality and retained qualifiers.
+and scope; extraction matching additionally requires ontology type, modality and retained qualifiers.
 `qualified` means only that a live held-out run met these **provisional** gates. Sparse or
 domain-only input deliberately needs no extraction call. Unknown/missing prices and unmetered
 model calls cannot pass cost gates. `EKB_LABELING_MODEL_ID` optionally selects a different labeler;

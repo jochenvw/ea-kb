@@ -530,3 +530,11 @@ def test_eval_list_and_history_show_available_and_never_run_skill_datasets(tmp_p
         ["eval", "history", "--history-dir", str(tmp_path), "--skill", "labeling"],
     )
     assert history.exit_code == 0 and history.output.strip() == "[]"
+
+
+@pytest.mark.parametrize("command", ["list", "history"])
+def test_eval_catalog_rejects_corrupt_history_instead_of_reporting_no_runs(tmp_path, command):
+    (tmp_path / "skill-index-invalid.json").write_text('{"run_id": "incomplete"}')
+    result = CliRunner().invoke(app, ["eval", command, "--history-dir", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "Cannot read evaluation history index" in result.output

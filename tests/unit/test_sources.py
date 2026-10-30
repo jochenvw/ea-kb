@@ -1,12 +1,14 @@
 import asyncio
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
-from ekb.adapters.sources import FilesystemConnector, HTTPConnector, SourceMissingError
+from ekb.adapters.retry import retry
+from ekb.adapters.sources import FilesystemConnector, HTTPConnector
 from ekb.domain.models import SourceRecord, SourceSpec
-from ekb.services.retry import retry
+from ekb.ports import SourceMissingError
 
 
 def specification():
@@ -79,6 +81,26 @@ async def test_transient_http_retry_is_bounded():
         return "ok"
 
     assert await retry(operation, base_delay=0) == "ok" and calls == 3
+
+
+@pytest.mark.parametrize("status,expected_calls", [(503, 3), (429, 3), (400, 1), (404, 1)])
+async def test_http_connector_owns_transient_retries(monkeypatch, status, expected_calls):
+    sleep = AsyncMock()
+    monkeypatch.setattr("ekb.adapters.retry.asyncio.sleep", sleep)
+    calls = 0
+
+    def handle(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(status)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        connector = HTTPConnector([specification()], client=client)
+        error = SourceMissingError if status == 404 else httpx.HTTPStatusError
+        with pytest.raises(error):
+            await connector.fetch(await anext(connector.discover()), None)
+    assert calls == expected_calls
+    assert sleep.await_count == expected_calls - 1
 
 
 async def test_filesystem_stability_and_metadata_changes(tmp_path):

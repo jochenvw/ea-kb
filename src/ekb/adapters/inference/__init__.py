@@ -16,6 +16,7 @@ from opentelemetry import trace
 from pydantic import BaseModel, ValidationError
 
 from ekb.adapters.ontology import load_ontology
+from ekb.adapters.retry import retry
 from ekb.config import Settings
 from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
@@ -36,7 +37,6 @@ from ekb.domain.models import (
 )
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
-from ekb.services.retry import retry
 
 PROMPT_VERSION = "grounded-extraction-v1"
 INSTRUCTIONS = """Extract candidate strategic goals and requirements, never canonical knowledge.

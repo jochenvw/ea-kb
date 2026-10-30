@@ -3,7 +3,8 @@
 A deliberately small OWL 2 / RDF vocabulary, serialized in Turtle.
 
 The ingestion skills use these semantic class names in typed labels and extraction contracts.
-Runtime OWL loading, SHACL enforcement and reasoning are not integrated.
+The application loads canonical OWL definitions for prompts, vocabulary checks and the read-only UI.
+SHACL enforcement and OWL reasoning are not integrated.
 Run the optional commands below from the repository root.
 
 ## Files
@@ -58,7 +59,7 @@ The `https://example.org/ekb/ontology#` namespace is a placeholder. Replace it w
 ## Parse/validate Turtle
 
 ```powershell
-uv run --with rdflib python -c 'from pathlib import Path; from rdflib import Graph; [print(p, len(Graph().parse(p, format="turtle")), "triples") for p in Path("ontology").rglob("*.ttl")]'
+uv run python -c 'from pathlib import Path; from rdflib import Graph; [print(p, len(Graph().parse(p, format="turtle")), "triples") for p in Path("ontology").rglob("*.ttl")]'
 ```
 
 SHACL validation with pySHACL (optional):

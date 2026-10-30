@@ -27,7 +27,6 @@ from ekb.domain.benchmarks import (
 from ekb.domain.models import FetchResult, SourceItem, SourceRecord, content_hash, now, stable_id
 from ekb.observability import tracer
 from ekb.ports import ArtifactStore
-from ekb.services.retry import retry
 
 LEARN = "https://learn.microsoft.com/en-us/security/benchmark/azure/"
 REPOSITORY_TREE = (
@@ -236,9 +235,7 @@ class MicrosoftLearnBenchmarkConnector(HTTPConnector):
             "benchmark.download",
             attributes={"benchmark.edition": asset.edition, "asset.role": asset.role},
         ):
-            result = await retry(
-                lambda: super(MicrosoftLearnBenchmarkConnector, self).fetch(item, record)
-            )
+            result = await super().fetch(item, record)
         raw = cached if result.not_modified else result.content
         if raw is None:
             raise ValueError("Conditional download has no validated cached original")

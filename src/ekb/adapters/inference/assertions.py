@@ -5,6 +5,7 @@ import httpx
 from pydantic import ValidationError
 
 from ekb.adapters.inference import OpenAIInference
+from ekb.adapters.retry import retry
 from ekb.config import Settings
 from ekb.domain.assertions import assertion_fingerprint, existing_assertion, validate_assertion
 from ekb.domain.models import (
@@ -15,7 +16,6 @@ from ekb.domain.models import (
     Usage,
     fingerprint,
 )
-from ekb.services.retry import retry
 
 PROMPT_VERSION = "concise-assertion-v3"
 INSTRUCTIONS = """Rephrase one extracted candidate as one terse, crystal-clear assertion.

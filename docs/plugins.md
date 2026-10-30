@@ -19,6 +19,9 @@ stable ID, location, format, inexpensive revision indicator and metadata. Fetch 
 durable source checkpoint and returns bytes or an explicit not-modified result. Local checkpoints
 use file metadata; HTTP checkpoints retain ETag/Last-Modified. Discovery completion is distinct
 from inaccessible discovery: only a complete inventory can establish missing sources.
+Confirmed absence raises `ekb.ports.SourceMissingError`; other retrieval failures remain inaccessible.
+Connector adapters own bounded transient transport retries; the pipeline does not wrap them in a
+second retry policy.
 
 Future SharePoint support should add durable connector-level cursor storage and use Microsoft
 Graph delta URLs and a credential abstraction. Do not equate an inaccessible page with deletion.

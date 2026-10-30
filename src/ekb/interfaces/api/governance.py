@@ -2,13 +2,13 @@ import secrets
 from collections.abc import Callable
 from datetime import date
 from ipaddress import ip_address
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.templating import Jinja2Templates
 from pydantic import Field
 
 from ekb.domain.issues import Issue, IssueDetail, IssueStatus
@@ -33,7 +33,7 @@ class IssueReview(Model):
 def register(
     app: FastAPI,
     active: Callable[[Request], Runtime],
-    templates: Jinja2Templates,
+    shell: Path,
 ) -> None:
     basic = HTTPBasic(auto_error=False)
 
@@ -197,12 +197,11 @@ def register(
         return await active(request).orchestrator().status(run_id)
 
     @app.get("/review", response_class=HTMLResponse)
-    async def review_page(
-        request: Request,
+    def review_page(
         status: IssueStatus | None = None,
         finding_id: UUID | None = None,
-    ):
-        return templates.TemplateResponse(request=request, name="index.html")
+    ) -> FileResponse:
+        return FileResponse(shell)
 
     @app.post("/review/decisions")
     async def review_decision(

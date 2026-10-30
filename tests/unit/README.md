@@ -2,11 +2,12 @@
 
 `test_*.py` covers domain properties, exact grounding, formats, sources, providers, configuration,
 telemetry privacy, evaluation, corpus downloads and folder-guide coverage.
+`test_domain.py` also guards domain/port/application imports against infrastructure dependencies.
 `test_benchmarks.py` covers structured benchmark evidence, historical workbook formats, bounded
 cache-only discovery, resumable downloads, parser replay and corruption rejection without network.
 `test_workflow_domain.py` covers plugin configuration, scope/conflict rules and bounded comparisons.
 `test_ingestion_skills.py` covers labeling/routing, scope/qualifier gates, SDK transport and replay.
-It also checks mixed document labels, coverage evidence, source-page auditing and ISO metadata negatives.
+It also checks Pydantic Evals concurrency/budgets, immutable history, mixed labels and source evidence.
 `test_nist_evaluation.py` covers supplied references, native PDF hierarchy, evidence, replay and unrun negatives.
 `test_ontology.py` checks exact OWL definitions, domain/SQL/browser parity and read-only access.
 `test_frugal_evaluation.py` covers split leakage, train-only exports, quality/cost gates and suite failure.

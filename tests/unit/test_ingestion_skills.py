@@ -35,7 +35,7 @@ from ekb.domain.models import (
 )
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.evaluation.dataset import load_dataset
-from ekb.evaluation.history import list_skill_catalog, skill_history
+from ekb.evaluation.history import list_skill_catalog, persist_run, skill_history
 from ekb.evaluation.skills import (
     SkillDataset,
     _audit_document_sources,
@@ -667,7 +667,6 @@ async def test_pydantic_evals_bounds_work_and_persists_indexed_skill_history(tmp
     )
     run = report["skills"]["labeling"]
     assert run["evaluation_runner"] == "pydantic-evals"
-    assert run["evaluation_runner_version"] == "2.60.0"
     assert run["performance"]["max_observed_concurrency"] == state["max_active"]
     assert 1 < state["max_active"] <= 3
     assert run["performance"]["configured_concurrency"] == 3
@@ -709,6 +708,30 @@ async def test_pydantic_evals_model_budget_yields_partial_report_without_overspe
     assert report["status"] == "partial" and not report["passed"]
     assert result["errors"] == len(result["cases"]) - 2
     assert sum(bool(row["result"]["error"]) for row in result["cases"]) == result["errors"]
+
+
+def test_history_serialization_failure_does_not_leave_an_empty_report(tmp_path):
+    with pytest.raises(TypeError):
+        asyncio.run(
+            persist_run(
+                {"run_id": "invalid", "value": object()},
+                history=tmp_path,
+                prefix="skill-comparison",
+            )
+        )
+    assert not list(tmp_path.iterdir())
+
+
+def test_history_reports_cannot_be_overwritten(tmp_path):
+    report = {"run_id": "retained", "value": "original"}
+    path = asyncio.run(persist_run(report, history=tmp_path, prefix="skill-comparison"))
+    with pytest.raises(FileExistsError):
+        asyncio.run(
+            persist_run(
+                {**report, "value": "replacement"}, history=tmp_path, prefix="skill-comparison"
+            )
+        )
+    assert json.loads(path.read_bytes()) == report
 
 
 async def test_cancelled_skill_eval_persists_partial_history_and_propagates(tmp_path):

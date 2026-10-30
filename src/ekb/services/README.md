@@ -4,7 +4,6 @@
   Search forwards source/level-filtered UUID-cursor pages without loading the complete corpus.
 - `assertions.py` phrases existing versions with bounded model workers and replay caching;
   it never changes original candidates, occurrences, identities or authority.
-- `retry.py` retries transient HTTP failures with bounded exponential backoff and jitter.
 - `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.
   Preserve complete oversized statements in records rather than truncating their qualifiers.
 - `reconciliation.py` shares control, historical comparison and evidence-chain queries.

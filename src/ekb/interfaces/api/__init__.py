@@ -8,9 +8,8 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 from starlette.middleware.base import RequestResponseEndpoint
@@ -66,7 +65,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     app = FastAPI(title="Enterprise Knowledge Base", version=__version__, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
-    templates = Jinja2Templates(directory=WEB / "static" / "ui")
+    shell = WEB / "static" / "ui" / "index.html"
 
     @app.middleware("http")
     async def require_loopback(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -91,7 +90,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def active(request: Request) -> Runtime:
         return request.app.state.runtime
 
-    register_governance(app, active, templates)
+    register_governance(app, active, shell)
     register_inspection(app, active)
 
     @app.get("/api/ontology", response_model=OntologyCatalog)
@@ -211,8 +210,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/data", response_class=HTMLResponse)
     @app.get("/logs", response_class=HTMLResponse)
     @app.get("/ontology", response_class=HTMLResponse)
-    async def workspace(request: Request):
-        return templates.TemplateResponse(request=request, name="index.html")
+    def workspace() -> FileResponse:
+        return FileResponse(shell)
 
     @app.get("/sources/{source_id}", response_class=HTMLResponse)
     async def source_page(request: Request, source_id: UUID):
@@ -220,12 +219,12 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             if await uow.sources.get(source_id) is None:
                 if await uow.inspection.source(source_id, 1) is None:
                     raise HTTPException(404, "Source not found")
-        return templates.TemplateResponse(request=request, name="index.html")
+        return FileResponse(shell)
 
     @app.get("/concepts/{concept_id}", response_class=HTMLResponse)
     async def concept_page(request: Request, concept_id: UUID):
         await concept(request, concept_id)
-        return templates.TemplateResponse(request=request, name="index.html")
+        return FileResponse(shell)
 
     @app.post("/scans")
     async def start_scan(

@@ -12,14 +12,11 @@ import httpx
 import yaml
 from pydantic import TypeAdapter
 
+from ekb.adapters.retry import retry
 from ekb.domain.models import FetchResult, SourceItem, SourceRecord, SourceSpec, stable_id
-from ekb.ports import SourceConnector
+from ekb.ports import SourceConnector, SourceMissingError
 
 FORMATS = {".pdf", ".docx", ".pptx", ".txt", ".md", ".json", ".html"}
-
-
-class SourceMissingError(FileNotFoundError):
-    pass
 
 
 class FilesystemConnector:
@@ -126,6 +123,9 @@ class HTTPConnector:
             )
 
     async def fetch(self, item: SourceItem, previous: SourceRecord | None) -> FetchResult:
+        return await retry(lambda: self._fetch(item, previous))
+
+    async def _fetch(self, item: SourceItem, previous: SourceRecord | None) -> FetchResult:
         headers = {}
         if previous and previous.revision_id and previous.item.location == item.location:
             if previous.etag:

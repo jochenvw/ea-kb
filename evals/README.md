@@ -8,6 +8,7 @@ authority. Source families stay in one split. `gates.json` defines provisional s
 quality and efficiency requirements.
 `skills-v1.json` isolates labeling and scoped extraction: three attributed excerpts plus 13 neutral
 synthetic cases, with family/split isolation and provisional ontology labels.
+`goals` contains provisional annual-report goal/target/non-goal annotations with exact page evidence.
 `documents-v1.json` reuses those skill contracts for selected Shell annual-report and NIST CSF
 passages plus an explicitly metadata-only ISO negative. It separates company-level coverage,
 mixed ontology classes and named organizational scope; no standard is automatically adopted.

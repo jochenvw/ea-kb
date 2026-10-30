@@ -11,6 +11,7 @@
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Keep downloads, parsing and inference outside database transactions.
+- Sources report absence through the port contract; transport retries belong to their adapters.
 - `_execute_benchmark` consumes hash-validated normalized cache and persists typed records/candidates.
   It bypasses generic parsing/inference; model configuration does not invalidate structured work.
 

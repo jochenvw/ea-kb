@@ -8,7 +8,7 @@
 - `evaluation.md`: source-grounded teacher datasets, distillation, model gates and combined suite.
 - `ingestion-verification.md`: latest full checks, actual-corpus pipeline results and browser links.
 - `decisions`: short architecture decision records and their rationale.
-- `codebase`: source-backed stack, structure, conventions, integrations, tests and concerns.
+- `codebase`: navigation map to canonical guides, manifests, tests and known limits.
 
 Start with architecture for design changes and the nearest source-folder README for local context.
 Keep coding instructions in root `AGENTS.md`; do not duplicate them throughout the documentation.

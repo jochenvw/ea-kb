@@ -216,7 +216,10 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
     ):
         """List skill/dataset pairs, latest quality/performance, and never-run cases."""
 
-        emit(list_skill_catalog(history=history_dir))
+        try:
+            emit(list_skill_catalog(history=history_dir))
+        except ValueError as error:
+            raise typer.BadParameter(str(error)) from None
 
     @evaluations.command("history")
     def evaluation_history(
@@ -228,13 +231,16 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
 
         if skill not in {None, "labeling", "extraction", "both"}:
             raise typer.BadParameter("Skill must be labeling, extraction, or both")
-        emit(
-            skill_history(
-                dataset=dataset,
-                skill=None if skill in {None, "both"} else skill,
-                history=history_dir,
+        try:
+            emit(
+                skill_history(
+                    dataset=dataset,
+                    skill=None if skill in {None, "both"} else skill,
+                    history=history_dir,
+                )
             )
-        )
+        except ValueError as error:
+            raise typer.BadParameter(str(error)) from None
 
     @evaluations.command("documents")
     def documents(

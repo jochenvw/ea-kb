@@ -2,7 +2,7 @@
 
 Run commands from the repository root. See the [project overview](../README.md) for a quick start.
 
-An executable Python 3.13 modular monolith for incremental, evidence-grounded objectives and
+An executable Python 3.13 modular monolith for incremental, evidence-grounded strategic goals and
 requirements. PostgreSQL retains immutable revisions, exact source evidence and proposed
 relationships. Filesystem or Azure Blob artifacts preserve originals. CLI, Textual, web and
 read-only Model Context Protocol (MCP) interfaces share the same application services.
@@ -444,7 +444,7 @@ uv run ekb eval run --baseline --output data\evaluation-rules.json
 
 Evaluation produces JSON predictions, metrics, token/cost data and per-document measured latency,
 plus a concise `.txt` summary. The golden corpus distinguishes short attributed public excerpts
-from synthetic cases and contains no licensed ISO clauses. It scores kind precision/recall,
+from synthetic cases and contains no licensed ISO clauses. It scores ontology-type precision/recall,
 modality, scope (including known scope separately), exact evidence and duplicate pairs.
 Invented mandatory requirements receive a five-times additional penalty. Negations/exceptions
 cannot be omitted from a matched statement. These checks do not prove semantic entailment.
@@ -521,13 +521,13 @@ intentionally deferred. Non-loopback requests are rejected; do not expose this M
 ## Design and limitations
 
 See `docs\architecture.md` for implemented architecture and design, `docs\plugins.md` for extension
-contracts, and `docs\decisions` for architectural choices. The seven documents in `docs\codebase`
-map architecture, stack, structure, conventions, integrations, tests and limits back to source
-evidence. Start with the nearest folder README for local orientation. `AGENTS.md` requires concise
+contracts, and `docs\decisions` for architectural choices. `docs\codebase\README.md` maps these
+canonical guides, manifests and verification entry points. Start with the nearest folder README
+for local orientation. `AGENTS.md` requires concise
 folder guides to stay current, with a pytest guard covering new folders as well.
 Domain and port modules are strictly type-checked and do not import provider/infrastructure SDKs.
 
-The offline baseline misses implicit objectives, does not extract scope, and can misclassify CSF
+The offline baseline misses implicit strategic goals, does not extract scope, and can misclassify CSF
 outcomes. PDF column/heading reconstruction remains heuristic; diagrams are retained as references,
 not semantically interpreted. Canonical promotion, automatic version classification, semantic merges,
 exception management, SharePoint, ArchiMate, Bizzdesign and Neo4j adapters are not implemented.

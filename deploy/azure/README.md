@@ -4,7 +4,7 @@
 
 - Use the root image and `config\azure.yaml` against pre-provisioned PostgreSQL and Blob Storage.
 - Configure real model capabilities, managed-identity permissions and optional Monitor export.
-- Run `ekb init` explicitly before serving the migrated schema.
+- Run `ekb init` explicitly before serving; pre-v1 development uses current ORM metadata.
 
 No resource provisioning, network isolation or enterprise authentication is implemented here.
 The web/API rejects non-loopback access and forwarded-proxy headers; it is not remotely usable or

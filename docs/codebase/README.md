@@ -1,11 +1,13 @@
-# Codebase reference
+# Codebase map
 
-- `ARCHITECTURE.md`: layer responsibilities, execution flow and reused design patterns.
-- `STACK.md` and `STRUCTURE.md`: dependencies, entry points and directory ownership.
-- `CONVENTIONS.md`: pointers to enforced Python rules and root `AGENTS.md`.
-- `INTEGRATIONS.md`: databases, external services, credentials and failure behavior.
-- `TESTING.md`: isolation, verification commands and unverified paths.
-- `CONCERNS.md`: implementation limits, scaling risks and planned-versus-implemented differences.
+- [Architecture](../architecture.md): layers, composition, flows, persistence and known limits.
+- [Application package](../../src/ekb/README.md): implementation ownership and local folder guides.
+- [Coding standards](../../AGENTS.md) and [decisions](../decisions/README.md): conventions and rationale.
+- [Usage](../usage.md): settings, integrations, deployment boundaries and verification.
+- [Plugin contracts](../plugins.md): interchangeable adapters, stages and repositories.
+- [Evaluations](../evaluation.md) and [tests](../../tests/README.md): quality gates and isolation.
+- [Frontend](../../frontend/README.md): browser source, build and committed assets.
+- [Python manifest](../../pyproject.toml) and [frontend manifest](../../frontend/package.json):
+  dependency declarations; their committed lockfiles are authoritative for resolved versions.
 
-The canonical detailed design is `docs\architecture.md`. Keep evidence references current;
-describe unknowns honestly rather than treating planned requirements as implemented features.
+This is a navigation map, not a second architecture manual or a dated dependency snapshot.

@@ -20,8 +20,8 @@ approval are separate concerns.
 
 The design favors recoverable incremental processing, bounded resource use and explicit
 infrastructure boundaries over exhaustive graph construction or autonomous agent execution.
-`docs\codebase` contains the supporting architecture, stack, structure, conventions, integrations,
-testing and concerns reference. Coding rules live in `AGENTS.md`; extension contracts live in
+`docs\codebase` maps the canonical guides, manifests and test entry points without duplicating them.
+Coding rules live in `AGENTS.md`; extension contracts live in
 `docs\plugins.md`.
 
 ## Boundaries
@@ -79,7 +79,7 @@ does not mean all of its internal work is model-free. Structured benchmark mater
 deterministic and bypasses both skills instead of paying a model to reproduce native records.
 
 Architecture layer and applicability are independent: a business-unit goal is still a
-`StrategicGoal`, not a technical requirement. Typed labels follow the six semantic class names in
+`StrategicGoal`, not a technical requirement. Typed labels use the seven OWL class identifiers in
 `ontology\ontology\ekb.ttl`; `OrganizationalScope` describes applicability. Unknown layers remain
 null with an explanation. Architecture-domain labels remain classification metadata and are not
 materialized as requirements. The OWL catalog loader performs no reasoning or scope inheritance.
@@ -141,9 +141,9 @@ lifespan; MCP does so in server lifespan. Tests can inject a runtime or knowledg
 `ekb init` creates the current ORM schema during pre-v1 development; `--recreate` explicitly rebuilds
 it after breaking changes. From v1, initialization uses Alembic. Web startup never changes the schema.
 
-The application targets ports, but one concrete dependency remains: the pipeline imports
-`SourceMissingError` from the source adapter. This is a boundary limitation, not a fully isolated
-provider-independent error contract.
+Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
+retry classification and backoff; the pipeline handles provider-independent outcomes.
+An AST regression test keeps infrastructure imports out of domain, ports and application layers.
 
 ### Evaluations and frugal provider selection
 
@@ -153,6 +153,9 @@ only training labels; `frugal.py` runs actual providers without sending expected
 grounding, quality, latency, token and priced-cost gates. `suite.py` combines the existing code tests
 and evaluation results into one persisted report/exit status. Offline safety success is explicitly
 not live model qualification; teacher labels are provisional. See `evaluation.md`.
+`evaluation\skills.py` executes isolated cases with Pydantic Evals and retains EKB's domain scorers.
+Typed, create-only history indexes support the skill catalog without loading case-level reports;
+corrupt indexes fail explicitly. See decision `0010`.
 
 Generic semantic enrichment unions lexical candidates with independently retrieved cosine neighbors
 from a bounded assertion pool. It reuses existing PostgreSQL vector/judgment caches behind the
@@ -213,7 +216,8 @@ comes from multiple source workers. There is no external message broker: queues 
 while claims/checkpoints are durable in PostgreSQL.
 
 Transient HTTP transport failures, status 408/429 and server errors use bounded backoff with
-jitter. Schema/grounding retries have a separate model limit. Permanent source failures remain
+jitter inside adapters, not the pipeline. Schema/grounding retries have a separate model limit.
+Permanent source failures remain
 visible; only successful complete discovery establishes missing sources.
 
 ## Persistence and identity
@@ -398,7 +402,8 @@ infers applicability, runs models or grants authority.
 Vite builds local assets into the Python package. Committed output permits Python-only checkout,
 wheel and container operation; source fingerprints reject stale builds. Knowledge and proposal
 lists use exclusive UUID cursors with bounded queries, not fake pagination over a truncated corpus.
-The former HTMX partials are retired; existing browser addresses and server review POSTs remain.
+The former Jinja/HTMX presentation is retired; browser routes serve the prebuilt HTML file directly.
+Existing browser addresses and server review POSTs remain.
 See `decisions\0006-browser-presentation.md` and `frontend\README.md`.
 
 ## Deployment and configuration
@@ -449,8 +454,9 @@ once per process; changing settings is not a hot-reload mechanism.
   or exception-management workflow.
 - Source manifests can change upstream; original bytes/hashes are retained, but upstream URLs are not
   guaranteed immutable. ISO entries are metadata only; licensed text must be supplied locally.
-- Inspection results are bounded (200 concepts per query, up to 1,000 tasks for statistics). This MVP
-  has no pagination UI or enterprise authorization. Non-loopback requests are denied; keep local.
+- Inspection queries are bounded (200 concepts per query, up to 1,000 tasks for statistics).
+  Concept, source-extraction and proposal pages use cursors; statistics are not whole-corpus analytics.
+  Enterprise authorization is absent. Non-loopback requests are denied; keep local.
 - Actual benchmark synchronization, structured ingestion, mappings/policy retrieval, native NIST
   resolution and review-only comparisons are implemented. Structural proposals are not verified
   semantic decisions; source gaps and unresolved references remain explicit.

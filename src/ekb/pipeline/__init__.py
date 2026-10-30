@@ -7,7 +7,6 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from uuid import UUID, uuid4
 
-from ekb.adapters.sources import SourceMissingError
 from ekb.domain.benchmarks import (
     BenchmarkAsset,
     NormalizedBenchmarkDocument,
@@ -38,10 +37,10 @@ from ekb.ports import (
     DocumentParser,
     IngestionSkills,
     SourceConnector,
+    SourceMissingError,
     UnitOfWorkFactory,
 )
 from ekb.services.benchmarks import BENCHMARK_EXTRACTOR_VERSION, benchmark_extraction
-from ekb.services.retry import retry
 
 
 class IngestionPipeline:
@@ -337,7 +336,7 @@ class IngestionPipeline:
         if not same_metadata:
             try:
                 with tracer.start_as_current_span("document.download"):
-                    fetched = await retry(lambda: connector.fetch(item, previous))
+                    fetched = await connector.fetch(item, previous)
             except Exception as error:
                 status = "missing" if isinstance(error, SourceMissingError) else "inaccessible"
                 async with self.uow() as uow:

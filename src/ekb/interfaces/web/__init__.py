@@ -1,1 +1,1 @@
-"""Server-rendered inspection templates."""
+"""Prebuilt browser assets served by the HTTP interface."""

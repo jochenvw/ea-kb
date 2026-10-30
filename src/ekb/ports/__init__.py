@@ -45,6 +45,10 @@ from ekb.domain.reconciliation import (
 from ekb.ports.workflow import IssueRepository, ResolutionRepository, WorkflowRepository
 
 
+class SourceMissingError(FileNotFoundError):
+    """The source is absent, not merely inaccessible."""
+
+
 class SourceConnector(Protocol):
     name: str
 

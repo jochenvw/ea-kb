@@ -460,7 +460,6 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "fastapi" },
     { name = "httpx" },
-    { name = "jinja2" },
     { name = "mcp" },
     { name = "openpyxl" },
     { name = "opentelemetry-instrumentation-fastapi" },
@@ -512,7 +511,6 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14,<5" },
     { name = "fastapi", specifier = ">=0.128,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },
-    { name = "jinja2", specifier = ">=3.1.6,<4" },
     { name = "mcp", specifier = ">=1.26,<2" },
     { name = "openpyxl", specifier = ">=3.1,<4" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.60b0,<1" },
@@ -821,18 +819,6 @@ source = { registry = "https://packagefeedproxy.microsoft.io/pypi/simple/" }
 sdist = { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/isodate/0.7.2/isodate-0.7.2.tar.gz", hash = "sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6", size = 29705, upload-time = "2026-07-31T21:48:45Z" }
 wheels = [
     { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/isodate/0.7.2/isodate-0.7.2-py3-none-any.whl", hash = "sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15", size = 22320, upload-time = "2026-07-23T18:51:40Z" },
-]
-
-[[package]]
-name = "jinja2"
-version = "3.1.6"
-source = { registry = "https://packagefeedproxy.microsoft.io/pypi/simple/" }
-dependencies = [
-    { name = "markupsafe" },
-]
-sdist = { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/jinja2/3.1.6/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2026-08-03T22:58:50Z" }
-wheels = [
-    { url = "https://ms-feed-25.pkgs.visualstudio.com/6f084628-a36d-42cb-934d-057357e379dc/_packaging/49d7402f-07bb-4b18-a9ce-086e6e98a554/pypi/download/jinja2/3.1.6/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2026-07-23T23:25:08Z" },
 ]
 
 [[package]]

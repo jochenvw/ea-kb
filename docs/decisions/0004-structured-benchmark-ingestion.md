@@ -9,7 +9,7 @@ artifact checkpoints; normal discovery/scan consumes validated cache without net
 Each immutable benchmark snapshot binds a raw revision, an exact normalized-text segment, parser
 version and extractor version. Typed JSONB records retain all controls, published references,
 retrieval metadata and semantic concept bindings. These records are not new semantic primitives:
-only objectives and requirements enter the knowledge model. Oversized statements stay complete in
+only strategic goals and requirements enter the knowledge model. Oversized statements stay complete in
 the record, explicitly unmaterialized, instead of losing qualifiers through truncation.
 
 Source publication maturity remains source-specific. The v1 workbook's private-preview statement

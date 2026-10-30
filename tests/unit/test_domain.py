@@ -1,3 +1,5 @@
+import ast
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -18,6 +20,48 @@ from ekb.domain.models import (
     fingerprint,
     stable_id,
 )
+
+
+@pytest.mark.parametrize(
+    "layer", ["domain", "ports", "pipeline", "services", "orchestration", "stages"]
+)
+def test_inner_layers_do_not_import_infrastructure(layer):
+    forbidden = (
+        "ekb.adapters",
+        "ekb.interfaces",
+        "ekb.runtime",
+        "sqlalchemy",
+        "fastapi",
+        "httpx",
+        "azure",
+        "openai",
+        "textual",
+        "agent_framework",
+        "pydantic_evals",
+    )
+    if layer in {"domain", "ports"}:
+        forbidden += (
+            "ekb.config",
+            "ekb.observability",
+            "ekb.services",
+            "ekb.pipeline",
+            "ekb.orchestration",
+            "ekb.stages",
+            "ekb.evaluation",
+        )
+    root = Path(__file__).resolve().parents[2] / "src" / "ekb" / layer
+    for path in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules = [node.module]
+            else:
+                continue
+            for module in modules:
+                assert not any(
+                    module == prefix or module.startswith(f"{prefix}.") for prefix in forbidden
+                ), f"{path.relative_to(root)}:{node.lineno} imports {module}"
 
 
 @given(st.binary())

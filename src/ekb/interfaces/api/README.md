@@ -3,7 +3,7 @@
 `create_app` in `__init__.py` owns FastAPI routes and application/runtime lifespan.
 
 - `/api` endpoints inspect persisted sources, scans, concepts, provenance, lineage and usage.
-- Browser routes serve the prebuilt React/shadcn shell; `/health` checks PostgreSQL.
+- Browser routes return the prebuilt React/shadcn HTML file without templates; `/health` checks PostgreSQL.
 - `/ontology` and `/api/ontology` expose the read-only packaged OWL catalog without database/model I/O.
 - `/api/ui/config` exposes only governance-enabled and scan-running booleans, never credentials.
 - `/api/concepts` accepts `after`, `source_id` and `level`; constraints select the same version.

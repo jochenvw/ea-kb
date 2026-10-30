@@ -11,7 +11,7 @@ reuses its historical revision; a document revision never automatically incremen
 
 Parsing has a durable checkpoint, including empty results. Each segment's extraction, evidence,
 relationships and replay checkpoint commit together. Exact candidate duplicates share a concept
-identity only when statement, kind, modality and scope match. Similarity is retrieval, not merging.
+identity only when statement, ontology type, modality and scope match. Similarity is retrieval, not merging.
 Explicit semantic revisions require an operator-supplied version and predecessor; no automatic
 major/minor/patch classifier or promotion is implemented.
 
