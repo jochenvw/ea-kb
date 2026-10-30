@@ -13,7 +13,9 @@ from ekb.domain.models import (
     SourceRecord,
     SourceRevision,
     content_hash,
+    fingerprint,
 )
+from ekb.domain.reconciliation import CachedEmbedding, CachedVerification, SemanticJudgment
 from ekb.domain.resolution import Decision, Finding
 from ekb.ports import UnitOfWorkFactory
 from ekb.services.knowledge_resolver import KnowledgeResolver
@@ -157,3 +159,45 @@ async def test_execution_repository_fences_a_stale_owner(database: UnitOfWorkFac
                     owner=owner,
                 )
             )
+
+
+async def test_semantic_replay_repository_commit_validation_and_replacement(
+    database: UnitOfWorkFactory,
+):
+    embedding_key = fingerprint(kind="embedding", input="synthetic")
+    judgment_key = fingerprint(kind="verification", input="synthetic")
+    embedding = CachedEmbedding(vector=(1.0, 0.0))
+    judgment = CachedVerification(
+        method="independent.semantic-v1",
+        judgment=SemanticJudgment(
+            outcome="equivalent",
+            confidence=0.9,
+            rationale="Grounded synthetic result.",
+            old_excerpt="First source.",
+            new_excerpt="Second source.",
+        ),
+    )
+    async with database() as uow:
+        await uow.workflow.save_semantic_cache({embedding_key: embedding})
+    async with database() as uow:
+        assert await uow.workflow.semantic_cache([embedding_key]) == {}
+        await uow.workflow.save_semantic_cache({embedding_key: embedding, judgment_key: judgment})
+        await uow.commit()
+    async with database() as uow:
+        assert await uow.workflow.semantic_cache([embedding_key, judgment_key]) == {
+            embedding_key: embedding,
+            judgment_key: judgment,
+        }
+        with pytest.raises(ValueError):
+            await uow.workflow.save_semantic_cache(
+                {embedding_key: embedding.model_copy(update={"vector": (0.0, 0.0)})}
+            )
+        with pytest.raises(ValueError):
+            await uow.workflow.save_semantic_cache(
+                {judgment_key: judgment.model_copy(update={"status": "failed"})}
+            )
+        replacement = CachedEmbedding(vector=(0.0, 1.0))
+        await uow.workflow.save_semantic_cache({embedding_key: replacement})
+        await uow.commit()
+    async with database() as uow:
+        assert (await uow.workflow.semantic_cache([embedding_key]))[embedding_key] == replacement

@@ -476,7 +476,9 @@ async def test_skill_evaluation_is_split_isolated_independent_and_not_offline_qu
 ):
     dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
     raw = json.loads(DATASET.read_bytes())
-    raw["cases"][-1]["family"] = raw["cases"][0]["family"]
+    test_case = next(case for case in raw["cases"] if case["id"] == "test-unknown-layer")
+    train_case = next(case for case in raw["cases"] if case["id"] == "train-goal")
+    test_case["family"] = train_case["family"]
     with pytest.raises(ValidationError, match="cross splits"):
         SkillDataset.model_validate(raw)
 
@@ -518,12 +520,26 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
     dataset = SkillDataset.model_validate_json(DATASET.read_bytes())
     teacher = load_dataset(Path("evals") / "teacher-v2.json")
     sources = {source.id: source for source in teacher.sources}
+    documents = SkillDataset.model_validate_json(DOCUMENTS.read_bytes())
     for case in dataset.cases:
         if case.source:
-            assert case.source == sources[case.source.id]
-            assert any(
-                seed.source == case.source.id and seed.quote == case.text for seed in teacher.seeds
-            )
+            if case.id == "source-nist-data-protection-conceptual":
+                reference = next(
+                    c for c in documents.cases if c.id == "nist-csf-company-and-architecture"
+                )
+                assert case.source == reference.source
+                assert reference.document
+                assert any(case.text in p.excerpt for p in reference.document.passages)
+            elif case.id == "source-network-firewall-platform":
+                assert case.source == sources[case.source.id]
+                assert case.source.id == "ns1"
+                assert case.expected.candidates[0].scope.platform == "Azure"
+            else:
+                assert case.source == sources[case.source.id]
+                assert any(
+                    seed.source == case.source.id and seed.quote == case.text
+                    for seed in teacher.seeds
+                )
 
     class Labeler(RulesInference):
         capabilities = Capabilities(model_id="synthetic-model")

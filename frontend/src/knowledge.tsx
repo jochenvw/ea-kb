@@ -30,7 +30,6 @@ import {
   date,
   assertionText,
   assertionMatches,
-  sourceMembers,
   levelLabel,
   externalUrl,
   label,
@@ -38,7 +37,7 @@ import {
   useDebounced,
   useResource,
 } from "@/lib/api";
-import type { Concept, Provenance, SourceGroup, Version } from "@/types";
+import type { Concept, Provenance, Source, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
 import { OntologyBadge, OntologyDefinition } from "@/ontology";
 
@@ -49,13 +48,8 @@ export function Knowledge() {
   const [sourceId, setSourceId] = useState(
     new URLSearchParams(location.search).get("source_id") ?? "",
   );
-  const sources = useResource<SourceGroup[]>("/api/source-groups");
-  const members = sourceMembers(sources.data, sourceId);
-  const selectedGroup = sources.data?.find(
-    (group) =>
-      group.id === sourceId ||
-      group.documents.some((doc) => doc.item.id === sourceId),
-  );
+  const sources = useResource<Source[]>("/api/sources");
+  const members = sourceId ? [sourceId] : [];
   const [query, setQuery] = useState(
     new URLSearchParams(location.search).get("q") ?? "",
   );
@@ -119,7 +113,7 @@ export function Knowledge() {
           />
           <Filter
             name="Source"
-            value={selectedGroup?.id ?? sourceId}
+            value={sourceId}
             onChange={(value) => {
               setSourceId(value);
               const params = new URLSearchParams(location.search);
@@ -131,44 +125,20 @@ export function Knowledge() {
               ["", "All sources"],
               ...(sources.data ?? [])
                 .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
+                .sort((a, b) => a.item.name.localeCompare(b.item.name))
                 .map((source): [string, string] => [
-                  source.id,
-                  `${source.name} · ${source.publisher ?? "Unknown publisher"}`,
+                  source.item.id,
+                  `${source.item.name} · ${String(source.item.metadata.publisher ?? "Unknown publisher")}`,
                 ]),
             ]}
           />
-          {selectedGroup?.edition && (
-            <Filter
-              name="Evidence document"
-              value={sourceId === selectedGroup.id ? "" : sourceId}
-              onChange={(value) => {
-                const next = value || selectedGroup.id;
-                setSourceId(next);
-                const params = new URLSearchParams(location.search);
-                params.set("source_id", next);
-                history.replaceState(
-                  null,
-                  "",
-                  `${location.pathname}?${params}`,
-                );
-              }}
-              options={[
-                ["", "All documents in this edition"],
-                ...selectedGroup.documents.map((doc): [string, string] => [
-                  doc.item.id,
-                  doc.item.name,
-                ]),
-              ]}
-            />
-          )}
         </div>
         <LoadState resource={sources}>
           <span className="sr-only">Source document filters loaded</span>
         </LoadState>
         <p className="table-note">
           {level === "top_level" &&
-            "Showing goals and guidance. Choose Platform implementation for Azure baselines. "}
+            "Showing goals and guidance. Choose Platform implementation for platform-specific guidance. "}
           Goals and framework guidance describe intent. Explicitly
           platform-scoped requirements describe implementation. This is a
           presentation level, not authority or proof of coverage. One assertion
@@ -243,34 +213,18 @@ export function Knowledge() {
                     </TableCell>
                     <TableCell>
                       {documents.length ? (
-                        documents.map((source) => {
-                          const group = sources.data?.find((group) =>
-                            group.documents.some(
-                              (doc) => doc.item.id === source.id,
-                            ),
-                          );
-                          const linked = group
-                            ? documents.filter((doc) =>
-                                group.documents.some(
-                                  (member) => member.item.id === doc.id,
-                                ),
-                              )
-                            : [source];
-                          if (linked[0]?.id !== source.id) return null;
-                          return (
-                            <a
-                              className="source-citation"
-                              key={source.id}
-                              href={`/sources/${group?.id ?? source.id}`}
-                            >
-                              {group?.name ?? source.name}
-                              <small>
-                                {linked.map((doc) => doc.name).join(" · ")} ·{" "}
-                                {source.publisher ?? "Unknown publisher"}
-                              </small>
-                            </a>
-                          );
-                        })
+                        documents.map((source) => (
+                          <a
+                            className="source-citation"
+                            key={source.id}
+                            href={`/sources/${source.id}`}
+                          >
+                            {source.name}
+                            <small>
+                              {source.publisher ?? "Unknown publisher"}
+                            </small>
+                          </a>
+                        ))
                       ) : (
                         <span className="muted">No linked source</span>
                       )}
@@ -346,10 +300,7 @@ export function ConceptPage({
   );
   const requested = new URLSearchParams(location.search).get("version_id");
   const sourceId = new URLSearchParams(location.search).get("source_id");
-  const groups = useResource<SourceGroup[]>(
-    sourceId ? "/api/source-groups" : null,
-  );
-  const members = sourceMembers(groups.data, sourceId);
+  const members = sourceId ? [sourceId] : [];
   const back = new URLSearchParams(location.search);
   back.delete("version_id");
   const selected = requested
@@ -377,11 +328,6 @@ export function ConceptPage({
         title="Interpretation & evidence"
         description="Verify meaning against the source, validate relationships, then inspect the scoped decisions governing this version."
       />
-      {sourceId && (
-        <LoadState resource={groups}>
-          <span className="sr-only">Source membership loaded</span>
-        </LoadState>
-      )}
       <LoadState resource={concept}>
         {concept.data && !version && (
           <Empty

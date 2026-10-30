@@ -172,7 +172,7 @@ export function RelationshipGraph({ id }: { id: string }) {
   return (
     <Panel
       title="Evidence & relationship map"
-      description="Concept-level context across retained versions, not proof for a selected version. Goals and guidance sit above platform implementations. Published mappings link whole controls, not clause coverage, equivalence, compliance or company alignment. Dashed proposals require review."
+      description="Concept-level context across retained versions, not proof for a selected version. Goals and guidance sit above platform implementations. Dashed proposals require review and do not establish equivalence or authority."
     >
       <LoadState resource={resource}>
         {graph && (
@@ -271,15 +271,14 @@ export function RelationshipGraph({ id }: { id: string }) {
                 {nodes.map((node) => {
                   const position = positions.get(node.id)!;
                   const href =
-                    ["source", "framework_control"].includes(node.kind) ||
-                    node.id === graph.root
+                    node.kind === "source" || node.id === graph.root
                       ? node.href
                       : `/explore?concept=${node.id}`;
                   return (
                     <a
                       key={`${node.kind}-${node.id}`}
                       href={href}
-                      aria-label={`${node.kind === "source" ? "Browse source" : node.kind === "framework_control" ? "Browse native control" : node.id === graph.root ? "Inspect interpretation" : "Explore"} ${node.label}`}
+                      aria-label={`${node.kind === "source" ? "Browse source" : node.id === graph.root ? "Inspect interpretation" : "Explore"} ${node.label}`}
                     >
                       <title>
                         {levelLabel(node.level)}: {node.label}
@@ -347,7 +346,7 @@ export function RelationshipGraph({ id }: { id: string }) {
                     <ArrowUpRight size={14} />
                   </a>
                   {(edge.note || edge.evidence) && (
-                    <details className="mapping-evidence">
+                    <details className="graph-evidence">
                       <summary>Link basis & evidence</summary>
                       {edge.note && <p>{edge.note}</p>}
                       {edge.evidence && (

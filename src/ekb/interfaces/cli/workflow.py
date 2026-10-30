@@ -18,7 +18,7 @@ from ekb.domain.issues import IssueStatus
 from ekb.domain.models import Scope
 from ekb.domain.resolution import Decision, ResolutionProfile
 from ekb.interfaces.cli.presentation import ScanConsole, locations
-from ekb.maintenance import reset_paths, reset_workspace
+from ekb.maintenance import reset_workspace
 from ekb.runtime import Runtime
 
 
@@ -48,7 +48,7 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         manifest: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
         config: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
         fresh: Annotated[
-            bool, typer.Option(help="Erase EKB tables and owned local caches first.")
+            bool, typer.Option(help="Erase EKB database state first; retain originals.")
         ] = False,
         yes: Annotated[
             bool, typer.Option("--yes", "-y", help="Confirm --fresh without prompting.")
@@ -92,19 +92,13 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
             update={"stages": {**configuration.stages, "indexing": options}}
         )
         console = ScanConsole(quiet=json_output)
-        protected = tuple(path for path in (settings.config_file, manifest, directory) if path)
         try:
             console.start(settings, manifest, directory)
             if fresh:
-                paths = reset_paths(settings, protected)
-                console.line(
-                    "FRESH RESET: permanently erase all EKB knowledge, decisions and caches."
-                )
+                console.line("FRESH RESET: permanently erase all EKB knowledge and decisions.")
                 console.line(f"  Database: {locations(settings, Path('report.json'))['database']}")
-                for path in paths:
-                    console.line(f"  Cache: {path}")
                 console.line(
-                    "  Migration state, unrelated tables, source inputs, reports "
+                    "  Migration state, unrelated tables, source originals, inputs, reports "
                     "and logs are retained."
                 )
                 if not yes:
@@ -114,17 +108,17 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         except (SQLAlchemyError, OSError) as error:
             raise typer.BadParameter(
                 f"Workspace unavailable ({type(error).__name__}); "
-                "stop active scans and check database/cache access."
+                "stop active scans and check database access."
             ) from None
 
         async def operation():
             async with Runtime(settings) as runtime:
                 if fresh:
-                    await reset_workspace(settings, runtime.database, protected)
+                    await reset_workspace(runtime.database)
                     console.line("Reset complete.\n")
                 async with runtime.database() as uow:
                     before = await uow.knowledge.counts()
-                orchestrator = runtime.orchestrator(progress=console, staged=True)
+                orchestrator = runtime.orchestrator(progress=console)
                 failure = None
                 failure_detail = None
                 try:

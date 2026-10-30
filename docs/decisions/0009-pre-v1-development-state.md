@@ -8,8 +8,8 @@ package metadata rather than maintaining independent application version constan
 While the application major version is below 1, backwards-incompatible changes and deletion/recreation
 of EKB-owned data and schemas are explicitly permitted. Compatibility migrations are not required.
 `ekb init` creates missing tables from current ORM metadata; `ekb init --recreate` rebuilds owned
-tables and clears owned ingestion caches without starting ingestion. Active scans/leases block reset.
-Source inputs, configuration, reports/logs, unrelated tables and resources are not blanket reset targets.
+tables without starting ingestion. Active scans/leases block reset. Source originals, inputs,
+configuration, reports/logs and unrelated tables/resources survive the reset.
 Normal application startup never deletes data.
 
 From major version 1 onward, destructive development initialization is disabled and schema evolution

@@ -31,10 +31,8 @@ async def prepared(database, tmp_path):
     await runtime.database.close()
     runtime.database = database
     from ekb.services.knowledge import KnowledgeService
-    from ekb.services.reconciliation import BenchmarkService
 
     runtime.knowledge = KnowledgeService(database)
-    runtime.comparisons = BenchmarkService(database)
     await runtime.pipeline().scan(runtime.connectors(Path("tests/fixtures/local")))
     return runtime
 
@@ -54,7 +52,6 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
                 "/knowledge",
                 "/sources",
                 "/review",
-                "/benchmarks",
                 "/ontology",
             ):
                 page = await client.get(path)
@@ -206,35 +203,10 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
         await runtime.__aexit__()
 
 
-async def test_logical_sources_consolidate_editions_and_keep_exact_document_filters(
+async def test_sources_remain_independent_and_removed_vertical_routes_are_absent(
     database, tmp_path
 ):
     runtime = await prepared(database, tmp_path)
-    async with database() as uow:
-        records = await uow.sources.list()
-        assert len(records) == 3
-        for index, record in enumerate(records):
-            await uow.sources.save(
-                record.model_copy(
-                    update={
-                        "item": record.item.model_copy(
-                            update={
-                                "metadata": {
-                                    **record.item.metadata,
-                                    "publisher": "Example publisher",
-                                    "benchmark_edition": "example-v1"
-                                    if index < 2
-                                    else "example-v2",
-                                    "benchmark_asset": {
-                                        "role": "overview" if index != 1 else "domain"
-                                    },
-                                }
-                            }
-                        )
-                    }
-                )
-            )
-        await uow.commit()
     app = create_app(runtime)
     try:
         async with app.router.lifespan_context(app):
@@ -242,44 +214,14 @@ async def test_logical_sources_consolidate_editions_and_keep_exact_document_filt
                 transport=httpx.ASGITransport(app=app), base_url="http://test"
             ) as client:
                 originals = (await client.get("/api/sources")).json()
-                groups = (await client.get("/api/source-groups")).json()
-                assert {group["edition"] for group in groups} == {"example-v1", "example-v2"}
-                first = next(group for group in groups if group["edition"] == "example-v1")
-                second = next(group for group in groups if group["edition"] == "example-v2")
-                assert len(first["documents"]) == 2 and len(second["documents"]) == 1
-                assert first["id"] != second["id"]
-                for group in groups:
-                    group_id = group["id"]
-                    assert (await client.get(f"/sources/{group_id}")).status_code == 200
-                    detail = (await client.get(f"/api/sources/{group_id}")).json()
-                    assert detail["group"]["id"] == group_id
-                    documents = [
-                        (await client.get(f"/api/sources/{doc['item']['id']}")).json()
-                        for doc in group["documents"]
-                    ]
-                    version_ids = {
-                        item["version"]["id"] for doc in documents for item in doc["items"]
-                    }
-                    assert detail["versions"] == len(version_ids)
-                    assert detail["occurrences"] == sum(doc["occurrences"] for doc in documents)
-                    seen = []
-                    after = ""
-                    while True:
-                        page = (await client.get(f"/api/sources/{group_id}?limit=1{after}")).json()
-                        seen.extend(item["version"]["id"] for item in page["items"])
-                        if not page["next_cursor"]:
-                            break
-                        after = f"&after={page['next_cursor']}"
-                    assert len(seen) == len(set(seen)) == len(version_ids)
-                    assert set(seen) == version_ids
-                    expected = {item["concept_id"] for doc in documents for item in doc["items"]}
-                    filtered = (await client.get(f"/api/concepts?source_id={group_id}")).json()
-                    assert {item["id"] for item in filtered} == expected
-                    assert all(item["matching_version_id"] in version_ids for item in filtered)
-                    assert (
-                        await client.get(f"/api/concepts?source_id={group_id}&q=absent-marker")
-                    ).json() == []
-                assert (await client.get("/api/sources")).json() == originals
+                assert len(originals) == 3
+                for source in originals:
+                    source_id = source["item"]["id"]
+                    detail = (await client.get(f"/api/sources/{source_id}")).json()
+                    assert detail["source"]["item"]["id"] == source_id
+                    assert "group" not in detail
+                assert (await client.get("/api/source-groups")).status_code == 404
+                assert (await client.get("/api/benchmarks/compare")).status_code == 404
     finally:
         await runtime.__aexit__()
 
@@ -391,10 +333,6 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "get_concept",
             "trace_provenance",
             "find_related_requirements",
-            "get_benchmark_control",
-            "get_benchmark_edition",
-            "compare_benchmark_editions",
-            "trace_benchmark_lineage",
             "resolve_knowledge",
             "resolve_requirement",
             "list_knowledge_issues",
@@ -502,87 +440,4 @@ async def test_publication_and_scoped_approval_are_distinct_across_interfaces(da
         await terminal.action_reload()
         await pilot.pause()
         assert terminal.query_one("#concepts", DataTable).get_row(str(concept.id))[3] == "draft"
-    await runtime.__aexit__()
-
-
-async def test_benchmark_inspection_is_shared_readonly_and_keeps_maturity_separate(
-    database, tmp_path
-):
-    from collections import Counter
-
-    from ekb.adapters.sources.benchmarks import LEARN, MicrosoftLearnBenchmarkConnector, _asset
-    from ekb.domain.benchmarks import BenchmarkRole
-
-    runtime = await prepared(database, tmp_path)
-    bodies = {
-        "overview-mcsb-v1": (
-            "# Synthetic overview\n\n[Network security (NS)](mcsb-network-security)\n"
-        ),
-        "overview": (
-            "# Synthetic overview (preview)\n\n"
-            "This version supersedes [Microsoft cloud security benchmark v1](overview-mcsb-v1).\n"
-            "\n[Network security (NS)](mcsb-v2-network-security)\n"
-        ),
-        "mcsb-network-security": (
-            "# Synthetic network controls\n\n## NS-6: Protect applications\n\n"
-            "**Security principle**: Protect web applications with a firewall.\n\n"
-            "**Azure guidance**: Configure inspection.\n"
-        ),
-        "mcsb-v2-network-security": (
-            "# Synthetic network controls\n\n## NS-6: Protect applications\n\n"
-            "### Security principle\n\nProtect web applications and APIs with a firewall.\n\n"
-            "### NS-6.1: Configure inspection\n\nChoose Application Gateway or Front Door.\n\n"
-            "### Control mapping\n\n- **NIST SP800-53 Rev.5:** SC-7\n\n"
-            "## NS-7: Inspect traffic\n\n### Security principle\n\nInspect application traffic.\n"
-        ),
-    }
-
-    def handle(request):
-        return httpx.Response(200, text=bodies[request.url.path.rsplit("/", 1)[-1]])
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        connector = MicrosoftLearnBenchmarkConnector(runtime.artifacts, client=client)
-        assets: tuple[tuple[str, str, BenchmarkRole], ...] = (
-            ("mcsb-v1", "overview-mcsb-v1", "overview"),
-            ("mcsb-v2", "overview", "overview"),
-            ("mcsb-v1", "mcsb-network-security", "domain"),
-            ("mcsb-v2", "mcsb-v2-network-security", "domain"),
-        )
-        for edition, slug, role in assets:
-            await connector._sync_asset(_asset(edition, LEARN + slug, role, domain="NS"), Counter())
-        assert (await runtime.pipeline().scan([connector])).failed == 0
-    app = create_app(runtime)
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            control = (await client.get("/api/benchmarks/controls/mcsb-v2:NS-6")).json()
-            assert control["edition"]["publication"]["publication_status"] == "preview"
-            assert control["control"]["control"]["publication"]["publication_status"] == "unknown"
-            assert control["control"]["mappings"][0]["reference"]["resolution"] == "unresolved"
-            edition = (await client.get("/api/benchmarks/editions/mcsb-v2")).json()
-            assert edition["successors"][0]["predecessor"] == "mcsb-v1"
-            comparison = (await client.get("/api/benchmarks/compare")).json()
-            assert comparison["added_control_ids"] == ["NS-7"]
-            assert comparison["model_calls"] == comparison["embedding_calls"] == 0
-            async with database() as uow:
-                assert await uow.benchmarks.comparison(UUID(comparison["id"])) is None
-            assert (await client.get("/api/benchmarks/controls/mcsb-v2:FAKE")).status_code == 404
-            page = await client.get("/benchmarks")
-            assert page.status_code == 200 and "/static/ui/app.js" in page.text
-    saved = await runtime.comparisons.compare("mcsb-v1", "mcsb-v2", "NS-6")
-    async with create_connected_server_and_client_session(
-        create_server(runtime.knowledge, runtime.comparisons)
-    ) as session:
-        result = await session.call_tool("get_benchmark_control", {"reference": "mcsb-v2:NS-6"})
-        assert not result.isError and result.structuredContent
-        assert result.structuredContent["edition"]["publication"]["publication_status"] == "preview"
-        chain = await session.call_tool("trace_benchmark_lineage", {"reference": "mcsb-v2:NS-6"})
-        assert not chain.isError and chain.structuredContent
-        assert chain.structuredContent["semantic_proposals"][0]["comparison_id"] == str(saved.id)
-    terminal = KnowledgeApp(runtime)
-    async with terminal.run_test(size=(140, 50)) as pilot:
-        await pilot.pause()
-        await terminal.action_benchmark().wait()
-        assert '"published_edition_lineage"' in str(terminal.query_one("#evidence", Static).content)
     await runtime.__aexit__()

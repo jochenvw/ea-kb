@@ -8,30 +8,20 @@ from pydantic import Field
 
 from ekb.domain.issues import Issue, IssueStatus
 from ekb.domain.models import ConceptDetail, Provenance, Scope
-from ekb.domain.reconciliation import (
-    BenchmarkLineage,
-    ComparisonReport,
-    ControlContext,
-    EditionView,
-)
 from ekb.domain.resolution import Decision, Resolution, ResolutionProfile
 from ekb.runtime import Runtime
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
-from ekb.services.reconciliation import BenchmarkService
 from ekb.services.reconciliation_service import ReconciliationService
 
 
-def create_server(
-    service: KnowledgeService | None = None, benchmarks: BenchmarkService | None = None
-) -> FastMCP:
+def create_server(service: KnowledgeService | None = None) -> FastMCP:
     @asynccontextmanager
     async def lifespan(server: FastMCP):
         if service:
             yield {
                 "knowledge": service,
-                "benchmarks": benchmarks or BenchmarkService(service.uow),
                 "resolver": KnowledgeResolver(service.uow),
                 "issues": IssueService(service.uow),
                 "reconciliation": ReconciliationService(service.uow),
@@ -40,7 +30,6 @@ def create_server(
             async with Runtime() as runtime:
                 yield {
                     "knowledge": runtime.knowledge,
-                    "benchmarks": runtime.comparisons,
                     "resolver": runtime.resolver,
                     "issues": runtime.issues,
                     "reconciliation": runtime.reconciliation,
@@ -49,16 +38,13 @@ def create_server(
     server = FastMCP(
         "Enterprise Knowledge Base",
         instructions="Use resolve_knowledge or resolve_requirement for authoritative answers; "
-        "their default is strict canonical with no candidate fallback. Legacy search/get and "
-        "benchmark tools are explicitly research views, not approved compliance conclusions.",
+        "their default is strict canonical with no candidate fallback. Search and inspection "
+        "are research views, not approved compliance conclusions.",
         lifespan=lifespan,
     )
 
     def knowledge(context: Context) -> KnowledgeService:
         return service or context.request_context.lifespan_context["knowledge"]
-
-    def benchmark(context: Context) -> BenchmarkService:
-        return benchmarks or context.request_context.lifespan_context["benchmarks"]
 
     @server.tool()
     async def search_concepts(
@@ -81,28 +67,6 @@ def create_server(
     async def find_related_requirements(concept_id: UUID, ctx: Context) -> list[ConceptDetail]:
         """Return requirements connected by recorded evidence-backed relationships."""
         return await knowledge(ctx).related_requirements(concept_id)
-
-    @server.tool()
-    async def get_benchmark_control(reference: str, ctx: Context) -> ControlContext:
-        """Inspect edition-qualified controls, native mappings, policy references and authority."""
-        return await benchmark(ctx).control(reference)
-
-    @server.tool()
-    async def get_benchmark_edition(edition: str, ctx: Context) -> EditionView:
-        """Get independent publication maturity and exact published succession evidence."""
-        return await benchmark(ctx).edition(edition)
-
-    @server.tool()
-    async def compare_benchmark_editions(
-        from_edition: str, to_edition: str, ctx: Context, control_id: str | None = None
-    ) -> ComparisonReport:
-        """Read a saved comparison or structural preview; never call models or persist proposals."""
-        return await benchmark(ctx).compare(from_edition, to_edition, control_id, read_only=True)
-
-    @server.tool()
-    async def trace_benchmark_lineage(reference: str, ctx: Context) -> BenchmarkLineage:
-        """Trace published mappings/succession separately from review-only semantic proposals."""
-        return await benchmark(ctx).lineage(reference)
 
     @server.tool()
     async def resolve_knowledge(

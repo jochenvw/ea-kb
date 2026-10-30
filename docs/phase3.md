@@ -1,7 +1,7 @@
 # Durable reconciliation and knowledge resolution
 
-The existing ingestion and benchmark services now run through replaceable `indexing -> enrichment
--> issues` stages. Candidates become authoritative only through accepted, scoped, evidenced
+Ordinary source ingestion runs through replaceable `indexing -> enrichment -> issues` stages.
+Candidates become authoritative only through accepted, scoped, evidenced
 reconciliation. Semantic classes and relations use the authoritative OWL vocabulary; see
 `docs\decisions\0008-ontology-ubiquitous-language.md`.
 
@@ -12,7 +12,7 @@ reconciliation. Semantic classes and relations use the authoritative OWL vocabul
 | `src\ekb\domain\execution.py`, `resolution.py`, `issues.py` | Typed executions, findings, decisions, aliases, resolver results and issues |
 | `src\ekb\ports\workflow.py` | Stage/check and execution/resolution/issue repository contracts |
 | `src\ekb\orchestration` | Explicit registration, dependency/contract validation, leases, partial execution and resume |
-| `src\ekb\stages` | Existing-ingestion adapter, independent enrichment and issue checks; optional cached semantic providers |
+| `src\ekb\stages` | Existing-ingestion adapter, independent enrichment and issue checks; optional semantic providers |
 | `src\ekb\services\knowledge_resolver.py`, `reconciliation_service.py`, `issue_service.py` | Shared strict resolution, immutable governance and review |
 | `src\ekb\adapters\persistence\postgres\workflow.py`, `issues.py` | Durable state, atomic decisions/authority/aliases and issue lifecycle |
 | `src\ekb\interfaces`, `runtime.py`, `config` | CLI/API/TUI/web/MCP integration and explicit composition |
@@ -20,14 +20,17 @@ reconciliation. Semantic classes and relations use the authoritative OWL vocabul
 | `tests\unit\test_workflow_domain.py`, `tests\integration\test_workflow.py`, `tests\contract\test_resolution.py` | Focused domain, workflow, transport and shared persistence contracts |
 
 Additive Alembic revision **`bc02fd5aa60d`** creates `pipeline_executions`, `pipeline_leases`,
-`enrichment_findings`, `reconciliation_decisions`, `concept_aliases`, `knowledge_issues` and
-`issue_events`. It reuses existing `authority_events`; no duplicate graph or ingestion schema.
-That revision is archived during pre-v1 development: `uv run ekb init` creates the current ORM schema,
-and `--recreate` rebuilds disposable state after breaking changes. See decision `0009`.
+`enrichment_findings`, `reconciliation_decisions`, `knowledge_issues`, `issue_events` and
+`semantic_replay_cache`. It reuses existing `authority_events` and does not create
+`concept_aliases`: alias edges derive from findings and decision heads. That revision is archived
+during pre-v1 development: `uv run ekb init` creates the current ORM schema, and `--recreate`
+rebuilds disposable state after breaking changes while preserving original artifacts and inputs.
+See decisions `0009`, `0011` and `0012`.
 
 Execution records retain versions, fingerprints, configuration, attempts, timestamps, statistics
 and output contracts. Source ingestion remains incremental. Check caches survive restart; a changed
-check version re-evaluates that check. A 120-second global pipeline lease renews every 20 seconds,
+check version re-evaluates that check, while generic semantic replay can reuse validated results
+when provider and inputs are unchanged. A 120-second global pipeline lease renews every 20 seconds,
 fences writes and cancels work on heartbeat failure. Resume retains completed checkpoints and
 marks abandoned child attempts cancelled. Transient retries are bounded.
 
@@ -80,7 +83,7 @@ pipeline:
 ```
 
 Exact recognition retains one existing identity and its separate occurrences. Semantic similarity,
-version comparisons, published mappings, scope/authority and lineage checks persist proposals.
+explicit version history, scope/authority and lineage checks persist proposals.
 No semantic merge is automatic. Explicit `exact-identity-v1` policy alone can automatically accept
 deterministic recognition with multiple occurrences of one evidenced version.
 
@@ -96,7 +99,7 @@ uv run ekb pipeline resume RUN_UUID
 uv run ekb scans list
 uv run ekb scans tasks
 uv run ekb scans usage
-uv run ekb reconcile list --check published_mapping --limit 20
+uv run ekb reconcile list --check semantic_duplicate --limit 20
 uv run ekb reconcile history FINDING_UUID
 uv run ekb reconcile decide FINDING_UUID accepted --actor operator --rationale "Reviewed evidence"
 uv run ekb reconcile canonical CONCEPT_UUID VERSION_UUID --scope '{"organization":"Example","platform":"Azure"}'
@@ -121,8 +124,8 @@ cross-origin mutations. Local CLI/TUI actors are trusted operator assertions, no
 Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. No enterprise
 role-based or tenant authorization is implemented or claimed.
 
-MCP remains read-only. `resolve_knowledge` and `resolve_requirement` default to strict canonical;
-legacy search/get tools remain explicitly candidate research. Issue/history tools expose audit.
+MCP retains eight read-only tools. `resolve_knowledge` and `resolve_requirement` default to strict
+canonical; legacy search/get tools remain explicitly candidate research. Issue/history tools expose audit.
 
 ## Resolution and audit guarantees
 
@@ -135,7 +138,7 @@ changed statements cannot borrow unrelated source evidence.
 `best_available` labels candidates and uncertainty without claiming authority. `historical` requires
 an explicit **valid-time** date, not transaction-time reconstruction. `all` retains source/version/
 decision history without implying authority. Accepted aliases preserve every source occurrence;
-accepted mappings add related native provenance. Multiple applicable canonical versions return
+accepted relations retain source provenance. Multiple applicable canonical versions return
 explicit ambiguity, including competing versions within an accepted alias group.
 
 Decision IDs are immutable idempotency keys; optimistic decision heads plus an advisory lock
@@ -150,48 +153,31 @@ ambiguity with decision references. Severity/scope filtering happens before shor
 uv run ekb eval workflow --output data\phase3-demonstration.json
 ```
 
-Requires the retained Microsoft/NIST corpus from `sources sync` and indexing. This offline command
-re-ingests **14 actual sources**: v1/v2 NS-6 articles and overviews, the native NIST catalog and
-actual policy definitions. It adds four explicitly synthetic enterprise architecture facts and an
-approved-exception detector input from `tests\fixtures\enterprise.json`.
+Requires at least one previously indexed ordinary source and its retained original. This offline
+command creates/uses an isolated `ekb_phase3_demo` schema, indexes retained source bytes using
+rules, adds **four clearly synthetic enterprise facts**, injects a fixture-only approved deviation,
+and runs all stages. Synthetic facts are not a case study; published source text is not proof of
+any enterprise's deployment.
 
-All review actions are **simulated human decisions**, labeled `synthetic-demo-reviewer`, in persistent
-schema **`ekb_phase3_demo`**. They never approve operational/public-schema knowledge. The evaluator
-accepts one evidenced SC-7 mapping and one limited-scope preview adoption, reruns, constructs a new
-resolver and verifies durable decisions, one authoritative sandbox result, full provenance and no
-global canonical fallback. Repeated invocation retains the same decisions.
+The report simulates a named human accepting one evidence-backed, limited-scope canonical version.
+It reruns, constructs a new resolver and checks persisted provenance, the time-limited synthetic
+deviation and unscoped `not_established` resolution. Simulation writes only to the demo schema; it
+is **not** a production enterprise decision. Counts and runtime depend on the source corpus and
+prior checkpoints; no historical fixed metrics or model qualification are claimed.
 
-The final authoritative sandbox response contains **77 exact source occurrences** across two retained
-original artifacts (the Microsoft article and native NIST catalog). Every excerpt was checked
-against its stored segment coordinates and every referenced original was retrieved successfully.
+Earlier benchmark-specific execution `209b50f6-ab0c-40af-9bb0-bc8bb86adcf6` and demonstration
+`ca293cad-eb1a-4667-91dc-fe41ad78309a` predate this shared-source workflow. Their ignored
+`data\phase3-acceptance` artifacts, if retained, are historical evidence rather than verification
+of the current code.
 
-The measured first demonstration found 19 exact-identity, 2 semantic-duplicate, 8 version and 239
-published-mapping proposals, with 20 issues. **Five SC-7 references share one native anchor set**.
-Both simulated decisions persist; unchanged enrichment checks reuse cache. One synthetic approved
-exception remains below threshold. No paid model calls occur. Original Microsoft/NIST evidence is
-kept distinct from synthetic architecture facts and simulated enterprise authority.
+## Verification
 
-The complete actual-corpus run also completed after interruption/resume: 288 exact identities,
-1 semantic duplicate, 68 version proposals and 1,885 published mappings; 161 grouped issues.
-These are bounded rule-based observations, not exhaustive semantic quality or compliance scores.
-
-## Executed verification
-
-The PostgreSQL-backed full suite passed: **127 tests**. Ruff lint/format, basedpyright, Alembic
-drift detection and lock consistency passed. Focused cases include real concurrent exclusion,
-cancellation/resume, stale-owner fencing, provider/embedding cache replay, check/stage disabling,
+Focused cases include real concurrent exclusion,
+cancellation/resume, stale-owner fencing, completed-check replay, check/stage disabling,
 alias-group ambiguity, scoped/draft/historical resolution, unsupported-version evidence rejection,
 issue reopening/priority/owner preservation, authenticated HTTP and strict MCP output.
 
-Actual full execution `209b50f6-ab0c-40af-9bb0-bc8bb86adcf6` and independent enrichment/issues
-runs completed. Repeated demonstration run `ca293cad-eb1a-4667-91dc-fe41ad78309a` retained both
-simulated decisions and skipped unchanged enrichment/issue checks. The public-schema default remains
-`not_established`; no operational authority was fabricated.
-
-All ten required successful OpenTelemetry span names and five local metric instruments were
-verified. Machine-readable evidence remains in ignored `data\phase3-acceptance\verification.json`,
-`spans.json`, `data\phase3-tests.txt`, full/partial run records and
-`data\phase3-demonstration.json`. Reproduce the checks with:
+Reproduce the checks with a disposable PostgreSQL database:
 
 ```powershell
 $env:EKB_TEST_DATABASE_URL = "postgresql+asyncpg://ekb:ekb@localhost:5432/ekb"
@@ -203,8 +189,7 @@ uv lock --check
 uv run ekb eval workflow
 ```
 
-The reported Alembic check is historical; before v1, current schema verification uses disposable
-PostgreSQL contracts and explicit rebuilds instead. Migration checks resume from v1.
+Before v1, schema verification uses disposable PostgreSQL contracts and explicit rebuilds.
 
 ## Telemetry and limits
 
@@ -215,8 +200,9 @@ retry/error types without source text. Optional Azure exporters remain unverifie
 
 Candidate retrieval ranks token overlap, inspects at most 20 candidates per assertion and defaults
 to at most 500 attempted comparisons; CPU-heavy comparisons run off the event loop. This is not
-exhaustive semantic retrieval. Optional embeddings/verification reuse durable provider caches;
-fake-provider tests demonstrate contracts, not model quality.
+exhaustive semantic retrieval. Completed checks reuse durable results; changed inputs or check
+versions can call optional embedding/verification providers again. Fake-provider tests demonstrate
+contracts, not model quality.
 
 Snapshots fail explicitly beyond 20,000 rows per workspace table. Search is literal and bounded;
 resolver search currently loads a snapshot per candidate. Historical parser interpretations remain

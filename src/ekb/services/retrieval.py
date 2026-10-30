@@ -7,10 +7,17 @@ def cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
         raise ValueError("Embedding dimensions must agree and be nonempty")
     if not all(math.isfinite(v) for v in (*left, *right)):
         raise ValueError("Embedding vectors must be finite")
-    denominator = math.sqrt(sum(x * x for x in left) * sum(y * y for y in right))
-    if not denominator:
+    left_scale = max(abs(value) for value in left)
+    right_scale = max(abs(value) for value in right)
+    if not left_scale or not right_scale:
         raise ValueError("Embedding vectors must be nonzero")
-    return sum(x * y for x, y in zip(left, right, strict=True)) / denominator
+    left_normalized = tuple(value / left_scale for value in left)
+    right_normalized = tuple(value / right_scale for value in right)
+    denominator = math.sqrt(
+        sum(value * value for value in left_normalized)
+        * sum(value * value for value in right_normalized)
+    )
+    return sum(x * y for x, y in zip(left_normalized, right_normalized, strict=True)) / denominator
 
 
 def nearest[T](

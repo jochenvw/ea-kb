@@ -1,9 +1,10 @@
 # Ingestion and interface integration tests
 
-- `test_pipeline.py` exercises incrementality, replay, history, cancellation, concurrency and formats.
+- `test_pipeline.py` exercises ordinary publisher sources, ontology labels, exact evidence,
+  incrementality, replay, history, cancellation, concurrency and formats.
 - `test_interfaces.py` exercises web/API evidence, real MCP protocol sessions and a headless TUI.
-- `test_benchmark_pipeline.py` checks model-free structured ingestion, replay and exact source records.
-- `test_workflow.py` covers orchestration, concurrency/resume, reversible alias reviews and scoped authority.
+- `test_workflow.py` covers orchestration, concurrency/resume, reversible alias reviews, scoped
+  authority and replay across check changes, including corrupted/unavailable PostgreSQL caches.
 - `test_ontology_schema.py` verifies schema recreation, unrelated-table safety and ontology SQL constraints.
 - `test_scan_cli.py` verifies real CLI progress, interruption/crash recovery, status and reset guards.
 - Inputs are synthetic/temporary; PostgreSQL is real but isolated in per-test schemas.

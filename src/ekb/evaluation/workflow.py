@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import text
 
@@ -29,7 +30,6 @@ from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.runtime import Runtime
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
-from ekb.services.reconciliation import BenchmarkService
 from ekb.stages.indexing import IndexingStage
 from ekb.stages.issues import deviation_issues
 
@@ -38,9 +38,11 @@ ACTOR = "synthetic-demo-reviewer"
 
 
 class RetainedCorpus:
-    name = "retained-official-artifacts"
+    name = "retained-source-artifacts"
 
-    def __init__(self, runtime: Runtime, items: list[SourceRecord], revisions: dict):
+    def __init__(
+        self, runtime: Runtime, items: list[SourceRecord], revisions: dict[UUID, SourceRevision]
+    ):
         self.runtime, self.items, self.revisions = runtime, items, revisions
 
     async def discover(self):
@@ -130,31 +132,20 @@ async def demonstrate_workflow(
         }
     )
     async with Runtime(baseline) as original:
-        context = await original.comparisons.control("mcsb-v2:NS-6")
-        old_context = await original.comparisons.control("mcsb-v1:NS-6")
-        source_ids = {
-            context.control.control.evidence.source_id,
-            old_context.control.control.evidence.source_id,
-        }
-        source_ids.update(n.source_id for m in context.control.mappings for n in m.native_controls)
-        policy_urls = {p.definition.source_url for p in context.control.policies if p.definition}
         async with original.database() as uow:
-            for edition in ("mcsb-v1", "mcsb-v2"):
-                overview = await uow.benchmarks.documents(edition, role="overview", limit=1)
-                source_ids.update(d.source_id for d in overview)
             items = [
                 s
                 for s in await uow.sources.list()
-                if s.item.id in source_ids or s.item.location in policy_urls
+                if s.revision_id and not s.item.metadata.get("synthetic")
             ]
-            revisions = {}
+            revisions: dict[UUID, SourceRevision] = {}
             for source in items:
                 assert source.revision_id
                 revision = await uow.sources.revision(source.revision_id)
                 assert revision
                 revisions[source.item.id] = revision
-        if not context.control.mappings or not source_ids:
-            raise ValueError("Sync and index actual Microsoft/NIST sources first")
+        if not items:
+            raise ValueError("Index at least one ordinary source first")
         async with original.database.engine.begin() as connection:
             await connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{SCHEMA}"'))
         database = Postgres(settings.database_url.get_secret_value(), schema=SCHEMA)
@@ -164,13 +155,12 @@ async def demonstrate_workflow(
             await runtime.database.close()
             runtime.database = database
             runtime.knowledge = KnowledgeService(database)
-            runtime.comparisons = BenchmarkService(database)
             captured = RetainedCorpus(runtime, items, revisions)
             deviation = await enterprise_fixture(runtime, fixture)
             registry = runtime.orchestrator().registry
 
             async def index(context: CheckContext) -> CheckResult:
-                report = await runtime.pipeline().scan([captured])
+                report = await runtime.pipeline(require_complete=True).scan([captured])
                 if report.failed:
                     raise ValueError("Retained corpus indexing failed")
                 return CheckResult(candidates=report.concepts)
@@ -180,14 +170,32 @@ async def demonstrate_workflow(
             )
             orchestrator = runtime.orchestrator(registry)
             first = await orchestrator.run()
-            waf_id = context.control.concept_ids["NS-6"]
-            async with database() as uow:
-                snapshot = await uow.resolution.snapshot()
-            mapping = next(
-                f
-                for f in snapshot.findings
-                if f.external_reference == "nist-sp-800-53:5:SC-7" and f.concept_ids[0] == waf_id
-            )
+            selected = None
+            for source in items:
+                for concept in await runtime.knowledge.search(limit=50, source_id=source.item.id):
+                    provenance = await runtime.knowledge.provenance(concept.id)
+                    match = next(
+                        (p for p in provenance if p.revision.id == revisions[source.item.id].id),
+                        None,
+                    )
+                    if match:
+                        version = next(
+                            v
+                            for v in concept.versions
+                            if v.id == match.occurrence.concept_version_id
+                        )
+                        if version.publication.publication_status not in {
+                            "withdrawn",
+                            "superseded",
+                            "deprecated",
+                        }:
+                            selected = concept, version
+                            break
+                if selected:
+                    break
+            if not selected:
+                raise ValueError("Retained sources did not yield an evidenced current assertion")
+            concept, version = selected
 
             async def accept(finding):
                 history = await runtime.reconciliation.history(finding.id)
@@ -204,33 +212,23 @@ async def demonstrate_workflow(
                     )
                 )
 
-            mapping_decision = await accept(mapping)
-            concept = await runtime.knowledge.get(waf_id)
-            assert concept
-            version = next(
-                v
-                for v in concept.versions
-                if any(
-                    o.concept_version_id == v.id and o.segment_id == context.control.segment_id
-                    for o in concept.occurrences
-                )
-            )
-            scope = Scope(
-                organization="Synthetic demonstration", platform="Azure", application="phase3-demo"
+            scope = version.candidate.scope.model_copy(
+                update={
+                    "application": version.candidate.scope.application or "synthetic-demonstration"
+                }
             )
             proposal = await runtime.reconciliation.propose_canonical(
-                waf_id, version.id, scope, allow_prerelease=True, actor=ACTOR
+                concept.id, version.id, scope, allow_prerelease=True, actor=ACTOR
             )
             canonical_decision = await accept(proposal)
             second = await orchestrator.run()
             restarted = KnowledgeResolver(database)
-            result = await restarted.resolve_concept(waf_id, scope)
+            result = await restarted.resolve_concept(concept.id, scope)
             assert result.authoritative and len(result.versions) == 1 and result.provenance
-            assert (await restarted.resolve_concept(waf_id)).status == "not_established"
+            assert (await restarted.resolve_concept(concept.id)).status == "not_established"
             async with database() as uow:
                 final = await uow.resolution.snapshot()
             heads = decision_heads(final.decisions)
-            assert heads[mapping.id].id == mapping_decision.id
             assert heads[proposal.id].id == canonical_decision.id
             exceptions = deviation_issues(
                 CheckContext(
@@ -244,7 +242,6 @@ async def demonstrate_workflow(
             findings_by_check = {}
             for finding in final.findings:
                 findings_by_check[finding.check_id] = findings_by_check.get(finding.check_id, 0) + 1
-            sc7 = [f for f in final.findings if f.external_reference == "nist-sp-800-53:5:SC-7"]
             report = {
                 "schema": SCHEMA,
                 "first_run": str(first.run.id),
@@ -253,10 +250,8 @@ async def demonstrate_workflow(
                 "actual_sources": len(items),
                 "synthetic_facts": 4,
                 "findings_by_check": findings_by_check,
-                "sc7_published_references": len(sc7),
-                "sc7_unique_native_anchor_sets": len({f.concept_ids[1:] for f in sc7}),
                 "issues": len(await runtime.issues.list(limit=1000)),
-                "accepted_decisions_persisted": 2,
+                "accepted_decisions_persisted": 1,
                 "rerun_check_statuses": {
                     e.processor_id: e.status for e in second.executions if e.kind == "check"
                 },

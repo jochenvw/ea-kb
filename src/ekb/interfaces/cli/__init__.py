@@ -18,7 +18,7 @@ from ekb.config import Settings
 from ekb.domain.models import KnowledgeLevel
 from ekb.interfaces.cli.evaluation import register as register_evaluation
 from ekb.interfaces.cli.workflow import register
-from ekb.maintenance import reset_paths, reset_workspace
+from ekb.maintenance import reset_workspace
 from ekb.runtime import Runtime
 
 app = typer.Typer(help="Enterprise Knowledge Base: incremental, grounded knowledge.")
@@ -60,22 +60,17 @@ register_evaluation(app, eval_app, emit)
 def reset(
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Confirm permanent reset.")] = False,
 ) -> None:
-    """Clear EKB-owned tables and caches without starting a new ingestion run."""
+    """Clear EKB-owned database state without deleting originals or starting ingestion."""
     settings = Settings()
-    protected = tuple(
-        path
-        for path in (settings.config_file, settings.manifest, settings.source_directory)
-        if path
-    )
-    paths = reset_paths(settings, protected)
     if not yes:
         typer.confirm(
-            "Permanently erase EKB knowledge, runs, decisions and owned caches?", abort=True
+            "Permanently erase EKB knowledge, runs and decisions? Originals are retained.",
+            abort=True,
         )
 
     async def execute() -> None:
         async with Runtime(settings) as runtime:
-            await reset_workspace(settings, runtime.database, protected)
+            await reset_workspace(runtime.database)
 
     try:
         asyncio.run(execute())
@@ -83,17 +78,16 @@ def reset(
         raise typer.BadParameter(str(error)) from None
     except (SQLAlchemyError, OSError) as error:
         raise typer.BadParameter(
-            f"Reset did not finish ({type(error).__name__}); "
-            "check database access and cache cleanup."
+            f"Reset did not finish ({type(error).__name__}); check database access."
         ) from None
-    emit({"status": "reset", "caches": [str(path) for path in paths]})
+    emit({"status": "reset", "originals": "retained"})
 
 
 @app.command()
 def init(
     recreate: Annotated[
         bool,
-        typer.Option(help="Drop/recreate EKB-owned tables and caches; allowed before v1 only."),
+        typer.Option(help="Drop/recreate EKB-owned tables; allowed before v1 only."),
     ] = False,
 ) -> None:
     """Initialize the current development schema; use migrations from v1 onward."""
@@ -107,16 +101,7 @@ def init(
         async def execute() -> None:
             async with Runtime(settings) as runtime:
                 if recreate:
-                    protected = tuple(
-                        path
-                        for path in (
-                            settings.config_file,
-                            settings.manifest,
-                            settings.source_directory,
-                        )
-                        if path
-                    )
-                    await reset_workspace(settings, runtime.database, protected, recreate=True)
+                    await reset_workspace(runtime.database, recreate=True)
                 else:
                     await runtime.database.initialize()
 
@@ -158,37 +143,6 @@ def sources_list() -> None:
             return await uow.sources.list()
 
     emit(asyncio.run(execute()))
-
-
-@sources_app.command("sync")
-def sources_sync(
-    provider: str,
-    versions: Annotated[str | None, typer.Option(help="Comma-separated edition keys.")] = None,
-    domains: Annotated[
-        str | None, typer.Option(help="Comma-separated domain IDs, e.g. NS.")
-    ] = None,
-) -> None:
-    """Download and normalize official benchmark content; preserve originals and resumable state."""
-    if provider != "microsoft-security-benchmark":
-        raise typer.BadParameter("Supported provider: microsoft-security-benchmark")
-
-    async def execute():
-        from ekb.observability import tracer
-
-        async with Runtime() as runtime:
-            with tracer.start_as_current_span("benchmark.sync"):
-                return await runtime.benchmarks().sync(
-                    [value.strip() for value in versions.split(",")] if versions else None,
-                    [value.strip() for value in domains.split(",")] if domains else None,
-                )
-
-    try:
-        report = asyncio.run(execute())
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from None
-    emit(report)
-    if report.failed:
-        raise typer.Exit(1)
 
 
 @scans_app.command("list")
@@ -280,38 +234,15 @@ def concepts_show(concept_id: UUID) -> None:
 
 @concepts_app.command("search")
 def concepts_search(query: str, limit: Annotated[int, typer.Option(min=1, max=200)] = 50) -> None:
-    """Search requirement/objective statements."""
+    """Search goal and requirement statements."""
     concepts_list(query, limit)
 
 
 @app.command()
-def compare(
-    from_edition: str,
-    to_edition: str,
-    control: Annotated[str | None, typer.Option()] = None,
-) -> None:
-    """Persist review-only edition/control comparisons, never canonical transitions."""
-
+def lineage(concept_id: UUID) -> None:
     async def execute():
         async with Runtime() as runtime:
-            return await runtime.comparisons.compare(from_edition, to_edition, control)
-
-    try:
-        report = asyncio.run(execute())
-        emit(report)
-        if report.failures:
-            raise typer.Exit(1)
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from None
-
-
-@app.command()
-def lineage(concept_id: str) -> None:
-    async def execute():
-        async with Runtime() as runtime:
-            if ":" in concept_id:
-                return await runtime.comparisons.lineage(concept_id)
-            return await runtime.knowledge.lineage(UUID(concept_id))
+            return await runtime.knowledge.lineage(concept_id)
 
     try:
         emit(asyncio.run(execute()))
@@ -378,32 +309,6 @@ def eval_run(
             "summary": str(output.with_suffix(".txt")),
         }
     )
-
-
-@eval_app.command("benchmarks")
-def eval_benchmarks(
-    dataset: Path = Path("tests") / "golden" / "benchmarks.json",
-    output: Path = Path("data") / "benchmark-evaluation.json",
-    configured: Annotated[
-        bool, typer.Option(help="Use the explicitly configured small model; may incur charges.")
-    ] = False,
-) -> None:
-    """Evaluate actual captured source excerpts; default is offline structural rules."""
-    from ekb.evaluation.benchmarks import evaluate_benchmarks
-
-    async def execute():
-        async with Runtime() as runtime:
-            if configured and runtime.verifier is None:
-                raise ValueError("Set EKB_RECONCILIATION_MODEL_ID for --configured evaluation")
-            return await evaluate_benchmarks(
-                dataset, output, runtime.verifier if configured else None
-            )
-
-    try:
-        report = asyncio.run(execute())
-    except ValueError as error:
-        raise typer.BadParameter(str(error)) from None
-    emit({"provider": report["provider"], "metrics": report["metrics"], "report": str(output)})
 
 
 @app.command()

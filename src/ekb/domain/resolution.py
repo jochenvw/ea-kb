@@ -7,7 +7,6 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
 
-from ekb.domain.benchmarks import BenchmarkPassage
 from ekb.domain.models import (
     ConceptDetail,
     ConceptVersion,
@@ -37,14 +36,12 @@ class Finding(Model):
     concept_ids: tuple[UUID, ...]
     version_ids: tuple[UUID, ...] = ()
     occurrence_ids: tuple[UUID, ...] = ()
-    passages: tuple[BenchmarkPassage, ...] = ()
     relationship: RelationshipKind | None = None
     scope: Scope = Field(default_factory=Scope)
     confidence: float = Field(ge=0, le=1)
     explanation: str = Field(min_length=1)
     uncertainty: str | None = None
     proposed_change: str | None = None
-    external_reference: str | None = None
     deterministic: bool = False
     allow_prerelease: bool = False
     recorded_at: datetime = Field(default_factory=now)

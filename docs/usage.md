@@ -6,6 +6,8 @@ An executable Python 3.13 modular monolith for incremental, evidence-grounded st
 requirements. PostgreSQL retains immutable revisions, exact source evidence and proposed
 relationships. Filesystem or Azure Blob artifacts preserve originals. CLI, Textual, web and
 read-only Model Context Protocol (MCP) interfaces share the same application services.
+Ingestion runs and monitoring are CLI-only, including the CLI-launched periodic worker; HTTP APIs
+and the TUI do not start or monitor ingestion. Governance review is separate.
 
 **Default inference is an explicitly limited offline rules baseline.** It requires no cloud
 credentials and makes no paid calls. Configure a real model before assessing model quality.
@@ -60,7 +62,7 @@ uv run ekb pipeline run --directory tests\fixtures\local
 uv run ekb pipeline run --manifest sources\public.yaml
 # Or use source/stage settings from a profile:
 uv run ekb pipeline run --config config\local.yaml
-# Explicitly destructive; prompts with the database and exact cache directories:
+# Explicitly destructive to EKB database state; originals are retained:
 uv run ekb pipeline run --config config\local.yaml --fresh
 # Automation only: confirmation is required when fresh JSON mode is selected:
 uv run ekb pipeline run --config config\local.yaml --fresh --yes --json
@@ -71,9 +73,8 @@ visible passes are:
 
 1. **Acquire:** bounded parallel discovery/revision checking and downloads. Lists each file as
    known/not-known to the DB, reused, downloaded or metadata-only, then summarizes counts.
-   Benchmark synchronization happens automatically here; its `cache_known`/`cache_new` labels
-   refer to the download cache, separately from DB identity. Provider discovery may normalize
-   structured publisher content to follow its links; generic concept extraction has not begun.
+   Publisher documents use the same explicitly configured connectors. Linked pages are not
+   downloaded unless individually configured; semantic extraction has not begun.
 2. **Label and extract:** after acquisition completes, bounded workers open prepared originals,
    reuse parsing, independently checkpoint ontology/scope labels, then extract only within those
    labels. Exact evidence, qualifiers and scope are validated before candidates persist. An ephemeral
@@ -85,8 +86,8 @@ visible passes are:
 
 The run ID is printed as soon as the durable run starts. Stage summaries and final check outcomes
 include statuses and identifiers. The overall summary includes persisted totals, observed workspace
-changes, optional UI links, a credential-free database location, cache folders and a JSON report
-under `data\reports`. `--output FILE` selects a report path; `--json` suppresses human progress.
+changes, optional UI links, a credential-free database location and a JSON report under
+`data\reports`. `--output FILE` selects a report path; `--json` suppresses human progress.
 Counts are not claims of approval or compliance.
 Failures produce a nonzero exit, retain checkpoints and save available failure details. UI links
 are optional result inspection and assume `uv run ekb web` at the default address.
@@ -122,24 +123,28 @@ before the usage-accounting fix may lack model-call counts or contain partial pr
 token-bearing tasks with missing call counts make aggregate calls and cost null. Other missing
 historical information cannot be reconstructed, so do not treat old task amounts as complete.
 
-`--fresh` clears **only EKB tables** (including model, embedding, comparison and workflow caches),
-`data_dir\artifacts` and the generated benchmark cache. It retains Alembic state, unrelated tables,
-source files/manifests, reports, telemetry and the separate parser-test/teacher input collection.
-It refuses active scans/leases, broad/root paths, symlink/junction paths, source/cache overlap and
-shared Azure Blob storage. Stop ingestion workers first; a read-only browser may remain open.
-Files are quarantined while the DB reset is transactional and restored if that reset fails.
+`--fresh` clears **only EKB database state**, including processing and workflow checkpoints.
+It retains filesystem/Azure original artifacts, Alembic state, unrelated tables, source files and
+manifests, reports and telemetry, including previously downloaded source-input directories.
+The four obsolete `benchmark_documents`, `benchmark_comparisons`, `benchmark_embeddings` and
+`benchmark_match_cache` tables and legacy `concept_aliases` are removed only in the active schema,
+both for reset and recreation. Cleanup does not use `CASCADE`: a dependency from an unrelated table
+fails and rolls back the reset. Active scans/leases block the operation. Stop ingestion workers first;
+a read-only browser may remain open.
 Do not use `--fresh` merely to retry failed work; ordinary reruns reuse valid checkpoints.
 A hard process crash can leave a scan report marked `running` indefinitely, even after its pipeline
 and task leases expire or the pipeline is resumed. Reset currently refuses that report because scan
 reports have no fenced liveness record to distinguish it safely from a live standalone scan.
 
-To clear indexed knowledge/runs and owned ingestion caches **without re-indexing**, use
+To clear indexed knowledge and runs **without re-indexing**, use
 `uv run ekb reset` (confirmation) or `uv run ekb reset --yes` (automation). The same safety
 boundaries and retained source inputs apply.
 
 Application **0.1.0** is pre-release development: before major version 1, backwards compatibility and
 data-preserving migrations are not required. After schema changes, run `uv run ekb init --recreate`
-to drop/recreate only EKB-owned tables and clear owned ingestion caches. No re-indexing starts.
+to drop/recreate only EKB-owned tables. Original artifacts remain; no re-indexing starts.
+Previously downloaded source inputs, including the former security-guidance corpus directory, are
+also retained; provide a directory explicitly to scan those files with ordinary connectors.
 `ekb init` without that flag creates missing tables; normal web startup never rebuilds anything.
 From v1, `--recreate` is disabled and schema changes require migrations. See decision `0009`.
 
@@ -186,8 +191,9 @@ authorized reachable index; do not disable certificate validation.
 uv run ekb scan --manifest sources\public.yaml
 ```
 
-The sample manifest combines a public corporate annual report (selected PDF pages), strategy and
-sustainability pages, selected official NIST CSF 2.0 outcomes and SP 800-53 controls, and precisely
+The sample manifest combines direct Microsoft security guidance pages, a public corporate annual report
+(selected PDF pages), strategy and sustainability pages, selected official NIST CSF 2.0 outcomes and
+SP 800-53 controls, and precisely
 identified UK/US offshore safety publications. These are illustrative sources, not an industry or
 company restriction. Each entry documents publisher, identifier,
 format, jurisdiction, access conditions and intended scope. Full downloaded originals are retained;
@@ -202,69 +208,29 @@ Public sites can move or deny automated requests. Fetch failures remain visible 
 historical evidence. Original content hashes preserve the retrieved edition; mutable upstream URLs
 are not a substitute for an archival citation.
 
-### Microsoft security benchmark downloads
+### Security guidance as ordinary sources
+
+The manifest includes Microsoft Azure Security Benchmark and Microsoft Cloud Security Benchmark
+overview pages **and** separately configured network-security articles. An overview does not
+automatically fetch its links. Each document uses the HTTP connector, standard parser and shared
+ontology skills, retaining the actual URL, edition, publisher and CC-BY 4.0 attribution.
 
 ```powershell
-uv run ekb sources sync microsoft-security-benchmark
-uv run ekb sources sync microsoft-security-benchmark --versions mcsb-v1,mcsb-v2 --domains NS
-uv run python scripts\download_test_corpus.py --benchmark --domains NS
-uv run ekb scan
+uv run ekb scan --manifest sources\public.yaml
 uv run ekb concepts search "web application firewall"
-uv run ekb compare mcsb-v1 mcsb-v2 --control NS-6
-uv run ekb lineage "mcsb-v2:NS-6"
+uv run ekb lineage CONCEPT_UUID
 ```
 
-Synchronization discovers linked domain articles and published workbooks, downloads actual linked
-Azure Policy JSON for Network Security, and preserves originals, normalized evidence and per-asset
-checkpoints through the artifact port. Local output is under
-`data\test-corpus\public\microsoft_security_benchmark`; Azure Blob uses equivalent object keys.
-NIST/ISO/CIS mapping projections retain exact namespaces, revisions and unresolved target IDs.
-Microsoft Learn and SecurityBenchmarks source URLs and CC-BY 4.0 attribution remain attached.
+The offline rules baseline is deliberately conservative and does not establish requirement layers.
+An explicitly configured model can propose a conceptual, technical or platform requirement only
+with matching evidence; unknown labels stay null and explicit Azure/product scope is retained.
+Publisher mappings do not imply equivalence, compliance or enterprise adoption, and unresolved
+targets are not invented. Publication maturity and scoped authority remain independent.
 
-Run `scan --manifest sources\public.yaml` to ingest selected native NIST catalogs. Exact
-`nist-sp-800-53` revision `5` label aliases resolve the five published v2 NS-6 NIST mappings;
-revision 4 and unavailable/invalid framework targets remain unresolved. Resolution points to
-existing native control occurrences, not full coverage of every clause.
-
-`compare` without `--control` compares all loaded controls, including added/removed identifiers.
-Results retain source-specific maturity, overview edition maturity, exact mappings, actual policy
-definitions, guidance diffs and review-only lineage/SemVer classifications. Unknown numeric baselines
-stay unknown. Structural proposals are **not model-verified** and never merge or promote concepts.
-Explicitly set `EKB_RECONCILIATION_MODEL_ID` for small-model verification and
-`EKB_EMBEDDING_MODEL_ID` for scoped candidate retrieval, using the existing endpoint/auth settings.
-These independent options are disabled by default; enabling them can incur provider charges.
-Embeddings and valid judgments are cached independently of parser replay. Live paid-model quality
-has not been verified.
-
-The web `/benchmarks` explorer and TUI Benchmarks tab expose the same evidence chains and
-whole-edition changes. HTTP `/api/benchmarks` and four additional MCP benchmark tools inspect
-editions, controls, comparisons and lineage. These interfaces are read-only: cached comparisons
-or labeled structural previews, with no paid calls or proposal writes. Use CLI `compare` to persist
-a comparison. Source publication, overview maturity and version/scoped enterprise authority are
-shown separately.
-
-Run `uv run ekb eval benchmarks` for offline extraction, reconciliation and lineage metrics on
-five attributed actual-source excerpts. Predictions and measured results are written to
-`data\benchmark-evaluation.json`. `--configured` explicitly enables the configured small model
-and may incur charges. The small dataset does not establish general model or embedding quality;
-see [the measured benchmark evaluation](benchmark-evaluation.md).
-
-Repeated sync uses conditional requests only after checking cached hashes, skips unchanged parsing,
-and replays changed parsers. Failed refreshes preserve earlier valid artifacts. Focused runs retain
-other cached editions/domains. Download, skipped-parse and replay counts describe separate stages.
-Run a single sync writer per corpus; database ingestion has separate ownership fencing.
-The current official repository has no MCSB v2 workbook. The v1 workbook describes itself as a private
-preview: its maturity is not inherited from the web edition. Absence of a preview marker is unknown,
-not evidence of final publication or enterprise approval.
-
-After sync, no-argument `scan` uses the benchmark cache unless a source directory is configured.
-Structured ingestion bypasses generic parsing/model extraction, validates source/segment bindings,
-and commits complete benchmark records with requirement candidates. Unchanged scans skip all work;
-parser changes preserve earlier records without duplicating concepts or inventing semantic versions.
-An oversized semantic statement remains complete in its typed record and is listed in
-`unmaterialized_controls`, never silently truncated. Mappings retain unresolved targets until exact
-namespace/revision resolution; comparison preserves published mappings separately from
-review-only semantic relationships.
+Optional generic semantic verification and embeddings use `EKB_RECONCILIATION_MODEL_ID` and
+`EKB_EMBEDDING_MODEL_ID`; both are disabled by default and can incur charges when enabled.
+Completed checks replay without repeating work; changed checks may make new provider calls.
+Offline tests do not qualify a live model.
 
 ### Additional downloadable parser-test corpus
 
@@ -291,7 +257,7 @@ The browser separates looking things up from doing governed work:
 |---|---|
 | Reference | `/sources` and `/sources/{id}`: source inventory, extracted versions and exact evidence |
 | Reference | `/knowledge`, `/concepts/{id}`, `/explore`: interpretations, provenance and visual navigation |
-| Reference | `/benchmarks`, `/reconciliation`: publisher records, proposal ledger and decision history |
+| Reference | `/reconciliation`: proposal ledger and decision history |
 | Reference | `/ontology`: read-only OWL concepts, relations and exact definitions |
 | Work | `/review`: active reconciliation backlog and issue triage |
 | Operations | `/data`: read-only EKB tables and foreign-key drill-down; `/logs`: recent application events |
@@ -330,7 +296,7 @@ It does not execute or monitor ingestion. The React/shadcn browser workspace tar
 desktop/PC use, not mobile. It provides
 a consolidation workspace (`/`), shared language (`/ontology`), cursor-paged interpretations
 (`/knowledge`), source curation (`/sources`), visual validation (`/explore`), issue/proposal review
-(`/review`) and benchmarks (`/benchmarks`).
+(`/review`) and read-only data/log inspection (`/data`, `/logs`).
 Start with the shared definitions, then inspect source context, interpretations, relationships and
 scoped decisions. The four-step path is navigation guidance, not saved progress or approval.
 Source selection stays in operator configuration; source curation checks do not change source status.
@@ -363,15 +329,8 @@ The [Bold Wikipedia preset](https://tweakcn.com/r/themes/cmlmpb3qp000004l5go47hz
 both palettes, compact corners, typography and shadows. Inter is self-hosted with the application;
 no font/CDN requests are needed. Semantic shadcn variables also drive the custom reference views.
 
-The source registry consolidates each benchmark edition into one source: MCSB v1 and MCSB v2 stay
-separate. Their pages, mappings, workbooks and policies appear as **Evidence documents** underneath;
-original document identifiers and history are unchanged. Overview counts now distinguish logical
-sources from their evidence documents. The raw physical inventory remains at `/api/sources`;
-`/api/source-groups` exposes the logical registry.
-
-The knowledge table filters by **Source**, including individual reports and whole benchmark
-editions. Choose **Evidence document** to narrow an edition to one original file or page.
-API/CLI search `source_id` / `--source-id` accept either a logical edition ID or an original document ID.
+The source registry lists individual original documents through `/api/sources`. The knowledge
+table filters by **Source**; API/CLI search `source_id` / `--source-id` accept the original source ID.
 Each row names its source and opens the version actually evidenced there; filters persist
 in the URL and reset paging. Details show the **Original quote**, highlighted surrounding source
 context, section/page and revision metadata. Quotes and context are rendered as text, never HTML.
@@ -393,16 +352,14 @@ unconnected. Search filters the catalog, not the diagram. Rendering is local and
 
 **Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified
 as `PlatformRequirement`, including unclassified native guidance. Select **Platform implementation**
-for `PlatformRequirement` records such as Azure security baselines, or **All levels** to compare.
+for explicitly platform-scoped `PlatformRequirement` records, or **All levels** to compare.
 Level, text and source filters select the same version; CLI/API also accept `--level implementation`
 and `level=implementation`. Unknown scope remains unknown, not universal applicability.
 
-Concept details, benchmark controls and the visual explorer show goals/guidance above implementation.
-For example, `mcsb-v2:NS-6` links to its resolved native NIST controls with exact published mapping
-evidence. Click a control to browse its native source, or a connected implementation to recenter.
-Mappings refer to whole controls, not proof that every clause is implemented. No company-goal
-alignment, adoption, equivalence or compliance is inferred. Review proposals are hidden by default;
-**Show review proposals** reveals them as dashed links. Unresolved mappings remain in benchmark details.
+Concept details and the visual explorer show goals/guidance above implementation. Click a source
+for evidence or a connected interpretation to recenter. No company-goal alignment, adoption,
+equivalence or compliance is inferred. Review proposals are hidden by default;
+**Show review proposals** reveals them as dashed links. Unresolved links are not drawn.
 
 Assertions use one standalone sentence: **supported subject + action/outcome + necessary qualifiers**.
 Aim for 8–25 words; preserve intent, scope, negation, exceptions, numerical targets, units, deadlines
@@ -429,8 +386,10 @@ The web application does not start, monitor or own ingestion runs. Non-health we
 non-loopback clients and forwarded-proxy headers. Enterprise authentication and network hardening
 are not implemented; do not expose this service through a proxy.
 
-The MCP server uses stdio and exposes only `search_concepts`, `get_concept`, `trace_provenance`
-and `find_related_requirements`, with explicit schemas. Example client process configuration:
+The MCP server uses stdio and exposes exactly eight read-only tools: `search_concepts`, `get_concept`,
+`trace_provenance`, `find_related_requirements`, `resolve_knowledge`, `resolve_requirement`,
+`list_knowledge_issues` and `get_reconciliation_history`, each with an explicit schema. Example
+client process configuration:
 
 ```json
 {

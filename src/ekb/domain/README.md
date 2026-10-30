@@ -9,12 +9,12 @@
   Ontology types are distinct from organizational/platform scope; unknown layers remain nullable.
 - Optional evidence-backed content coverage describes company/unit breadth, not adoption or OWL types.
 - Scoped extraction rejects both omitted and invented numeric qualifiers, including technical versions.
-- `benchmarks.py` defines source/control/mapping/policy records, not additional semantic primitives.
-- `reconciliation.py` types comparisons, grounded judgments and explicit structural-only proposals.
+- `reconciliation.py` types generic assertions, judgments and discriminated replay entries.
+  Cached vectors are finite, nonzero and bounded; judgments require source-grounding checks on use.
+  Verification status is separate from adapter-defined methods and from an `unknown` judgment.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
   alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
-- `sources.py` groups explicit benchmark-edition metadata into logical sources; documents retain IDs.
 - Knowledge levels separate goals/guidance from explicit platform requirements; they grant no authority.
 - `ontology.py` types the read-only authoritative catalog; `SemanticType` and `RelationshipKind`
   use OWL identifiers, not a parallel objective/requirement taxonomy or lifecycle relation kinds.

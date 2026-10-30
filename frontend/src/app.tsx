@@ -7,7 +7,6 @@ import {
   CircleHelp,
   Database,
   Files,
-  GitCompareArrows,
   Layers3,
   LayoutDashboard,
   Menu,
@@ -35,9 +34,8 @@ import { Review } from "@/review";
 import { Sources, SourcePage } from "@/sources";
 import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
-import { Benchmarks } from "@/benchmarks";
 import { Ontology } from "@/ontology";
-import type { Issue, SourceGroup } from "@/types";
+import type { Issue, Source } from "@/types";
 
 const navigation = [
   {
@@ -70,12 +68,6 @@ const navigation = [
     name: "Reconciliation backlog",
     icon: CheckCheck,
     group: "Consolidate",
-  },
-  {
-    href: "/benchmarks",
-    name: "Benchmarks",
-    icon: GitCompareArrows,
-    group: "Reference",
   },
   {
     href: "/reconciliation",
@@ -234,7 +226,6 @@ export function App() {
           {section === "/reconciliation" && <ReconciliationLog />}
           {section === "/data" && <DataExplorer />}
           {section === "/logs" && <Logs />}
-          {section === "/benchmarks" && <Benchmarks />}
           {section === "/ontology" && <Ontology />}
         </main>
         <footer className="workspace-footer">
@@ -250,7 +241,7 @@ export function App() {
 }
 
 function Overview() {
-  const sources = useResource<SourceGroup[]>("/api/source-groups");
+  const sources = useResource<Source[]>("/api/sources");
   const issues = useResource<Issue[]>("/api/issues?status=open&limit=1000");
   return (
     <>
@@ -318,11 +309,11 @@ function Overview() {
           detail="Publisher editions remain separate"
         />
         <Metric
-          title="Evidence documents"
-          value={sources.data?.reduce(
-            (count, group) => count + group.documents.length,
-            0,
-          )}
+          title="Available sources"
+          value={
+            sources.data?.filter((source) => source.status === "available")
+              .length
+          }
           detail="Original document identities are retained"
         />
         <Metric

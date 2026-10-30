@@ -178,14 +178,6 @@ export interface Finding {
   relationship: string | null;
   scope: Scope;
   recorded_at: string;
-  passages: {
-    source_url: string;
-    section: string;
-    excerpt: string;
-    start: number;
-    end: number;
-    content_hash: string;
-  }[];
 }
 
 export interface Decision {
@@ -199,7 +191,6 @@ export interface Decision {
 
 export interface SourceInspection {
   source: Source;
-  group?: SourceGroup | null;
   revisions: number;
   segments: number;
   versions: number;
@@ -211,14 +202,6 @@ export interface SourceInspection {
     level?: string;
   }[];
   next_cursor: string | null;
-}
-
-export interface SourceGroup {
-  id: string;
-  name: string;
-  publisher: string | null;
-  edition: string | null;
-  documents: Source[];
 }
 
 export interface KnowledgeGraph {
@@ -236,7 +219,12 @@ export interface KnowledgeGraph {
     kind: string;
     status: string;
     href: string;
-    evidence?: { excerpt: string; source_url: string } | null;
+    evidence?: {
+      excerpt: string;
+      segment_id: string;
+      start: number;
+      end: number;
+    } | null;
     note?: string | null;
   }[];
   truncated: boolean;
@@ -270,54 +258,4 @@ export interface LogPage {
   }[];
   files_read: number;
   truncated: boolean;
-}
-
-export interface Control {
-  control: {
-    control: {
-      control_id: string;
-      title: string;
-      security_principle: string | null;
-      azure_guidance: string;
-      generic_guidance: string | null;
-      implementation_options: string[];
-      implementation_options_are_alternatives: boolean | null;
-      evidence: { excerpt: string; source_url: string };
-      publication: Publication;
-      subcontrols: { control_id: string; title: string; text: string }[];
-    };
-    mappings: {
-      reference: {
-        framework: string;
-        control_id: string;
-        resolution: string;
-        coverage: string;
-        evidence: { excerpt: string; source_url: string };
-        resolved_concept_ids: string[];
-      };
-    }[];
-    policies: {
-      reference: { name: string; definition_id: string; url: string };
-      definition: { name: string; version: string | null } | null;
-      version_matches_reference: boolean | null;
-    }[];
-  };
-  edition: { edition: string; publication: Publication };
-  concept: Concept | null;
-}
-
-export interface Comparison {
-  changes: {
-    old: { control: { control_id: string; title: string } } | null;
-    new: { control: { control_id: string; title: string } } | null;
-    lineage: string;
-    proposed_change: string | null;
-    changed_fields: string[];
-    version_note: string;
-    guidance_diff: string;
-  }[];
-  added_control_ids: string[];
-  removed_control_ids: string[];
-  notes: string[];
-  model_calls: number;
 }

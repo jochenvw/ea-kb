@@ -7,12 +7,10 @@
 - `/ontology` and `/api/ontology` expose the read-only packaged OWL catalog without database/model I/O.
 - `/api/ui/config` exposes whether governance is enabled, never credentials.
 - `/api/concepts` accepts `after`, `source_id` and `level`; constraints select the same version.
-- `/api/source-groups` consolidates benchmark editions; source drill-down/search accept group or document IDs.
-- `/api/sources` remains the original document inventory for compatibility and exact provenance.
+- `/api/sources` lists individual original documents for exact-source inspection and provenance.
 - `inspection.py` serves source drill-down, graphs, outstanding proposals and read-only table/log pages.
 - Inspection permits EKB-owned tables only, not arbitrary SQL, files, raw traces or mutations.
-- `/api/benchmarks` exposes editions, controls, comparisons and evidence chains.
-- Benchmark inspection is read-only: cached results or structural previews, never model calls.
+- HTTP routes neither start nor monitor ingestion; use the CLI for pipeline progress and status.
 - `governance.py` exposes strict resolution, issues, audit and `/review` through shared services.
 - Mutations require configured Basic token authentication, same origin and HTTPS or loopback.
 - All non-health web and API routes reject non-loopback clients and forwarded-proxy headers.

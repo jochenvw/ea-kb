@@ -3,10 +3,9 @@
 - `usage.md`: setup, configuration, interfaces, corpus downloads, verification and deployment.
 - `architecture.md`: implemented components, flows, persistence, concurrency and deployment.
 - `plugins.md`: connector/provider contracts and rules for future adapters.
-- `benchmark-evaluation.md`: actual-source metrics, acceptance evidence and measurement limits.
 - `phase3.md`: durable plugins, reconciliation/resolution contracts and actual-corpus demonstration.
 - `evaluation.md`: source-grounded teacher datasets, distillation, model gates and combined suite.
-- `ingestion-verification.md`: latest full checks, actual-corpus pipeline results and browser links.
+- `ingestion-verification.md`: offline ingestion and desktop inspection verification.
 - `decisions`: short architecture decision records and their rationale.
 - `codebase`: navigation map to canonical guides, manifests, tests and known limits.
 

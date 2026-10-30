@@ -1,10 +1,21 @@
 # EKB realistic ingestion test corpus; URLs from official publishers.
 # These sources are NOT assertions that regulations apply to a specific company.
 # Download only where permitted; ISO full texts require authorized copies.
-benchmark:
-  provider: microsoft-security-benchmark
-  versions: [asb-v2, mcsb-v1, mcsb-v2]
 sources:
+  - id: mcsb-v1-network
+    title: Microsoft Cloud Security Benchmark v1 network security
+    category: security_guidance
+    format: html
+    url: https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-network-security
+    test: [source_evidence, ontology_layers, platform_qualifiers]
+    note: Microsoft Learn; CC-BY 4.0 attribution. This is the guidance page, not its overview.
+  - id: mcsb-v2-network
+    title: Microsoft Cloud Security Benchmark v2 network security
+    category: security_guidance
+    format: html
+    url: https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-v2-network-security
+    test: [source_evidence, ontology_layers, platform_qualifiers]
+    note: Microsoft Learn preview; CC-BY 4.0 attribution. No enterprise adoption is implied.
   - id: shell-annual-2025
     title: Shell Annual Report and Accounts 2025
     category: corporate_strategy

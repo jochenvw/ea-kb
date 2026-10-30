@@ -235,7 +235,7 @@ class SourceSpec(Model):
     location: str
     format: str
     category: str
-    retrieval: str = "http"
+    retrieval: Literal["http", "oscal", "metadata"] = "http"
     jurisdiction: str | None = None
     access_notes: str
     intended_scope: str

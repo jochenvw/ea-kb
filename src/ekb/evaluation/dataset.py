@@ -8,9 +8,8 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from ekb.domain.benchmarks import BenchmarkControl, BenchmarkPassage
-from ekb.domain.models import Modality, Model, Scope, SemanticType, content_hash, now, stable_id
-from ekb.domain.reconciliation import ControlView, SemanticOutcome
+from ekb.domain.models import Modality, Model, Scope, SemanticType, stable_id
+from ekb.domain.reconciliation import SemanticAssertion, SemanticOutcome
 from ekb.evaluation import Case, Expected
 
 type Split = Literal["train", "validation", "test"]
@@ -36,6 +35,8 @@ class Seed(Model):
     quote: str = Field(min_length=1, max_length=4000)
     paraphrase: str = Field(min_length=1, max_length=2000)
     query: str = Field(min_length=1, max_length=1000)
+    relevant_seed_ids: tuple[str, ...] = ()
+    distinct_seed_ids: tuple[str, ...] = ()
 
 
 class TeacherDataset(Model):
@@ -59,10 +60,19 @@ class TeacherDataset(Model):
                 if key in splits and splits[key] != source.split:
                     raise ValueError("Related source documents must stay in one split")
                 splits[key] = source.split
+        seeds = {s.id: s for s in self.seeds}
         texts = {}
         for seed in self.seeds:
             if seed.source not in sources:
                 raise ValueError("Seed must reference a documented source")
+            for other_id in (*seed.relevant_seed_ids, *seed.distinct_seed_ids):
+                other = seeds.get(other_id)
+                if other is None or other.source not in sources:
+                    raise ValueError("Seed comparison must reference a documented seed")
+                if sources[seed.source].split != sources[other.source].split:
+                    raise ValueError("Seed comparisons must stay in one split")
+                if other_id == seed.id and other_id in seed.distinct_seed_ids:
+                    raise ValueError("A seed cannot be distinct from itself")
             for text in (seed.quote, seed.paraphrase, seed.query):
                 key = " ".join(text.casefold().split())
                 split = sources[seed.source].split
@@ -168,39 +178,20 @@ def extraction_cases(dataset: TeacherDataset, split: Split) -> list[Case]:
     return result
 
 
-def view(seed: Seed, text: str, identity: str, scope: Scope | None = None) -> ControlView:
-    passage = BenchmarkPassage(
-        source_id=stable_id("eval-source", seed.source),
-        source_url=f"eval:{seed.source}",
-        content_hash=content_hash(text.encode()),
-        section=seed.control,
+def view(seed: Seed, text: str, identity: str, scope: Scope | None = None) -> SemanticAssertion:
+    return SemanticAssertion(
+        occurrence_id=stable_id("eval-occurrence", seed.source, identity),
+        statement=text,
         excerpt=text,
-        start=0,
-        end=len(text),
-    )
-    return ControlView(
-        snapshot_id=stable_id("eval-snapshot", identity),
-        revision_id=stable_id("eval", identity),
-        segment_id=stable_id("eval-segment", identity),
-        retrieved_at=now(),
-        scope=scope or Scope(),
-        control=BenchmarkControl(
-            benchmark="teacher-eval",
-            edition="evaluation",
-            publisher_version="unknown",
-            domain="requirement",
-            control_id=seed.control,
-            title=seed.control,
-            security_principle=text,
-            evidence=passage,
-        ),
+        semantic_type=seed.semantic_type,
+        scope=scope if scope is not None else seed.scope,
     )
 
 
 def pair_cases(
     dataset: TeacherDataset,
     split: Split,
-) -> list[tuple[str, ControlView, ControlView, SemanticOutcome]]:
+) -> list[tuple[str, SemanticAssertion, SemanticAssertion, SemanticOutcome]]:
     result = []
     seeds = dataset.selected(split)
     for seed in seeds:
@@ -230,13 +221,17 @@ def pair_cases(
                 ),
             )
         )
-    # Hard negatives deliberately reuse publisher control IDs but concern different practices.
     by_id = {s.id: s for s in seeds}
-    for left, right in (("asb-tags", "ns2-waf"), ("nist-boundary", "ns2-waf")):
-        if left in by_id and right in by_id:
-            a, b = by_id[left], by_id[right]
+    for seed in seeds:
+        for other_id in seed.distinct_seed_ids:
+            other = by_id[other_id]
             result.append(
-                (f"{left}/{right}", view(a, a.quote, left), view(b, b.quote, right), "distinct")
+                (
+                    f"{seed.id}/{other_id}",
+                    view(seed, seed.quote, seed.id),
+                    view(other, other.quote, other.id),
+                    "distinct",
+                )
             )
     return result
 

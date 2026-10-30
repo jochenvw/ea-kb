@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 from ekb.config import Settings
 from ekb.interfaces.cli import app
 from ekb.interfaces.cli.presentation import ScanConsole, locations
-from ekb.maintenance import reset_paths
 
 
 def test_fresh_requires_confirmation_before_runtime_or_database_access(tmp_path, monkeypatch):
@@ -85,21 +84,6 @@ def test_foundry_profile_requires_explicit_https_endpoint(monkeypatch):
     settings = Settings(config_file=Path("config/foundry.yaml"))
     assert settings.model_managed_identity and settings.inference == "agent-framework"
     assert settings.artifact_backend == "filesystem"
-
-
-def test_reset_rejects_broad_paths_input_overlap_and_junctions(tmp_path, monkeypatch):
-    with pytest.raises(ValueError, match="dedicated"):
-        reset_paths(Settings(data_dir=Path.cwd()))
-    settings = Settings(data_dir=tmp_path / "runtime")
-    artifact = settings.data_dir / "artifacts"
-    with pytest.raises(ValueError, match="source inputs"):
-        reset_paths(settings, (artifact / "input.md",))
-    original = Path.is_junction
-    monkeypatch.setattr(Path, "is_junction", lambda path: path == artifact or original(path))
-    with pytest.raises(ValueError, match="junctions"):
-        reset_paths(settings)
-    with pytest.raises(ValueError, match="shared Azure"):
-        reset_paths(Settings(artifact_backend="azure"))
 
 
 def test_terminal_output_and_links_do_not_leak_credentials_or_control_sequences(capsys, tmp_path):

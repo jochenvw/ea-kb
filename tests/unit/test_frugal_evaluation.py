@@ -1,12 +1,17 @@
+import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from pydantic import ValidationError
+from pydantic_evals import Dataset as EvalDataset
 from typer.testing import CliRunner
 
+from ekb.adapters.artifacts import FilesystemArtifactStore
 from ekb.adapters.inference import RulesInference
+from ekb.adapters.inference.reconciliation import OpenAIEmbeddings
 from ekb.config import Settings
 from ekb.domain.models import (
     Candidate,
@@ -15,6 +20,7 @@ from ekb.domain.models import (
     InferenceResult,
     Scope,
     Usage,
+    content_hash,
 )
 from ekb.domain.reconciliation import (
     EmbeddingResult,
@@ -52,6 +58,53 @@ def test_empty_seed_split_and_cross_split_text_are_rejected():
     raw["seeds"][-1]["query"] = raw["seeds"][0]["quote"].upper()
     with pytest.raises(ValidationError, match="leaks"):
         TeacherDataset.model_validate(raw)
+
+
+@pytest.mark.parametrize("field", ["relevant_seed_ids", "distinct_seed_ids"])
+def test_evaluation_seed_links_require_existing_same_split_targets(field):
+    raw = json.loads(DATASET.read_bytes())
+    sources = {source["id"]: source for source in raw["sources"]}
+    source = next(seed for seed in raw["seeds"] if sources[seed["source"]]["split"] == "test")
+    other = next(seed for seed in raw["seeds"] if sources[seed["source"]]["split"] == "train")
+    source[field] = [other["id"]]
+    with pytest.raises(ValidationError, match="stay in one split"):
+        TeacherDataset.model_validate(raw)
+    source[field] = ["not-a-seed"]
+    with pytest.raises(ValidationError, match="documented seed"):
+        TeacherDataset.model_validate(raw)
+
+
+async def test_dataset_annotations_drive_retrieval_relevance_and_distinct_pairs():
+    dataset = load_dataset(DATASET)
+    seeds = dataset.selected("test")
+    by_id = {seed.id: seed for seed in seeds}
+    pairs = {case_id: outcome for case_id, _, _, outcome in pair_cases(dataset, "test")}
+    for seed in seeds:
+        for other in seed.distinct_seed_ids:
+            assert pairs[f"{seed.id}/{other}"] == "distinct"
+    report = await frugal.retrieval(dataset, "test", 3, None)
+    for query in report["queries"]:
+        seed = by_id[query["id"]]
+        assert set(query["expected"]) == {seed.id, *seed.relevant_seed_ids}
+
+
+async def test_retrieval_evaluator_preserves_partial_recall_and_rank(monkeypatch):
+    dataset = load_dataset(DATASET)
+    seeds = dataset.selected("test")
+    target = next(seed for seed in seeds if seed.relevant_seed_ids)
+    unrelated = next(
+        seed.id for seed in seeds if seed.id not in {target.id, *target.relevant_seed_ids}
+    )
+    monkeypatch.setattr(
+        frugal,
+        "nearest",
+        lambda *_: [(unrelated, 1.0), (target.id, 0.5)],
+    )
+    report = await frugal.retrieval(dataset, "test", 2, Embeddings())
+    query = next(row for row in report["queries"] if row["id"] == target.id)
+    assert query["retrieved"] == [unrelated, target.id]
+    assert query["recall"] == query["scores"]["recall"]["value"] == 0.5
+    assert query["reciprocal_rank"] == query["scores"]["reciprocal_rank"]["value"] == 0.5
 
 
 def test_actual_quotations_are_distinct_from_scoped_and_adversarial_variants():
@@ -142,8 +195,8 @@ class Verifier:
         expected: SemanticOutcome = next(
             outcome
             for _, a, b, outcome in pair_cases(load_dataset(DATASET), "test")
-            if a.control.evidence.excerpt == old.control.evidence.excerpt
-            and b.control.evidence.excerpt == new.control.evidence.excerpt
+            if a.excerpt == old.excerpt
+            and b.excerpt == new.excerpt
             and a.scope == old.scope
             and b.scope == new.scope
         )
@@ -156,8 +209,8 @@ class Verifier:
                 outcome=expected,
                 confidence=0.99,
                 rationale="Synthetic gate regression only.",
-                old_excerpt=old.control.evidence.excerpt,
-                new_excerpt=new.control.evidence.excerpt,
+                old_excerpt=old.excerpt,
+                new_excerpt=new.excerpt,
             ),
         )
 
@@ -178,6 +231,7 @@ class Embeddings:
             vectors=tuple(vectors[t] for t in texts),
             calls=1,
             input_tokens=len(texts),
+            usage_complete=True,
         )
 
 
@@ -214,6 +268,275 @@ async def test_accurate_priced_providers_pass_and_unknown_prices_do_not(tmp_path
     )
     assert not unknown["passed"] and unknown["estimated_cost"] is None
     assert not unknown["student_gates"]["priced_cost"]
+    assert unknown["usage_complete"] and unknown["retrieval"]["usage_complete"] is True
+    assert unknown["retrieval"]["cost"] is None
+
+
+@pytest.mark.parametrize("configured_price", [None, 0.02])
+async def test_qualification_preserves_complete_provider_embedding_cost(tmp_path, configured_price):
+    class PricedEmbeddings(Embeddings):
+        async def embed(self, texts):
+            return (await super().embed(texts)).model_copy(update={"cost": 0.0007})
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "provider-cost.json",
+        student(),
+        Verifier(),
+        PricedEmbeddings(),
+        live=True,
+        embedding_input_price=configured_price,
+    )
+    expected = (report["extraction_cases"] + report["verifier_calls"]) * 0.00001 + 0.0007
+    assert report["retrieval"]["cost"] == 0.0007
+    assert report["estimated_cost"] == pytest.approx(expected)
+    assert report["usage_complete"] and report["student_gates"]["priced_cost"]
+    assert report["passed"]
+
+
+async def test_complete_multiple_embedding_calls_can_use_external_price(tmp_path):
+    class BatchedEmbeddings(Embeddings):
+        async def embed(self, texts):
+            return (await super().embed(texts)).model_copy(update={"calls": 2})
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "external-price.json",
+        student(),
+        Verifier(),
+        BatchedEmbeddings(),
+        live=True,
+        embedding_input_price=2.0,
+    )
+    retrieval = report["retrieval"]
+    expected = (report["extraction_cases"] + report["verifier_calls"]) * 0.00001
+    expected += retrieval["input_tokens"] * 2.0 / 1_000_000
+    assert retrieval["calls"] == 2 and retrieval["usage_complete"] is True
+    assert retrieval["cost"] is None
+    assert report["estimated_cost"] == pytest.approx(expected)
+    assert report["usage_complete"] and report["passed"]
+
+
+@pytest.mark.parametrize(("complete", "cost"), [(None, None), (False, 0.0001)])
+async def test_unverified_embedding_usage_cannot_be_priced_from_single_call(
+    tmp_path, complete, cost
+):
+    class UnknownEmbeddings(Embeddings):
+        async def embed(self, texts):
+            return (await super().embed(texts)).model_copy(
+                update={"usage_complete": complete, "cost": cost}
+            )
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "unknown-metering.json",
+        student(),
+        Verifier(),
+        UnknownEmbeddings(),
+        live=True,
+        embedding_input_price=0.02,
+    )
+    assert report["retrieval"]["calls"] == 1 and report["retrieval"]["input_tokens"] > 0
+    assert report["retrieval"]["usage_complete"] is complete
+    assert report["retrieval"]["cost"] == cost
+    assert not report["usage_complete"] and report["estimated_cost"] is None
+    assert not report["student_gates"]["metered_usage"]
+    assert not report["student_gates"]["priced_cost"] and not report["passed"]
+
+
+async def test_zero_token_embedding_call_is_incomplete_even_if_claimed_complete(tmp_path):
+    class ZeroTokenEmbeddings(Embeddings):
+        async def embed(self, texts):
+            return (await super().embed(texts)).model_copy(update={"input_tokens": 0, "cost": 0.0})
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "zero-token-call.json",
+        student(),
+        Verifier(),
+        ZeroTokenEmbeddings(),
+        live=True,
+        embedding_input_price=0.02,
+    )
+    assert report["retrieval"]["calls"] == 1
+    assert report["retrieval"]["usage_complete"] is True
+    assert report["retrieval"]["cost"] == 0.0
+    assert not report["usage_complete"] and report["estimated_cost"] is None
+    assert not report["student_gates"]["priced_cost"] and not report["passed"]
+
+
+async def test_complete_zero_call_embedding_cache_does_not_need_a_price(tmp_path):
+    class CachedEmbeddings(Embeddings):
+        async def embed(self, texts):
+            return (await super().embed(texts)).model_copy(update={"calls": 0, "input_tokens": 0})
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "cached-embeddings.json",
+        student(),
+        Verifier(),
+        CachedEmbeddings(),
+        live=True,
+    )
+    expected = (report["extraction_cases"] + report["verifier_calls"]) * 0.00001
+    assert report["retrieval"]["usage_complete"] is True
+    assert report["retrieval"]["calls"] == report["retrieval"]["input_tokens"] == 0
+    assert report["estimated_cost"] == pytest.approx(expected)
+    assert report["usage_complete"] and report["passed"]
+
+
+async def test_unmetered_embedding_retry_cannot_be_priced_from_successful_response(tmp_path):
+    requests = 0
+
+    def handle(request):
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            return httpx.Response(429)
+        texts = json.loads(request.content)["input"]
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": index, "embedding": [1.0, float(index + 1)]}
+                    for index in range(len(texts))
+                ],
+                "usage": {"prompt_tokens": 42},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        embeddings = OpenAIEmbeddings(
+            Settings(
+                embedding_model_id="synthetic",
+                embedding_input_price=0.02,
+                model_endpoint="https://example.invalid",
+                model_managed_identity=False,
+            ),
+            client=client,
+        )
+        try:
+            report = await frugal.qualify(
+                DATASET,
+                GATES,
+                tmp_path / "unmetered-retry.json",
+                student(),
+                Verifier(),
+                embeddings,
+                live=True,
+                embedding_input_price=0.02,
+            )
+        finally:
+            await embeddings.close()
+    assert requests == report["retrieval"]["calls"] == 2
+    assert report["retrieval"]["input_tokens"] == 42
+    assert report["retrieval"]["usage_complete"] is False
+    assert report["retrieval"]["cost"] is None
+    assert not report["usage_complete"] and report["estimated_cost"] is None
+    assert not report["student_gates"]["metered_usage"]
+    assert not report["student_gates"]["priced_cost"] and not report["passed"]
+
+
+async def test_qualification_runs_real_provider_cases_through_pydantic_evals(tmp_path, monkeypatch):
+    observed = []
+    original_evaluate = EvalDataset.evaluate
+
+    async def observe(self, task, **kwargs):
+        observed.append((self.name, len(self.cases), kwargs.get("max_concurrency")))
+        prefix = {
+            "grounded-extraction": "extraction-",
+            "semantic-pairs": "semantic-",
+            "embedding-batch": "embedding-",
+            "retrieval-queries": "query-",
+        }[self.name]
+        assert all(
+            case.name == case.inputs
+            and case.inputs.startswith(prefix)
+            and case.metadata is None
+            and case.expected_output is None
+            and case.evaluators
+            and all(evaluator.as_spec().arguments is None for evaluator in case.evaluators)
+            for case in self.cases
+        )
+
+        async def safe_task(key):
+            output = await task(key)
+            assert set(output.model_dump()) <= {"candidate_count", "error", "requested", "received"}
+            return output
+
+        return await original_evaluate(self, safe_task, **kwargs)
+
+    monkeypatch.setattr(EvalDataset, "evaluate", observe)
+    original_student = student()
+    events = []
+
+    class CountedStudent:
+        capabilities = original_student.capabilities
+        prompt_version = original_student.prompt_version
+
+        async def extract(self, segment):
+            events.append(("extract", segment.text))
+            return await original_student.extract(segment)
+
+    class CountedVerifier(Verifier):
+        async def verify(self, old, new):
+            events.append(("verify", old.excerpt))
+            return await super().verify(old, new)
+
+    class CountedEmbeddings(Embeddings):
+        requests = 0
+        texts = []
+
+        async def embed(self, texts):
+            self.requests += 1
+            self.texts = list(texts)
+            events.append(("embed", ""))
+            return await super().embed(texts)
+
+    verifier, embeddings = CountedVerifier(), CountedEmbeddings()
+    output = tmp_path / "qualification.json"
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        output,
+        CountedStudent(),
+        verifier,
+        embeddings,
+        live=True,
+        embedding_input_price=0.02,
+    )
+    selected = load_dataset(DATASET).selected("test")
+    expected_cases = extraction_cases(load_dataset(DATASET), "test")
+    assert [text for kind, text in events if kind == "extract"] == [c.text for c in expected_cases]
+    assert all(kind == "extract" for kind, _ in events[: len(expected_cases)])
+    assert events[-1][0] == "embed"
+    assert verifier.calls == report["verifier_calls"]
+    assert embeddings.requests == report["retrieval"]["calls"] == 1
+    assert embeddings.texts == list(
+        dict.fromkeys([s.quote for s in selected] + [s.query for s in selected])
+    )
+    assert {name for name, _, _ in observed} == {
+        "grounded-extraction",
+        "semantic-pairs",
+        "embedding-batch",
+        "retrieval-queries",
+    }
+    assert all(concurrency == 1 for _, _, concurrency in observed)
+    assert all(0 < count <= 16 for _, count, _ in observed)
+    assert report["evaluation_runner"] == "pydantic-evals"
+    extraction = json.loads(output.with_name("qualification-extraction.json").read_text())
+    assert extraction["documents"][0]["scores"]["tp"]["value"] == 1
+    assert extraction["documents"][0]["assertions"]["case_exact_match"]["value"]
+    assert report["judgments"][0]["assertions"]["valid"]["value"]
+    assert report["retrieval"]["queries"][0]["scores"]["recall"]["value"] == 1
+    assert report["retrieval"]["embedding_evaluation"]["assertions"]["vector_count_matches"][
+        "value"
+    ]
 
 
 async def test_false_equivalence_and_poor_retrieval_cannot_be_bought_by_low_cost(tmp_path):
@@ -227,7 +550,10 @@ async def test_false_equivalence_and_poor_retrieval_cannot_be_bought_by_low_cost
     class FlatEmbeddings(Embeddings):
         async def embed(self, texts):
             return EmbeddingResult(
-                vectors=tuple((1.0, 0.0) for _ in texts), calls=1, input_tokens=len(texts)
+                vectors=tuple((1.0, 0.0) for _ in texts),
+                calls=1,
+                input_tokens=len(texts),
+                usage_complete=True,
             )
 
     report = await frugal.qualify(
@@ -244,6 +570,70 @@ async def test_false_equivalence_and_poor_retrieval_cannot_be_bought_by_low_cost
     assert not report["safety_gates"]["no_false_equivalence"]
     assert not report["student_gates"]["retrieval_recall"]
     assert report["student_gates"]["priced_cost"]
+    false_pair = next(row for row in report["judgments"] if row.get("false_equivalence"))
+    assert not false_pair["assertions"]["no_false_equivalence"]["value"]
+    assert not false_pair["assertions"]["correct"]["value"]
+    for query in report["retrieval"]["queries"]:
+        assert query["scores"]["recall"]["value"] == query["recall"]
+        assert query["scores"]["reciprocal_rank"]["value"] == query["reciprocal_rank"]
+
+
+async def test_ungrounded_semantic_judgment_still_fails_safety_without_losing_usage(tmp_path):
+    class Ungrounded(Verifier):
+        async def verify(self, old, new):
+            result = await super().verify(old, new)
+            return result.model_copy(
+                update={
+                    "judgment": result.judgment.model_copy(
+                        update={"old_excerpt": "fabricated evidence"}
+                    )
+                }
+            )
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "ungrounded.json",
+        student(),
+        Ungrounded(),
+        Embeddings(),
+        live=True,
+        embedding_input_price=0,
+    )
+    judgment = next(row for row in report["judgments"] if row["result"]["method"] == "small_model")
+    assert not judgment["valid"] and not judgment["assertions"]["valid"]["value"]
+    assert not judgment["assertions"]["correct"]["value"]
+    assert not report["passed"] and not report["safety_gates"]["no_provider_errors"]
+    assert report["usage_complete"] and report["estimated_cost"] is not None
+
+
+@pytest.mark.parametrize(
+    ("status", "valid"),
+    [("completed", True), ("failed", False), ("context_limit", False)],
+)
+async def test_verifier_status_not_adapter_method_controls_validity(tmp_path, status, valid):
+    class ReplacementVerifier(Verifier):
+        async def verify(self, old, new):
+            result = await super().verify(old, new)
+            return result.model_copy(update={"method": "replacement-adapter", "status": status})
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / f"{status}.json",
+        student(),
+        ReplacementVerifier(),
+        Embeddings(),
+        live=True,
+        embedding_input_price=0.02,
+    )
+    replacement = [
+        row for row in report["judgments"] if row["result"]["method"] == "replacement-adapter"
+    ]
+    assert replacement and all(row["valid"] is valid for row in replacement)
+    assert all(row["assertions"]["valid"]["value"] is valid for row in replacement)
+    assert report["safety_gates"]["no_provider_errors"] is valid
+    assert report["passed"] is valid
 
 
 async def test_missing_provider_usage_is_not_a_free_qualified_run(tmp_path):
@@ -288,6 +678,8 @@ async def test_structural_short_circuit_does_not_consult_expected_label(monkeypa
     )
     assert verifier.calls == 0
     assert report["judgments"][0]["actual"] == "exact_duplicate"
+    assert not report["judgments"][0]["assertions"]["correct"]["value"]
+    assert not report["judgments"][0]["assertions"]["no_false_equivalence"]["value"]
     assert not report["passed"]
 
 
@@ -373,7 +765,128 @@ async def test_one_provider_error_fails_otherwise_accurate_live_qualification(tm
     )
     assert report["recall"] > 0.9
     assert not report["safety_gates"]["no_provider_errors"]
+    assert not report["usage_complete"] and report["estimated_cost"] is None
     assert not report["passed"] and not report["student_meets_provisional_gates"]
+
+
+async def test_semantic_provider_failure_retains_errors_and_unknown_cost(tmp_path):
+    class FailsOnce(Verifier):
+        failed = False
+
+        async def verify(self, old, new):
+            if not self.failed:
+                self.failed = True
+                raise RuntimeError("private provider details")
+            return await super().verify(old, new)
+
+    report = await frugal.qualify(
+        DATASET,
+        GATES,
+        tmp_path / "semantic-error.json",
+        student(),
+        FailsOnce(),
+        Embeddings(),
+        live=True,
+        embedding_input_price=0,
+    )
+    failure = next(row for row in report["judgments"] if "error" in row)
+    assert failure["error"] == "RuntimeError" and not failure["valid"]
+    assert not failure["assertions"]["valid"]["value"]
+    assert not report["safety_gates"]["no_provider_errors"]
+    assert not report["usage_complete"] and report["estimated_cost"] is None
+    assert "private provider details" not in json.dumps(report)
+
+
+async def test_framework_evaluator_failure_cannot_produce_a_qualification(tmp_path, monkeypatch):
+    def broken_evaluator(*_):
+        raise RuntimeError("private evaluator details")
+
+    class NeverEmbed(Embeddings):
+        async def embed(self, texts):
+            pytest.fail("A failed evaluator must stop before embedding")
+
+    monkeypatch.setattr(frugal._SemanticEvaluator, "evaluate", broken_evaluator)
+    output = tmp_path / "framework-error.json"
+    with pytest.raises(RuntimeError, match="Pydantic Evals failed while running semantic-pairs"):
+        await frugal.qualify(
+            DATASET,
+            GATES,
+            output,
+            student(),
+            Verifier(),
+            NeverEmbed(),
+            live=True,
+        )
+    assert not output.exists()
+
+
+async def test_cancellation_stops_sequential_qualification_without_extra_calls(tmp_path):
+    started = asyncio.Event()
+    waiting = asyncio.Event()
+    calls = []
+
+    class PendingStudent:
+        capabilities = Capabilities(model_id="synthetic-student")
+        prompt_version = "synthetic-tests-only"
+
+        async def extract(self, segment):
+            calls.append(segment.id)
+            started.set()
+            await waiting.wait()
+            raise AssertionError("The provider should have been cancelled")
+
+    output = tmp_path / "cancelled.json"
+    task = asyncio.create_task(frugal.qualify(DATASET, GATES, output, PendingStudent()))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=30)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    assert len(calls) == 1
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("failure", ["exception", "missing-vectors"])
+async def test_embedding_failure_is_raised_without_duplicate_calls(failure):
+    class BrokenEmbeddings(Embeddings):
+        requests = 0
+
+        async def embed(self, texts):
+            self.requests += 1
+            if failure == "exception":
+                raise TimeoutError("offline embedding failure")
+            return EmbeddingResult(vectors=(), calls=1, input_tokens=len(texts))
+
+    embeddings = BrokenEmbeddings()
+    error = TimeoutError if failure == "exception" else ValueError
+    with pytest.raises(error):
+        await frugal.retrieval(load_dataset(DATASET), "test", 3, embeddings)
+    assert embeddings.requests == 1
+
+
+async def test_retrieval_ranking_failure_keeps_original_error_and_stops_queries(monkeypatch):
+    rankings = []
+
+    def broken_nearest(*args):
+        rankings.append(args)
+        raise ValueError("invalid test vector")
+
+    class CountedEmbeddings(Embeddings):
+        requests = 0
+
+        async def embed(self, texts):
+            self.requests += 1
+            return await super().embed(texts)
+
+    monkeypatch.setattr(frugal, "nearest", broken_nearest)
+    embeddings = CountedEmbeddings()
+    with pytest.raises(ValueError, match="invalid test vector"):
+        await frugal.retrieval(load_dataset(DATASET), "test", 3, embeddings)
+    assert embeddings.requests == len(rankings) == 1
 
 
 @pytest.mark.parametrize("right", [(), (1.0,), (0.0, 0.0), (float("nan"), 1.0)])
@@ -517,6 +1030,41 @@ def test_cli_live_configuration_split_and_suite_failures_have_nonzero_exit(monke
     monkeypatch.delenv("EKB_TEST_DATABASE_URL", raising=False)
     result = runner.invoke(app, ["test"])
     assert result.exit_code != 0 and "EKB_TEST_DATABASE_URL" in result.output
+
+
+def test_corpus_verifier_uses_retained_originals_without_database_state(tmp_path, monkeypatch):
+    raw = b"Source evidence is retained exactly.\n"
+    key = content_hash(raw)
+    target = tmp_path / key[:2] / key
+    target.parent.mkdir()
+    target.write_bytes(raw)
+    labels = SimpleNamespace(
+        sources=[SimpleNamespace(id="source", sha256=key)],
+        seeds=[SimpleNamespace(id="seed", source="source", quote="retained exactly")],
+    )
+
+    class RetainedRuntime:
+        artifacts = FilesystemArtifactStore(tmp_path)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            pass
+
+    monkeypatch.setattr("ekb.interfaces.cli.evaluation.Runtime", RetainedRuntime)
+    monkeypatch.setattr("ekb.interfaces.cli.evaluation.load_dataset", lambda _: labels)
+    runner = CliRunner()
+    result = runner.invoke(app, ["eval", "verify-corpus"])
+    assert result.exit_code == 0, result.output
+    assert '"verified_quotes": 1' in result.output
+    labels.seeds[0].quote = "Fabricated"
+    assert runner.invoke(app, ["eval", "verify-corpus"]).exit_code != 0
+    labels.seeds[0].quote = "retained exactly"
+    target.write_bytes(b"Changed original")
+    assert runner.invoke(app, ["eval", "verify-corpus"]).exit_code != 0
+    target.unlink()
+    assert runner.invoke(app, ["eval", "verify-corpus"]).exit_code != 0
 
 
 def test_eval_list_and_history_show_available_and_never_run_skill_datasets(tmp_path):

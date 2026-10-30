@@ -17,9 +17,8 @@ from ekb.domain.models import (
 )
 from ekb.domain.resolution import Finding, overlaps
 from ekb.observability import tracer
-from ekb.ports import UnitOfWorkFactory
+from ekb.ports import EmbeddingPort, SemanticVerifier, UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult, KnowledgeCheck
-from ekb.services.reconciliation import BenchmarkService
 from ekb.stages import CheckedStage
 
 
@@ -106,12 +105,10 @@ def finding(
         "concepts": values.get("concept_ids"),
         "versions": values.get("version_ids"),
         "occurrences": values.get("occurrence_ids"),
-        "passages": values.get("passages"),
         "action": values.get("action"),
         "relationship": values.get("relationship"),
         "scope": values.get("scope"),
         "change": values.get("proposed_change"),
-        "external_reference": values.get("external_reference"),
     }
     return Finding(
         id=stable_id(identifier, fingerprint(**evidence)),
@@ -258,111 +255,17 @@ async def lineage(context: CheckContext) -> CheckResult:
     return CheckResult(findings=tuple(results), candidates=len(results))
 
 
-class BenchmarkChecks:
-    def __init__(self, service: BenchmarkService):
-        self.service = service
-
-    async def report(self):
-        try:
-            return await self.service.compare("mcsb-v1", "mcsb-v2", read_only=True)
-        except ValueError as error:
-            if str(error).startswith(("No cached", "No controls")):
-                return None
-            raise
-
-    async def published_mappings(self, context: CheckContext) -> CheckResult:
-        report = await self.report()
-        if report is None:
-            return CheckResult()
-        results, seen = [], set()
-        for change in report.changes:
-            for view in (change.old, change.new):
-                if view is None:
-                    continue
-                cid = view.concept_ids.get(view.control.control_id)
-                if cid is None:
-                    continue
-                for mapping in view.mappings:
-                    ref = mapping.reference
-                    key = (cid, ref.framework, ref.revision, ref.control_id, ref.evidence.source_id)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    targets = ref.resolved_concept_ids
-                    results.append(
-                        finding(
-                            context,
-                            "published_mapping",
-                            "1",
-                            action="relationship",
-                            concept_ids=(cid, *targets),
-                            relationship=RelationshipKind.MAPS_TO,
-                            external_reference=f"{ref.framework}:{ref.revision}:{ref.control_id}",
-                            passages=(ref.evidence,),
-                            confidence=1.0,
-                            explanation=f"Published {ref.framework} {ref.revision} mapping to "
-                            f"{ref.control_id}; whole-control reference anchors, not per-clause "
-                            "coverage, equivalence, derivation or enterprise adoption.",
-                            uncertainty=None if targets else "Native target remains unresolved.",
-                            deterministic=True,
-                            scope=view.scope,
-                        )
-                    )
-        return CheckResult(findings=tuple(results), candidates=len(results))
-
-    async def version_comparison(self, context: CheckContext) -> CheckResult:
-        report = await self.report()
-        if report is None:
-            return CheckResult()
-        results = []
-        for change in report.changes:
-            old, new = change.old, change.new
-            if old is None or new is None:
-                continue
-            a, b = (
-                old.concept_ids.get(old.control.control_id),
-                new.concept_ids.get(new.control.control_id),
-            )
-            if a is None or b is None or a == b:
-                continue
-            if change.verification is None:
-                continue
-            judgment = change.verification.judgment
-            results.append(
-                finding(
-                    context,
-                    "version_comparison",
-                    "1",
-                    action="version"
-                    if change.comparison_kind == "succession"
-                    else "relationship"
-                    if change.comparison_kind == "conflict"
-                    else "keep_distinct",
-                    concept_ids=(b, a),
-                    passages=(old.control.evidence, new.control.evidence),
-                    relationship=RelationshipKind.TENSION_WITH
-                    if change.comparison_kind == "conflict"
-                    else None,
-                    confidence=change.confidence,
-                    proposed_change=change.proposed_change,
-                    scope=new.scope,
-                    explanation=judgment.rationale,
-                    uncertainty=change.version_note,
-                )
-            )
-        return CheckResult(findings=tuple(results), candidates=len(results))
-
-
-def enrichment_stage(database: UnitOfWorkFactory, benchmarks: BenchmarkService) -> CheckedStage:
+def enrichment_stage(
+    database: UnitOfWorkFactory,
+    verifier: SemanticVerifier | None = None,
+    embeddings: EmbeddingPort | None = None,
+) -> CheckedStage:
     from ekb.stages.semantic import semantic_check
 
-    specialized = BenchmarkChecks(benchmarks)
     checks: tuple[KnowledgeCheck, ...] = (
         Check("exact_duplicate", exact_duplicates),
-        semantic_check(database, benchmarks),
+        semantic_check(database, verifier, embeddings),
         Check("lineage", lineage),
-        Check("version_comparison", specialized.version_comparison),
-        Check("published_mapping", specialized.published_mappings),
         Check("scope_authority", scope_authority),
     )
     return CheckedStage(

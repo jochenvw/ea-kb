@@ -128,13 +128,6 @@ const source = {
   error: null,
   publication,
 };
-const sourceGroup = {
-  id: sourceId,
-  name: source.item.name,
-  publisher: "Example publisher",
-  edition: null,
-  documents: [source],
-};
 const concept = {
   id,
   levels: { [id]: "top_level" },
@@ -195,7 +188,6 @@ const finding = {
   confidence: 0.85,
   uncertainty: "Scope remains uncertain.",
   scope,
-  passages: [],
   recorded_at: timestamp,
 };
 async function fixture(page: Page, governance = false) {
@@ -206,7 +198,6 @@ async function fixture(page: Page, governance = false) {
     if (path === "/api/ui/config") data = { governance_enabled: governance };
     else if (path === "/api/ontology") data = ontology;
     else if (path === "/api/sources") data = [source];
-    else if (path === "/api/source-groups") data = [sourceGroup];
     else if (path === `/api/sources/${sourceId}`)
       data = {
         source,
@@ -377,96 +368,6 @@ async function fixture(page: Page, governance = false) {
         ],
         files_read: 1,
         truncated: true,
-      };
-    else if (path === "/api/benchmarks/controls/mcsb-v2:NS-6")
-      data = {
-        control: {
-          control: {
-            control_id: "NS-6",
-            title: "Protect application traffic",
-            security_principle: "Protect web applications and APIs.",
-            azure_guidance: "Use a suitable firewall.",
-            generic_guidance: null,
-            implementation_options: ["Gateway", "Front door"],
-            implementation_options_are_alternatives: true,
-            subcontrols: [],
-            publication: { ...publication, publication_status: "unknown" },
-            evidence: {
-              excerpt: "Exact published control.",
-              source_url: "https://example.com/control",
-            },
-          },
-          mappings: [
-            {
-              reference: {
-                framework: "NIST",
-                control_id: "SC-7",
-                resolution: "resolved",
-                coverage: "unknown",
-                evidence: {
-                  excerpt: "Published mapping: SC-7",
-                  source_url: "https://example.com/mapping",
-                },
-                resolved_concept_ids: [id],
-              },
-            },
-          ],
-          policies: [
-            {
-              reference: {
-                name: "Example actual policy",
-                definition_id: id,
-                url: "https://example.com/policy",
-              },
-              definition: { name: "Example actual policy", version: "1.0.0" },
-              version_matches_reference: null,
-            },
-          ],
-        },
-        edition: {
-          edition: "mcsb-v2",
-          publication: { ...publication, publication_status: "preview" },
-        },
-        concept: null,
-      };
-    else if (path === "/api/benchmarks/controls/mcsb-v2:NS-6/lineage")
-      data = {
-        published_edition_lineage: [
-          {
-            predecessor: "mcsb-v1",
-            successor: "mcsb-v2",
-            evidence: {
-              excerpt: "This edition supersedes the earlier edition.",
-              source_url: "https://example.com/succession",
-            },
-          },
-        ],
-        semantic_proposals: [],
-      };
-    else if (path === "/api/benchmarks/compare")
-      data = {
-        changes: [
-          {
-            old: {
-              control: { control_id: "NS-6", title: "Protect applications" },
-            },
-            new: {
-              control: {
-                control_id: "NS-6",
-                title: "Protect applications and APIs",
-              },
-            },
-            lineage: "updated_version",
-            proposed_change: "MINOR",
-            changed_fields: ["security_principle"],
-            version_note: "No numeric baseline established.",
-            guidance_diff: "",
-          },
-        ],
-        added_control_ids: ["NS-7"],
-        removed_control_ids: [],
-        model_calls: 0,
-        notes: ["All semantic transitions require review."],
       };
     else
       return route.fulfill({
@@ -709,9 +610,7 @@ test("architect workflow leads from shared language to scoped decisions", async 
 test("empty workspace directs ingestion to the CLI without claiming completed review", async ({
   page,
 }) => {
-  await page.route("**/api/source-groups", (route) =>
-    route.fulfill({ json: [] }),
-  );
+  await page.route("**/api/sources", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/issues?**", (route) => route.fulfill({ json: [] }));
   await page.goto("/");
   await expect(
@@ -984,153 +883,29 @@ test("source filtering keeps the evidenced assertion and resets pagination", asy
     .toBe(false);
 });
 
-test("logical editions consolidate documents and preserve exact-source navigation", async ({
+test("source filters reject phrasing cached against another source", async ({
   page,
 }) => {
-  const secondDocument = {
-    ...source,
-    item: { ...source.item, id: relatedId, name: "Example policy definitions" },
-  };
-  const group = {
-    ...sourceGroup,
-    id: findingId,
-    name: "Example security benchmark v1",
-    edition: "example-v1",
-    documents: [source, secondDocument],
-  };
-  const next = {
-    ...sourceGroup,
-    id: "55555555-5555-4555-8555-555555555555",
-    name: "Example security benchmark v2",
-    edition: "example-v2",
-    documents: [
-      {
-        ...source,
-        item: { ...source.item, id: "66666666-6666-4666-8666-666666666666" },
-      },
-    ],
-  };
-  const phrase = "Teams must retain audit logs for investigations.";
-  const version = {
-    ...concept.versions[0],
-    assertion: { text: phrase, source_id: sourceId },
-  };
-  const item = {
-    ...concept,
-    matching_version_id: id,
-    versions: [version],
-    sources: [
-      {
-        id: sourceId,
-        name: source.item.name,
-        publisher: "Example publisher",
-        version_ids: [id],
-        evidence_counts: { [id]: 1 },
-      },
-    ],
-  };
-  await page.route("**/api/source-groups", (route) =>
-    route.fulfill({ json: [group, next] }),
-  );
-  await page.route(`**/api/sources/${findingId}?*`, (route) =>
-    route.fulfill({
-      json: {
-        source,
-        group,
-        revisions: 2,
-        segments: 2,
-        versions: 1,
-        occurrences: 2,
-        items: [{ concept_id: id, version, evidence_count: 2 }],
-        next_cursor: null,
-      },
-    }),
-  );
-  await page.route("**/api/concepts?**", (route) =>
-    route.fulfill({ json: [item] }),
-  );
-  await page.route(`**/api/concepts/${id}`, (route) =>
-    route.fulfill({ json: item }),
-  );
-  await page.goto("/sources");
-  await expect(
-    page.getByRole("link", { name: group.name, exact: true }),
-  ).toHaveCount(1);
-  await expect(
-    page.getByRole("link", { name: next.name, exact: true }),
-  ).toHaveCount(1);
-  await expect(page.getByText("2 documents", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: group.name, exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: group.name, exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: secondDocument.item.name, exact: true }),
-  ).toHaveAttribute("href", `/sources/${relatedId}`);
-  await expect(
-    page.getByRole("link", { name: phrase, exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("link", { name: "Filter knowledge by this source" })
-    .click();
-  await expect(
-    page.getByRole("combobox", { name: "Source", exact: true }),
-  ).toHaveValue(findingId);
-  await expect(
-    page.getByRole("combobox", { name: "Evidence document" }),
-  ).toHaveValue("");
-  await page.getByRole("link", { name: phrase, exact: true }).click();
-  await expect(page.locator(".concept-statement").first()).toHaveText(phrase);
-  await expect(page.locator("blockquote")).toHaveText(excerpt);
-  await page.getByRole("link", { name: "Interpretation library" }).click();
-  await page
-    .getByRole("combobox", { name: "Evidence document" })
-    .selectOption(sourceId);
-  await expect(page).toHaveURL(new RegExp(`source_id=${sourceId}`));
-  await page.reload();
-  await expect(
-    page.getByRole("combobox", { name: "Source", exact: true }),
-  ).toHaveValue(findingId);
-  await expect(
-    page.getByRole("combobox", { name: "Evidence document" }),
-  ).toHaveValue(sourceId);
-  await page
-    .getByRole("combobox", { name: "Evidence document" })
-    .selectOption("");
-  await expect(page).toHaveURL(new RegExp(`source_id=${findingId}`));
-});
-
-test("logical-source filters reject phrasing cached against another edition", async ({
-  page,
-}) => {
-  const group = {
-    ...sourceGroup,
-    id: findingId,
-    edition: "example-v1",
-  };
   const version = {
     ...concept.versions[0],
     assertion: {
-      text: "A summary from another edition.",
+      text: "A summary from another source.",
       source_id: relatedId,
     },
   };
   const item = { ...concept, versions: [version] };
-  await page.route("**/api/source-groups", (route) =>
-    route.fulfill({ json: [group] }),
-  );
   await page.route("**/api/concepts?**", (route) =>
     route.fulfill({ json: [item] }),
   );
   await page.route(`**/api/concepts/${id}`, (route) =>
     route.fulfill({ json: item }),
   );
-  await page.goto(`/knowledge?source_id=${findingId}`);
+  await page.goto(`/knowledge?source_id=${sourceId}`);
   await expect(
     page.getByRole("link", { name: statement, exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("A summary from another edition.", { exact: true }),
+    page.getByText("A summary from another source.", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("link", { name: statement, exact: true }).click();
   await expect(page.locator(".concept-statement").first()).toHaveText(
@@ -1399,6 +1174,60 @@ test("workspace has no ingestion controls, monitoring links or requests", async 
   ).toEqual([]);
 });
 
+test("workspace has no benchmark navigation or specialized source requests", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (request) =>
+    requests.push(new URL(request.url()).pathname),
+  );
+  const pages = [
+    {
+      path: "/",
+      ready: page
+        .locator(".metric")
+        .filter({ hasText: "Registered sources" })
+        .getByText("1", { exact: true }),
+    },
+    {
+      path: "/sources",
+      ready: page.getByRole("link", { name: source.item.name, exact: true }),
+    },
+    {
+      path: `/sources/${sourceId}`,
+      ready: page.getByRole("heading", {
+        name: "Extracted interpretations",
+        exact: true,
+      }),
+    },
+    {
+      path: "/knowledge",
+      ready: page.getByRole("link", { name: statement, exact: true }),
+    },
+    {
+      path: `/explore?concept=${id}`,
+      ready: page.getByRole("group", {
+        name: "Navigable evidence and relationship map",
+      }),
+    },
+  ];
+  for (const { path, ready } of pages) {
+    await page.goto(path);
+    await expect(ready).toBeVisible();
+    await expect(page.locator('a[href^="/benchmarks"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation").getByRole("link", { name: /benchmark/i }),
+    ).toHaveCount(0);
+  }
+  expect(
+    requests.filter(
+      (path) =>
+        path.startsWith("/api/benchmarks") ||
+        path.startsWith("/api/source-groups"),
+    ),
+  ).toEqual([]);
+});
+
 test("known structured semantic versions retain prerelease and build identifiers", async ({
   page,
 }) => {
@@ -1422,17 +1251,12 @@ test("known structured semantic versions retain prerelease and build identifiers
   await expect(
     page.getByText("SemVer: 2.3.4-rc.1+audit", { exact: true }),
   ).toBeVisible();
-  await page.route("**/api/source-groups", (route) =>
+  await page.route("**/api/sources", (route) =>
     route.fulfill({
       json: [
         {
-          ...sourceGroup,
-          documents: [
-            {
-              ...source,
-              publication: { ...publication, semantic_version: version },
-            },
-          ],
+          ...source,
+          publication: { ...publication, semantic_version: version },
         },
       ],
     }),
@@ -1506,36 +1330,6 @@ test("issue deep links work even when the filtered queue is empty", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
     page.getByRole("dialog").getByText(issue.explanation, { exact: true }),
-  ).toBeVisible();
-});
-
-test("benchmark mappings, alternatives and lineage do not imply authority", async ({
-  page,
-}) => {
-  await page.goto("/benchmarks");
-  await expect(
-    page.getByText("Edition maturity: Preview", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Source maturity: Unknown", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("cell", { name: "Unknown", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Guidance & alternatives" }).click();
-  await expect(
-    page.getByText("These are alternatives, not cumulative requirements."),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Lineage", exact: true }).click();
-  await expect(page.locator("blockquote")).toHaveText(
-    "This edition supersedes the earlier edition.",
-  );
-  await page
-    .getByRole("button", { name: "Compare editions", exact: true })
-    .click();
-  await expect(page.getByText("0 model calls", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("All semantic transitions require review.", { exact: true }),
   ).toBeVisible();
 });
 
@@ -1663,7 +1457,7 @@ test("knowledge levels separate platform implementation and persist the selectio
   await expect(filter).toHaveValue("implementation");
 });
 
-test("published control mappings link top-level guidance above implementation without invented alignment", async ({
+test("relationship maps retain generic occurrence evidence without inventing alignments", async ({
   page,
 }) => {
   await page.route(`**/api/concepts/${id}/graph`, (route) =>
@@ -1673,15 +1467,15 @@ test("published control mappings link top-level guidance above implementation wi
         nodes: [
           {
             id,
-            label: "Azure mcsb-v2:NS-6: Protect web applications.",
+            label: "Protect web applications with the selected platform.",
             kind: "requirement",
             level: "implementation",
             href: `/concepts/${id}`,
           },
           {
             id: sourceId,
-            label: "NIST SP800-53 Rev.5 / SC-7",
-            kind: "framework_control",
+            label: source.item.name,
+            kind: "source",
             level: "top_level",
             href: `/sources/${sourceId}`,
           },
@@ -1695,23 +1489,18 @@ test("published control mappings link top-level guidance above implementation wi
         ],
         edges: [
           {
-            source: id,
-            target: sourceId,
-            kind: "MAPS_TO",
-            status: "published",
-            href: "/benchmarks?reference=mcsb-v2:NS-6",
+            source: sourceId,
+            target: id,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${sourceId}`,
             evidence: {
-              excerpt: "NIST SP800-53 Rev.5: SC-7",
-              source_url: "https://example.com/benchmark",
+              excerpt: statement,
+              segment_id: id,
+              start: 0,
+              end: statement.length,
             },
-            note: "Published control-level mapping, not company alignment.",
-          },
-          {
-            source: id,
-            target: relatedId,
-            kind: "SUPPORTS",
-            status: "proposal",
-            href: `/review?finding_id=${findingId}`,
+            note: "Exact source occurrence, not company alignment.",
           },
         ],
         truncated: false,
@@ -1719,26 +1508,18 @@ test("published control mappings link top-level guidance above implementation wi
     }),
   );
   await page.goto(`/explore?concept=${id}`);
-  const native = page.getByRole("link", {
-    name: "Browse native control NIST SP800-53 Rev.5 / SC-7",
+  const publisher = page.getByRole("link", {
+    name: `Browse source ${source.item.name}`,
   });
-  const platform = page.getByRole("link", {
-    name: "Inspect interpretation Azure mcsb-v2:NS-6: Protect web applications.",
-  });
-  await expect(native).toBeVisible();
-  expect(Number(await native.locator("rect").getAttribute("y"))).toBeLessThan(
-    Number(await platform.locator("rect").getAttribute("y")),
-  );
+  await expect(publisher).toBeVisible();
   await expect(
     page.getByRole("link", {
       name: /Explore A company objective awaiting alignment/,
     }),
   ).toHaveCount(0);
   await page.getByText("Link basis & evidence", { exact: true }).click();
-  await expect(page.locator(".graph-record blockquote")).toHaveText(
-    "NIST SP800-53 Rev.5: SC-7",
-  );
-  await expect(native).toHaveAttribute("href", `/sources/${sourceId}`);
+  await expect(page.locator(".graph-record blockquote")).toHaveText(statement);
+  await expect(publisher).toHaveAttribute("href", `/sources/${sourceId}`);
 });
 
 test("work backlog is separate from the reference reconciliation ledger", async ({

@@ -41,19 +41,19 @@ import {
   semanticVersion,
   useResource,
 } from "@/lib/api";
-import type { SourceGroup, SourceInspection } from "@/types";
+import type { Source, SourceInspection } from "@/types";
 import { OntologyBadge } from "@/ontology";
 
 export function Sources() {
-  const resource = useResource<SourceGroup[]>("/api/source-groups");
+  const resource = useResource<Source[]>("/api/sources");
   const [query, setQuery] = useState("");
   const [format, setFormat] = useState("");
-  const [selected, setSelected] = useState<SourceGroup | null>(null);
-  const overview = selected?.documents[0];
+  const [selected, setSelected] = useState<Source | null>(null);
+  const overview = selected;
   const items = (resource.data ?? []).filter(
     (source) =>
-      (!format || source.documents.some((doc) => doc.item.format === format)) &&
-      `${source.name} ${source.publisher ?? ""} ${source.edition ?? ""} ${source.documents.map((doc) => `${doc.item.name} ${doc.item.location}`).join(" ")}`
+      (!format || source.item.format === format) &&
+      `${source.item.name} ${source.item.metadata.publisher ?? ""} ${source.item.metadata.publisher_version ?? ""} ${source.item.location}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -90,9 +90,7 @@ export function Sources() {
               ["", "All formats"],
               ...[
                 ...new Set(
-                  (resource.data ?? []).flatMap((source) =>
-                    source.documents.map((doc) => doc.item.format),
-                  ),
+                  (resource.data ?? []).map((source) => source.item.format),
                 ),
               ]
                 .sort()
@@ -126,7 +124,7 @@ export function Sources() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="statement-column">Source</TableHead>
-                    <TableHead>Documents</TableHead>
+                    <TableHead>Format</TableHead>
                     <TableHead>Retrieval state</TableHead>
                     <TableHead>Reference document maturity</TableHead>
                     <TableHead>
@@ -136,55 +134,37 @@ export function Sources() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((source) => (
-                    <TableRow key={source.id}>
+                    <TableRow key={source.item.id}>
                       <TableCell>
                         <a
                           className="statement-link"
-                          href={`/sources/${source.id}`}
+                          href={`/sources/${source.item.id}`}
                         >
-                          {source.name}
+                          {source.item.name}
                         </a>
                         <span className="cell-caption truncate-location">
-                          {source.publisher ?? "Unknown publisher"}
-                          {source.edition ? ` · ${source.edition}` : ""}
+                          {String(
+                            source.item.metadata.publisher ??
+                              "Unknown publisher",
+                          )}
+                          {source.publication.publisher_version
+                            ? ` · ${source.publication.publisher_version}`
+                            : ""}
                         </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          {source.documents.length}{" "}
-                          {source.documents.length === 1
-                            ? "document"
-                            : "documents"}
+                          {source.item.format.toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span>
-                          {
-                            source.documents.filter(
-                              (doc) => doc.status === "available",
-                            ).length
-                          }{" "}
-                          / {source.documents.length} available
-                        </span>
-                        {source.documents.some(
-                          (doc) => doc.status === "error",
-                        ) && (
-                          <span className="cell-caption">
-                            Retrieval errors in documents
-                          </span>
-                        )}
-                        {source.documents.every(
-                          (doc) => doc.item.metadata.metadata_only === true,
-                        ) && (
+                        <Status value={source.status} />
+                        {source.item.metadata.metadata_only === true && (
                           <span className="cell-caption">Metadata only</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Status
-                          value={
-                            source.documents[0].publication.publication_status
-                          }
-                        />
+                        <Status value={source.publication.publication_status} />
                       </TableCell>
                       <TableCell>
                         <SheetTrigger asChild>
@@ -192,7 +172,7 @@ export function Sources() {
                             variant="outline"
                             size="sm"
                             onClick={() => setSelected(source)}
-                            aria-label={`Inspect source ${source.name}`}
+                            aria-label={`Inspect source ${source.item.name}`}
                           >
                             Inspect
                           </Button>
@@ -206,28 +186,26 @@ export function Sources() {
                 <SheetHeader>
                   <SheetTitle>Source details</SheetTitle>
                   <SheetDescription>
-                    Metadata describes the overview or first retained document,
-                    not every member or enterprise adoption.
+                    Metadata describes this source, not enterprise adoption.
                   </SheetDescription>
                 </SheetHeader>
                 {selected && overview && (
                   <div className="sheet-body">
-                    <h2>{selected.name}</h2>
+                    <h2>{selected.item.name}</h2>
                     <Button asChild>
-                      <a href={`/sources/${selected.id}`}>
+                      <a href={`/sources/${selected.item.id}`}>
                         Review extracted interpretations
                         <ArrowUpRight />
                       </a>
                     </Button>
-                    <div className="tag-row">
-                      <Badge variant="outline">
-                        {selected.documents.length} evidence documents
-                      </Badge>
-                    </div>
                     <dl className="metadata">
                       <div>
                         <dt>Publisher</dt>
-                        <dd>{selected.publisher ?? "Unknown"}</dd>
+                        <dd>
+                          {String(
+                            selected.item.metadata.publisher ?? "Unknown",
+                          )}
+                        </dd>
                       </div>
                       <div>
                         <dt>Reference document checked</dt>
@@ -296,7 +274,6 @@ export function SourcePage({ id }: { id: string }) {
     `/api/sources/${encodeURIComponent(id)}?limit=50${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
   );
   const data = resource.data;
-  const documents = usePage(data?.group?.documents ?? [], 10);
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="back-link">
@@ -307,7 +284,7 @@ export function SourcePage({ id }: { id: string }) {
       </Button>
       <Heading
         eyebrow="CURATE / SOURCE"
-        title={data?.group?.name ?? data?.source.item.name ?? "Source detail"}
+        title={data?.source.item.name ?? "Source detail"}
         description="Check the publisher and edition, then review the extracted meaning against exact source evidence. Retrieval and publication are not enterprise adoption."
       >
         {data && externalUrl(data.source.item.location) && (
@@ -349,10 +326,8 @@ export function SourcePage({ id }: { id: string }) {
               />
             </div>
             <Panel
-              title={
-                data.group ? "Reference document context" : "Document context"
-              }
-              description="Retrieval and publisher maturity describe this document, not every member or enterprise authority."
+              title="Document context"
+              description="Retrieval and publisher maturity describe this document, not enterprise authority."
             >
               <div className="tag-row">
                 <Status value={data.source.status} />
@@ -420,56 +395,6 @@ export function SourcePage({ id }: { id: string }) {
                 </a>
               </Button>
             </Panel>
-            {data.group && (
-              <Panel
-                title="Evidence documents"
-                description={`${data.group.documents.length} original documents belong to this edition. Open a document for its own retrieval state, extracted versions and exact evidence.`}
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Document</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Format</TableHead>
-                      <TableHead>Retrieval</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {documents.rows.map((document) => {
-                      const asset = document.item.metadata.benchmark_asset as
-                        { role?: string } | undefined;
-                      return (
-                        <TableRow key={document.item.id}>
-                          <TableCell>
-                            <a
-                              className="statement-link"
-                              href={`/sources/${document.item.id}`}
-                            >
-                              {document.item.name}
-                            </a>
-                          </TableCell>
-                          <TableCell>
-                            {label(asset?.role ?? "document")}
-                          </TableCell>
-                          <TableCell>
-                            {document.item.format.toUpperCase()}
-                          </TableCell>
-                          <TableCell>
-                            <Status value={document.status} />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                <Pager
-                  page={documents.page}
-                  count={data.group.documents.length}
-                  size={10}
-                  onChange={documents.setPage}
-                />
-              </Panel>
-            )}
             <Panel
               title="Extracted interpretations"
               description="Each row is a version actually evidenced in this source, including historical revisions. Drill down to its original passages."
@@ -500,12 +425,7 @@ export function SourcePage({ id }: { id: string }) {
                             className="statement-link"
                             href={`/concepts/${item.concept_id}?version_id=${item.version.id}&source_id=${id}&level=${item.level ?? ""}`}
                           >
-                            {assertionText(
-                              item.version,
-                              data.group
-                                ? data.group.documents.map((doc) => doc.item.id)
-                                : id,
-                            )}
+                            {assertionText(item.version, id)}
                           </a>
                           <span className="cell-caption">
                             {levelLabel(item.level)}

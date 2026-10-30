@@ -7,13 +7,13 @@ in source manifests and scope metadata, not organization-specific domain logic.
 
 The application is `0.1.0`, registered in `pyproject.toml` and read through installed package metadata.
 Before major version 1, data/schema compatibility is not required: `ekb init --recreate` rebuilds
-EKB-owned tables and clears owned ingestion caches without re-indexing. It preserves unrelated tables
-and source inputs, refuses active work and is disabled from v1 onward. Ordinary startup is not destructive.
+EKB-owned tables without re-indexing. It preserves originals, unrelated tables and source inputs,
+refuses active work and is disabled from v1 onward. Ordinary startup is not destructive.
 Development initialization uses current ORM metadata, not migration history; see decision `0009`.
 
 ## Scope and design drivers
 
-This describes implemented ingestion, benchmarks and governed reconciliation, not every planned
+This describes implemented ingestion and governed reconciliation, not every planned
 capability. The system extracts strategic-goal and ontology requirement candidates while retaining
 the evidence needed to inspect each interpretation. Documents, interpretations and enterprise
 approval are separate concerns.
@@ -44,10 +44,10 @@ Independent discovery producers feed a bounded queue. Worker count limits source
 separate semaphores bound blocking parsers/OCR and inference. Blocking Office/PDF libraries run
 in threads. HTTPX and SQLAlchemy sessions perform asynchronous I/O.
 
-Benchmarks have a deterministic route: explicit synchronization discovers/downloads official
-structured assets into the artifact port; normal scans read the validated cache, persist exact
-segments and typed benchmark snapshots, and materialize requirements without generic parsing or AI.
-Snapshots/mappings/policy definitions are records, not additional semantic primitives.
+Publisher documents follow the same connector, parser and ontology-skill path as every other source.
+Names, titles, versions, licenses and explicitly evidenced platforms remain source facts; an overview
+does not imply that linked documents were acquired. Requirements are not classified from a publisher
+or identifier alone, and unsupported relationships are not invented.
 
 `PipelineOrchestrator` composes `indexing -> enrichment -> issues`; indexing invokes this same
 ingestion engine. Versioned stage/check contracts and input/configuration fingerprints control
@@ -75,8 +75,8 @@ assets, independent fingerprints and evaluations. The implemented ingestion skil
 
 Inventory/acquisition completes before semantic processing starts, including ordinary `scan`.
 The historical `indexing` orchestration stage still wraps the complete ingestion use case; its name
-does not mean all of its internal work is model-free. Structured benchmark materialization remains
-deterministic and bypasses both skills instead of paying a model to reproduce native records.
+does not mean all of its internal work is model-free. Parsing and rules remain deterministic; optional
+model-backed skills run only when explicitly configured.
 
 Architecture layer and applicability are independent: a business-unit goal is still a
 `StrategicGoal`, not a technical requirement. Typed labels use the seven OWL class identifiers in
@@ -158,8 +158,9 @@ Typed, create-only history indexes support the skill catalog without loading cas
 corrupt indexes fail explicitly. See decision `0010`.
 
 Generic semantic enrichment unions lexical candidates with independently retrieved cosine neighbors
-from a bounded assertion pool. It reuses existing PostgreSQL vector/judgment caches behind the
-embedding/verifier ports; no vector database or extra semantic primitive is introduced.
+from a bounded assertion pool. Completed checks are durably replayed. A single generic cache also
+reuses validated embeddings and grounded verification results across check versions when the provider
+and exact semantic inputs match; changed inputs or provider fingerprints can incur new calls.
 `infra\main.bicep` describes minimal Entra-only Foundry model resources, with an optional teacher
 disabled by default. Configuration/deployment does not establish provider quality.
 
@@ -209,7 +210,7 @@ to the preserved document; each revision snapshots its historical source locatio
 The standalone `scripts\download_test_corpus.py` is a download utility, not another ingestion
 service. Its `config\test_corpus.yaml` and retrieval index do not replace the pipeline's
 `sources\public.yaml` manifest or PostgreSQL checkpoints.
-Its `--benchmark` mode delegates to the same application synchronization connector.
+It downloads only the entries explicitly listed in its own manifest.
 
 ## Execution and concurrency
 
@@ -256,29 +257,43 @@ directory discovery does not mark its entire previous inventory missing. Restart
 failed/cancelled/expired tasks and reuses committed segments. A hard crash during a model call can
 repeat that uncommitted call. There is no exactly-once billing guarantee.
 
+Pre-v1 reset/recreation removes four obsolete benchmark tables and legacy `concept_aliases` in the
+active schema in the same guarded transaction as current table cleanup. The current schema derives
+alias edges instead. Cleanup does not cascade or delete source inputs or filesystem/Azure originals;
+dependencies from unrelated tables fail and roll back.
+
 ### Relational design and durability
 
 SQLAlchemy models declare indexed identifiers, foreign keys, uniqueness/check constraints and
 JSONB payloads containing the full domain representation. Relationships are relational edges;
 neither a graph database nor a vector index is required.
 
-| Tables | Responsibility and principal links |
+The original 24 application tables, excluding Alembic bookkeeping, become 20: remove four
+specialized benchmark tables and `concept_aliases`, then add `semantic_replay_cache`
+(`24 - 4 - 1 + 1 = 20`). The retained tables are:
+
+| Table | Responsibility and principal links |
 |---|---|
-| `sources`, `source_revisions` | Current inventory and immutable content snapshots; revisions reference a source and optional predecessor |
-| `segments`, `parse_checkpoints` | Ordered/hierarchical evidence and durable revision/parser markers, including empty parses |
+| `sources` | Stable source identities, locations and current inventory metadata |
+| `source_revisions` | Immutable content snapshots linked to a source and optional predecessor |
 | `publication_assessments` | Immutable revision/detector assessments with exact maturity/version evidence |
-| `concepts`, `concept_versions` | Exact normalized identities and versioned interpretations with optional predecessors |
+| `segments` | Ordered, hierarchical parsed evidence bound to a revision and parser fingerprint |
+| `parse_checkpoints` | Completed revision/parser combinations, including empty parses |
+| `concepts` | Exact normalized concept identities |
+| `concept_versions` | Versioned interpretations, optional predecessors and derived assertion cache |
 | `occurrences` | Exact excerpts/offsets connecting concept versions to persisted segments |
 | `relationships` | Directed concept edges supported by an occurrence, with scope/status in the payload |
 | `authority_events` | Append-only review/approval/rejection and promotion/withdrawal records, scoped and time-bounded |
-| `processing_runs`, `processing_tasks` | Scan summaries and revision/fingerprint tasks with status, owner, lease, attempts and usage |
-| `segment_results` | Validated extraction replay indexed by inference/context fingerprint and linked to its originating segment |
-| `benchmark_documents` | Immutable normalized publisher records, exact passages and semantic occurrence bindings |
-| `benchmark_comparisons` | Source-bound review-only comparisons, published mapsTo records and candidate semantic lineage |
-| `benchmark_embeddings`, `benchmark_match_cache` | Provider/input-keyed vector and valid grounded-judgment replay |
-| `pipeline_executions`, `pipeline_leases` | Pipeline/stage/check attempts, artifacts and renewable ownership |
-| `enrichment_findings`, `reconciliation_decisions` | Evidence-bound proposals and append-only reversible identity decisions; aliases derive from accepted findings |
-| `knowledge_issues`, `issue_events` | Deduplicated issues, observation history and human resolution audit |
+| `processing_runs` | Standalone or nested scan summaries and outcomes |
+| `processing_tasks` | Revision/fingerprint tasks with status, owner, lease, attempts and usage |
+| `segment_results` | Validated skill replay indexed by fingerprint and linked to its originating segment |
+| `pipeline_executions` | Pipeline/stage/check attempts, results and artifacts |
+| `pipeline_leases` | Renewable pipeline ownership and fencing |
+| `semantic_replay_cache` | Provider/input-keyed validated embeddings and grounded verification judgments, independent of check versions |
+| `enrichment_findings` | Evidence-bound proposals produced by enrichment checks |
+| `reconciliation_decisions` | Append-only, reversible finding decisions and decision heads |
+| `knowledge_issues` | Deduplicated issues, observations and lifecycle state |
+| `issue_events` | Issue review and resolution audit history |
 
 Alias edges are derived from immutable findings and decision heads, including historical effective
 dates and reversals; no second alias projection is written. Snapshots and decision histories are
@@ -311,14 +326,15 @@ including substring offsets. Relationship proposals carry their own evidence occ
 Candidate status is independent of explicitly recorded promotion or withdrawal.
 
 Exact identity uses normalized statement, ontology semantic type, modality and scope. No embedding-based merging.
-Inspection uses bounded lexical similarity; optional enrichment also uses cached embedding neighbors.
+Inspection uses bounded lexical similarity; optional enrichment also uses embedding neighbors.
 Neither path promotes or merges matches.
 Stable concept identities, immutable versions, source occurrences and authority events preserve
 history. Explicit version additions require a caller-supplied semantic version and predecessor;
 automatic semantic version classification and promotion are intentionally absent.
 
 Version predecessor references and reviewed version findings preserve explicit concept history.
-Published framework succession remains lifecycle metadata; published semantic mappings use `mapsTo`.
+Published framework succession remains lifecycle metadata; an evidenced semantic relation may use
+`mapsTo` without assuming equivalence or resolving an unsupported target.
 Recursive origin/dependent queries traverse `refines` and `dependsOn`;
 SQL tracks visited paths and bounds depth to terminate cycles. Other relationship kinds are
 available for inspection but are not treated as dependency lineage.
@@ -339,7 +355,7 @@ decision heads. Reversal appends history rather than deleting occurrences.
 reconciliation, applicable approved authority and source evidence; no candidate fallback exists.
 `best_available` explicitly labels candidates, `historical` uses an explicit valid-time date, and
 `all` retains drafts and superseded history without implying authority. Accepted aliases group
-source occurrences; accepted source mappings add traceable native provenance. There is no
+source occurrences; accepted relations retain traceable provenance. There is no
 transaction-time reconstruction, exception-approval backend or enterprise role system.
 
 ## Interfaces and observability
@@ -354,28 +370,22 @@ Knowledge search combines text and exact-source constraints on the same version;
 that version and its source documents. Details retain exact quotes, their surrounding section and
 adjacent passages from the same revision/parser; section labels distinguish neighboring material.
 
-Logical sources are read projections over explicit benchmark-edition metadata, not destructive merges.
-Each publisher/connector/edition has a stable group ID; v1 and v2 remain distinct. Ordinary documents
-retain their existing source IDs. Member pages, workbooks, mappings and policies keep every original
-source, revision, segment and occurrence. Group drill-down counts distinct evidenced versions and
-aggregates passages across its members; knowledge filters constrain that same member-evidenced version
-before paging. Assertion caches are reused only when their physical source belongs to the selection.
-`/api/source-groups` serves the logical registry; `/api/sources` retains physical retrieval records.
+`/api/sources` exposes the individual source inventory. Source drill-down and search select only
+versions evidenced by that source, and assertion caches are reused only for their evidenced source.
 
 Knowledge levels are derived read projections, not new semantic identities or authority states.
 `StrategicGoal` and platform-independent requirements remain top-level; `PlatformRequirement`
 represents implementations. Absent scope is not evidence of universal applicability.
 Source, text and level filters constrain the same version before paging. Original payloads stay intact.
-Graphs place goals/guidance above implementations and keep source evidence separate. Benchmark links
-resolve current, exact framework/revision/control identifiers into native control nodes, not arbitrary
-clauses. Published `mapsTo` carries its original mapping quote; subcontrols stay implementation details.
-These links establish neither equivalence, clause coverage, compliance nor company-goal alignment.
-Missing or ambiguous mappings are not drawn; review proposals are opt-in and dashed.
+Graphs place goals/guidance above implementations and keep source evidence separate. They show only
+persisted, evidenced ontology relationships and review proposals; missing or ambiguous links are not
+drawn. Relationships do not establish equivalence, compliance or company-goal alignment.
 
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
-Ingestion runs from the CLI or independent worker; web startup and shutdown do not own or cancel it.
-Durable database checkpoints survive process loss. The worker periodically scans configured connectors.
-Multiple workers may rediscover sources, but atomic claims prevent duplicate committed processing.
+Ingestion runs through CLI commands, including the independent `ekb worker`; web startup and
+shutdown do not own or cancel it. Durable database checkpoints survive process loss. The worker
+periodically scans configured connectors. Multiple workers may rediscover sources, but atomic
+claims prevent duplicate committed processing.
 
 Application OpenTelemetry spans cover scans, discovery, comparison, download, parsing, selective
 OCR, segmentation, inference, validation, transactions, concept/relationship persistence and retries.
@@ -403,10 +413,10 @@ Restrict the debug/data directory with operating-system ACLs, especially on Wind
 | Typer CLI | Migration, doctor, scan/resume/dry-run, inventory, concept/provenance/lineage inspection, evaluation and process launch |
 | Textual terminal UI (TUI) | Source and concept inventory, provenance, relationships and governed review |
 | FastAPI + React/shadcn | Local compiled browser assets, knowledge inspection and authenticated governance |
-| Model Context Protocol (MCP) | Twelve read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
-| Periodic worker | Runs the same pipeline with configured connectors; not a separate implementation or broker consumer |
+| Model Context Protocol (MCP) | Eight read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
+| CLI-launched periodic worker | Runs the same ingestion engine with configured connectors; not a separate implementation or broker consumer |
 
-Web and TUI neither execute ingestion nor provide dedicated processing monitors; the CLI follows
+Web/API and TUI neither execute ingestion nor provide dedicated processing monitors; the CLI follows
 foreground progress and reads persisted status. Governance mutations are disabled until
 `EKB_GOVERNANCE_TOKEN` is configured. HTTP
 Basic identifies a local operator and requires HTTPS or loopback plus same-origin mutation checks.
@@ -416,7 +426,7 @@ and enterprise identity/tenant authorization are not implemented.
 The browser starts with a standards-consolidation workspace and the canonical shared language.
 The supported browser target is desktop/PC use only; mobile-specific UX and verification are out of scope.
 Sources, interpretations, visual validation and reconciliation form the architect's work sequence;
-benchmark/decision history is reference material and generic data/log inspection remains available.
+decision history is reference material and generic data/log inspection remains available.
 Interpretations show the canonical classification definition and exact evidence before visual validation.
 Evidence and scoped authority belong to the selected version; adoption proposals default to that version.
 Graphs require an explicit starting point and remain bounded concept neighborhoods across versions,
@@ -475,8 +485,9 @@ once per process; changing settings is not a hot-reload mechanism.
   image-only segments are not sent to a text model.
 - OCR is selective and opt-in. Tesseract/language data are needed on the host; the container includes
   English Tesseract. Cancellation can wait for an already-running blocking parser thread to finish.
-- Embedding retrieval and small-model verification reuse benchmark caches for optional generic
-  enrichment as well as benchmark comparison. Candidate budgets are bounded, not
+- Optional embedding retrieval and small-model verification operate on generic evidenced assertions.
+  Completed check replay avoids repeated work, but changed checks can incur new calls. Candidate budgets
+  are bounded, not
   exhaustive cross-corpus discovery. No autonomous compliance decisions, semantic merges
   or exception-management workflow.
 - Source manifests can change upstream; original bytes/hashes are retained, but upstream URLs are not
@@ -484,9 +495,6 @@ once per process; changing settings is not a hot-reload mechanism.
 - Inspection queries are bounded (200 concepts per query, up to 1,000 tasks for statistics).
   Concept, source-extraction and proposal pages use cursors; statistics are not whole-corpus analytics.
   Enterprise authorization is absent. Non-loopback requests are denied; keep local.
-- Actual benchmark synchronization, structured ingestion, mappings/policy retrieval, native NIST
-  resolution and review-only comparisons are implemented. Structural proposals are not verified
-  semantic decisions; source gaps and unresolved references remain explicit.
 - Reconciliation snapshots explicitly fail beyond 20,000 rows per workspace table; partitioning is
   required at that point. Parsed interpretations of unchanged bytes remain in candidate history;
   strict explicit canonical decisions, not parser recency, establish authority.

@@ -5,7 +5,6 @@ from contextlib import AbstractContextManager
 from typing import Protocol, Self, runtime_checkable
 from uuid import UUID
 
-from ekb.domain.benchmarks import BenchmarkRole, NativeControlBinding, StoredBenchmarkDocument
 from ekb.domain.inspection import (
     BacklogPage,
     BacklogStatus,
@@ -36,13 +35,7 @@ from ekb.domain.models import (
     Usage,
     WorkspaceCounts,
 )
-from ekb.domain.reconciliation import (
-    ComparisonReport,
-    ControlView,
-    EmbeddingRecord,
-    EmbeddingResult,
-    Verification,
-)
+from ekb.domain.reconciliation import EmbeddingResult, SemanticAssertion, Verification
 from ekb.ports.workflow import IssueRepository, ResolutionRepository, WorkflowRepository
 
 
@@ -60,8 +53,6 @@ class SourceConnector(Protocol):
 class ArtifactStore(Protocol):
     async def put(self, content: bytes) -> str: ...
     async def get(self, key: str) -> bytes: ...
-    async def put_named(self, key: str, content: bytes) -> None: ...
-    async def get_named(self, key: str) -> bytes: ...
 
 
 class DocumentParser(Protocol):
@@ -107,12 +98,16 @@ class AssertionWriter(Protocol):
 
 
 class SemanticVerifier(Protocol):
+    """Return a grounded judgment with an adapter-defined method and explicit failure status."""
+
     fingerprint: str
 
-    async def verify(self, old: ControlView, new: ControlView) -> Verification: ...
+    async def verify(self, old: SemanticAssertion, new: SemanticAssertion) -> Verification: ...
 
 
 class EmbeddingPort(Protocol):
+    """Report request usage completeness independently of price when known."""
+
     model_id: str
     fingerprint: str
 
@@ -174,29 +169,6 @@ class ProcessingRepository(Protocol):
     async def cache(self, segment_id: UUID, fingerprint: str, result: InferenceResult) -> None: ...
 
 
-class BenchmarkRepository(Protocol):
-    async def comparison(self, comparison_id: UUID) -> ComparisonReport | None: ...
-    async def comparisons(self, edition: str, limit: int = 20) -> list[ComparisonReport]: ...
-    async def save_comparison(self, report: ComparisonReport) -> None: ...
-    async def embedding(self, embedding_id: UUID) -> EmbeddingRecord | None: ...
-    async def save_embedding(self, record: EmbeddingRecord) -> None: ...
-    async def verification(self, key: UUID) -> Verification | None: ...
-    async def save_verification(self, key: UUID, result: Verification) -> None: ...
-    async def native_controls(
-        self, framework: str, revision: str, control_id: str
-    ) -> list[NativeControlBinding]: ...
-    async def save(self, document: StoredBenchmarkDocument) -> None: ...
-    async def documents(
-        self,
-        edition: str | None = None,
-        control_id: str | None = None,
-        *,
-        role: BenchmarkRole | None = None,
-        history: bool = False,
-        limit: int = 250,
-    ) -> list[StoredBenchmarkDocument]: ...
-
-
 class InspectionRepository(Protocol):
     async def tables(self) -> list[TableInfo]: ...
     async def rows(
@@ -233,9 +205,6 @@ class UnitOfWork(Protocol):
     def lineage(self) -> LineageRepository: ...
     @property
     def processing(self) -> ProcessingRepository: ...
-    @property
-    def benchmarks(self) -> BenchmarkRepository: ...
-
     async def __aenter__(self) -> Self: ...
     async def __aexit__(self, *args: object) -> None: ...
     async def commit(self) -> None: ...

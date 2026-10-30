@@ -150,20 +150,14 @@ async def test_conditional_headers_are_not_reused_for_a_different_source_locatio
         assert (await connector.fetch(item, previous)).content == b"source"
 
 
-async def test_runtime_keeps_benchmark_activation_separate_from_http_manifest_refresh(tmp_path):
+async def test_runtime_refreshes_ordinary_manifest_without_extra_connectors(tmp_path):
     import yaml
 
-    from ekb.adapters.sources.benchmarks import MicrosoftLearnBenchmarkConnector
     from ekb.config import Settings
     from ekb.runtime import Runtime
 
     path = tmp_path / "sources.yaml"
-    benchmark = specification().model_copy(
-        update={
-            "id": "mcsb-v1",
-            "retrieval": "microsoft-security-benchmark",
-        }
-    )
+    second = specification().model_copy(update={"id": "another-source"})
 
     def write(enabled):
         path.write_text(
@@ -171,7 +165,7 @@ async def test_runtime_keeps_benchmark_activation_separate_from_http_manifest_re
                 {
                     "sources": [
                         specification().model_dump(mode="json"),
-                        benchmark.model_copy(update={"enabled": enabled}).model_dump(mode="json"),
+                        second.model_copy(update={"enabled": enabled}).model_dump(mode="json"),
                     ],
                 }
             )
@@ -187,27 +181,22 @@ async def test_runtime_keeps_benchmark_activation_separate_from_http_manifest_re
         )
     ) as runtime:
         connectors = runtime.connectors(manifest=path)
-        regular = next(
-            connector
-            for connector in connectors
-            if isinstance(connector, HTTPConnector)
-            and not isinstance(connector, MicrosoftLearnBenchmarkConnector)
-        )
-        assert [source.id for source in regular.sources] == ["test"]
-        assert any(
-            isinstance(connector, MicrosoftLearnBenchmarkConnector) for connector in connectors
-        )
+        assert len(connectors) == 1
+        regular = connectors[0]
+        assert isinstance(regular, HTTPConnector)
+        assert [source.id for source in regular.sources if source.enabled] == [
+            "test",
+            "another-source",
+        ]
         write(False)
-        assert not any(
-            isinstance(connector, MicrosoftLearnBenchmarkConnector)
-            for connector in runtime.connectors(manifest=path)
-        )
+        assert runtime.connectors(manifest=path) == connectors
+        assert [source.id for source in regular.sources if source.enabled] == ["test"]
         write(True)
-        assert any(
-            isinstance(connector, MicrosoftLearnBenchmarkConnector)
-            for connector in runtime.connectors(manifest=path)
-        )
-        assert runtime.connectors() == [runtime.benchmarks()]
+        assert runtime.connectors(manifest=path) == connectors
+        assert [source.id for source in regular.sources if source.enabled] == [
+            "test",
+            "another-source",
+        ]
 
 
 async def test_runtime_loads_generic_manifest_without_network(tmp_path):
@@ -233,3 +222,37 @@ async def test_runtime_loads_generic_manifest_without_network(tmp_path):
         assert len(connectors) == 1 and isinstance(connectors[0], HTTPConnector)
         source = await anext(connectors[0].discover())
         assert source.location == "https://example.test/doc.txt"
+
+
+@pytest.mark.parametrize("retrieval", ["unsupported", "microsoft-security-benchmark"])
+async def test_manifest_rejects_unsupported_retrieval(tmp_path, retrieval):
+    import yaml
+
+    from ekb.config import Settings
+    from ekb.runtime import Runtime
+
+    path = tmp_path / "sources.yaml"
+
+    def write(value):
+        source = {**specification().model_dump(mode="json"), "retrieval": value}
+        path.write_text(yaml.safe_dump({"sources": [source]}), encoding="utf-8")
+
+    write(retrieval)
+    async with Runtime(
+        Settings(
+            data_dir=tmp_path / "runtime",
+            inference="rules",
+            source_directory=None,
+            artifact_backend="filesystem",
+        )
+    ) as runtime:
+        with pytest.raises(ValueError, match="retrieval"):
+            runtime.connectors(manifest=path)
+        write("http")
+        connectors = runtime.connectors(manifest=path)
+        write(retrieval)
+        with pytest.raises(ValueError, match="retrieval"):
+            runtime.connectors(manifest=path)
+        regular = connectors[0]
+        assert isinstance(regular, HTTPConnector)
+        assert regular.sources[0].retrieval == "http"

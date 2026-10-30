@@ -1,25 +1,46 @@
 import asyncio
+import json
 from datetime import date
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import pytest
 from pydantic import SecretStr
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from textual.widgets import Input, Static
 
+from ekb.adapters.persistence.postgres import Postgres
 from ekb.adapters.persistence.postgres.models import FindingRow
 from ekb.adapters.persistence.postgres.workflow import ResolutionStore
 from ekb.config import Settings
 from ekb.domain.execution import CheckOptions, PipelineConfiguration, StageOptions
-from ekb.domain.models import ConceptVersion, Scope, SemanticVersion, now
+from ekb.domain.models import (
+    ConceptVersion,
+    PublicationEvidence,
+    PublicationMetadata,
+    Scope,
+    SemanticType,
+    SemanticVersion,
+    Usage,
+    now,
+)
+from ekb.domain.reconciliation import (
+    EmbeddingResult,
+    SemanticAssertion,
+    SemanticJudgment,
+    Verification,
+    VerificationStatus,
+)
 from ekb.domain.resolution import Decision, active_aliases
 from ekb.interfaces.api import create_app
 from ekb.interfaces.tui import KnowledgeApp
 from ekb.ports.workflow import CheckResult
 from ekb.runtime import Runtime
 from ekb.services.knowledge import KnowledgeService
-from ekb.services.reconciliation import BenchmarkService
 from ekb.stages.enrichment import Check
+from ekb.stages.semantic import _embeddings, _verification, _verification_key
 
 pytestmark = pytest.mark.integration
 
@@ -38,9 +59,149 @@ async def prepare(database, tmp_path):
     await runtime.database.close()
     runtime.database = database
     runtime.knowledge = KnowledgeService(database)
-    runtime.comparisons = BenchmarkService(database)
     config = PipelineConfiguration(stages={"indexing": StageOptions(directory=str(directory))})
     return runtime, directory, config
+
+
+@pytest.mark.parametrize("status", ["working_draft", "consultation", "proposed", "preview"])
+async def test_publication_changes_invalidate_snapshot_and_guard_adoption(
+    database, tmp_path, status
+):
+    runtime, directory, _ = await prepare(database, tmp_path)
+    try:
+        await runtime.pipeline().scan(runtime.connectors(directory))
+        concept = (await runtime.knowledge.search("public web endpoints"))[0]
+        provenance = (await runtime.knowledge.provenance(concept.id))[0]
+        async with database() as uow:
+            before = await uow.resolution.snapshot()
+            source = await uow.sources.get(provenance.source.item.id)
+            assert source and source.revision_id
+            item = source.item.model_copy(
+                update={"metadata": {**source.item.metadata, "publication_status": status}}
+            )
+            await uow.sources.save(source.model_copy(update={"item": item}))
+            await uow.sources.save_publication(
+                source.revision_id,
+                PublicationMetadata(
+                    publication_status=status,
+                    evidence=(PublicationEvidence(field="publication_status", excerpt=status),),
+                ),
+                "status-update",
+            )
+            await uow.commit()
+        async with database() as uow:
+            after = await uow.resolution.snapshot()
+        version_id = provenance.occurrence.concept_version_id
+        assert after.revision != before.revision
+        assert version_id not in before.preview_version_ids
+        assert version_id in after.preview_version_ids
+        proposal = await runtime.reconciliation.propose_canonical(
+            concept.id, version_id, Scope(application="pilot"), actor="test"
+        )
+        with pytest.raises(ValueError, match="limited-scope approval"):
+            await runtime.reconciliation.decide(
+                Decision(
+                    finding_id=proposal.id,
+                    outcome="accepted",
+                    actor="test",
+                    rationale="Review required for a draft.",
+                )
+            )
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_workflow_evaluation_uses_retained_ordinary_sources_offline(
+    database, tmp_path, monkeypatch
+):
+    from ekb.evaluation import workflow
+
+    runtime, directory, _ = await prepare(database, tmp_path)
+    demo_schema = f"ekb_demo_test_{uuid4().hex}"
+    async with database.engine.connect() as connection:
+        source_schema = await connection.scalar(text("SELECT current_schema()"))
+    monkeypatch.setattr("ekb.runtime.Postgres", lambda url: Postgres(url, schema=source_schema))
+    monkeypatch.setattr(workflow, "SCHEMA", demo_schema)
+    try:
+        scan = await runtime.pipeline().scan(runtime.connectors(directory))
+        assert scan.failed == 0 and scan.processed == 2
+        settings = runtime.settings.model_copy(
+            update={"database_url": SecretStr(database.engine.url.render_as_string(False))}
+        )
+        output = tmp_path / "workflow.json"
+        report = await workflow.demonstrate_workflow(
+            settings, Path("tests") / "fixtures" / "enterprise.json", output
+        )
+        assert report["actual_sources"] == 2 and report["model_calls"] == 0
+        assert report["accepted_decisions_persisted"] == 1
+        assert report["fixture_excessive_deviation_issues"] == 0
+        assert report["governance"].startswith("SIMULATED")
+        assert output.is_file()
+    finally:
+        await runtime.__aexit__()
+        async with database.engine.begin() as connection:
+            await connection.execute(text(f'DROP SCHEMA IF EXISTS "{demo_schema}" CASCADE'))
+
+
+async def test_workflow_evaluation_rejects_an_incomplete_leased_source(
+    database, tmp_path, monkeypatch
+):
+    from ekb.adapters.persistence.postgres.models import Base
+    from ekb.domain.models import ProcessingTask, stable_id
+    from ekb.evaluation import workflow
+
+    monkeypatch.setenv("EKB_INFERENCE", "rules")
+    monkeypatch.setenv("EKB_RECONCILIATION_MODEL_ID", "")
+    monkeypatch.setenv("EKB_EMBEDDING_MODEL_ID", "")
+    runtime, directory, _ = await prepare(database, tmp_path)
+    demo_schema = f"ekb_demo_test_{uuid4().hex}"
+    url = database.engine.url.render_as_string(False)
+    async with database.engine.connect() as connection:
+        source_schema = await connection.scalar(text("SELECT current_schema()"))
+    monkeypatch.setattr("ekb.runtime.Postgres", lambda url: Postgres(url, schema=source_schema))
+    monkeypatch.setattr(workflow, "SCHEMA", demo_schema)
+    demo = Postgres(url, schema=demo_schema)
+    try:
+        assert (await runtime.pipeline().scan(runtime.connectors(directory))).processed == 2
+        async with database() as uow:
+            source = (await uow.sources.list())[0]
+            assert source.revision_id is not None
+            revision = await uow.sources.revision(source.revision_id)
+            assert revision is not None
+        async with database.engine.begin() as connection:
+            await connection.execute(text(f'CREATE SCHEMA "{demo_schema}"'))
+        async with demo.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        pipeline = runtime.pipeline()
+        processing_fingerprint = pipeline._processing_fingerprint(
+            revision.content_hash, source.item
+        )
+        task = ProcessingTask(
+            id=stable_id(revision.id, processing_fingerprint),
+            revision_id=revision.id,
+            fingerprint=processing_fingerprint,
+        )
+        async with demo() as uow:
+            await uow.sources.save(source)
+            await uow.sources.save_revision(revision)
+            assert await uow.processing.claim(task, uuid4())
+            await uow.commit()
+        settings = runtime.settings.model_copy(update={"database_url": SecretStr(url)})
+        output = tmp_path / "workflow.json"
+        with pytest.raises(ExceptionGroup) as error:
+            await workflow.demonstrate_workflow(
+                settings, Path("tests") / "fixtures" / "enterprise.json", output
+            )
+        assert error.group_contains(ValueError, match="Retained corpus indexing failed")
+        assert not output.exists()
+        async with demo() as uow:
+            current = await uow.processing.task(revision.id, processing_fingerprint)
+        assert current and current.status == "running"
+    finally:
+        await demo.close()
+        await runtime.__aexit__()
+        async with database.engine.begin() as connection:
+            await connection.execute(text(f'DROP SCHEMA IF EXISTS "{demo_schema}" CASCADE'))
 
 
 async def test_stage_order_check_caches_partial_execution_and_rejected_proposals(
@@ -677,58 +838,94 @@ async def test_api_authorization_shared_reviews_resolver_and_tui(database, tmp_p
         await runtime.__aexit__()
 
 
+class ReplayEmbeddings:
+    fingerprint = "synthetic-embeddings-v1"
+    model_id = "synthetic-test-embeddings"
+
+    def __init__(self):
+        self.calls = 0
+        self.unavailable = False
+        self.batches = []
+
+    async def embed(self, texts):
+        if self.unavailable:
+            raise RuntimeError("Embedding provider unavailable")
+        self.calls += 1
+        self.batches.append(tuple(texts))
+        return EmbeddingResult(
+            vectors=tuple((1.0, 0.0) for _ in texts),
+            calls=1,
+            input_tokens=8,
+            usage_complete=True,
+            cost=0.25,
+        )
+
+    async def close(self):
+        pass
+
+
+class ReplayVerifier:
+    fingerprint = "synthetic-verifier-v1"
+
+    def __init__(self):
+        self.calls = 0
+        self.unavailable = False
+        self.method = "small_model"
+        self.status: VerificationStatus = "completed"
+        self.ungrounded = False
+
+    async def verify(self, old, new):
+        if self.unavailable:
+            raise RuntimeError("Verification provider unavailable")
+        self.calls += 1
+        return Verification(
+            method=self.method,
+            status=self.status,
+            model_id="synthetic-test-provider",
+            model_calls=1,
+            usage=Usage(input_tokens=20, output_tokens=10, cost=0.5),
+            judgment=SemanticJudgment(
+                outcome="equivalent",
+                confidence=0.9,
+                rationale="Synthetic provider classification, not a quality evaluation.",
+                old_excerpt="fabricated" if self.ungrounded else old.excerpt,
+                new_excerpt=new.excerpt,
+            ),
+        )
+
+    async def close(self):
+        pass
+
+
+def semantic_execution(run):
+    return next(e for e in run.executions if e.processor_id == "enrichment/semantic_duplicate")
+
+
 @pytest.mark.parametrize("embedding_only", [False, True])
-async def test_optional_semantic_provider_uses_durable_cache_and_preserves_proposals(
+async def test_optional_semantic_provider_reuses_completed_checks_and_preserves_proposals(
     database,
     tmp_path,
     embedding_only,
 ):
-    from ekb.domain.models import Usage
-    from ekb.domain.reconciliation import EmbeddingResult, SemanticJudgment, Verification
-
-    class Embeddings:
-        fingerprint = "synthetic-embeddings-v1"
-        model_id = "synthetic-test-embeddings"
-        calls = 0
-
-        async def embed(self, texts):
-            self.calls += 1
-            return EmbeddingResult(
-                vectors=tuple((1.0, 0.0) for _ in texts), calls=1, input_tokens=8
-            )
-
-    class Verifier:
-        fingerprint = "synthetic-verifier-v1"
-        calls = 0
-
-        async def verify(self, old, new):
-            self.calls += 1
-            return Verification(
-                method="small_model",
-                model_id="synthetic-test-provider",
-                model_calls=1,
-                usage=Usage(input_tokens=20, output_tokens=10),
-                judgment=SemanticJudgment(
-                    outcome="equivalent",
-                    confidence=0.9,
-                    rationale="Synthetic provider classification, not a quality evaluation.",
-                    old_excerpt=old.control.evidence.excerpt,
-                    new_excerpt=new.control.evidence.excerpt,
-                ),
-            )
 
     runtime, directory, config = await prepare(database, tmp_path)
     if embedding_only:
         (directory / "one.md").write_text("Operators must encrypt records.")
         (directory / "two.md").write_text("Teams shall cipher documents.")
     try:
-        verifier = Verifier()
-        embeddings = Embeddings()
-        runtime.comparisons = BenchmarkService(database, verifier, embeddings)
+        verifier = ReplayVerifier()
+        if embedding_only:
+            verifier.method = "independent.semantic-v1"
+        embeddings = ReplayEmbeddings()
+        runtime.verifier = verifier
+        runtime.embeddings = embeddings
         first = await runtime.orchestrator().run(configuration=config)
         assert verifier.calls == 1
         assert embeddings.calls == 1
-        assert any(e.statistics.get("model_calls") == 1 for e in first.executions)
+        first_semantic = semantic_execution(first)
+        assert first_semantic.statistics["model_calls"] == 1
+        assert first_semantic.statistics["embedding_calls"] == 1
+        assert first_semantic.statistics["model_cost"] == pytest.approx(0.75)
         assert (
             next(
                 f
@@ -738,23 +935,273 @@ async def test_optional_semantic_provider_uses_durable_cache_and_preserves_propo
             == "alias"
         )
         orchestrator = runtime.orchestrator()
+        repeated = await orchestrator.run(configuration=config)
+        assert repeated.run.status == "done" and verifier.calls == 1
+        assert embeddings.calls == 1
+        assert any(
+            e.processor_id == "enrichment/semantic_duplicate" and e.status == "skipped"
+            for e in repeated.executions
+        )
         check = next(
             c
             for c in orchestrator.registry.stages["enrichment"].checks
             if c.spec.id == "semantic_duplicate"
         )
+        if embedding_only:
+            async with database.engine.begin() as connection:
+                await connection.execute(
+                    text(
+                        "UPDATE semantic_replay_cache SET payload = payload - 'status' "
+                        "WHERE kind = 'verification'"
+                    )
+                )
         check.spec = check.spec.model_copy(update={"version": "replayed-check-version"})
+        embeddings.unavailable = verifier.unavailable = True
         repeated = await orchestrator.run(configuration=config)
-        assert repeated.run.status == "done" and verifier.calls == 1
-        assert embeddings.calls == 1
-        assert any(
-            e.processor_id == "enrichment/semantic_duplicate" and e.status == "done"
-            for e in repeated.executions
+        replay = semantic_execution(repeated)
+        assert repeated.run.status == "done" and verifier.calls == embeddings.calls == 1
+        assert replay.status == "done"
+        assert replay.statistics["model_calls"] == replay.statistics["embedding_calls"] == 0
+        assert replay.statistics["input_tokens"] == replay.statistics["output_tokens"] == 0
+        assert "model_cost" not in replay.statistics
+
+        pages = []
+        cursor = None
+        async with database() as uow:
+            while True:
+                page = await uow.inspection.rows("semantic_replay_cache", limit=1, after=cursor)
+                pages.extend(page.rows)
+                if page.next_cursor is None:
+                    break
+                cursor = page.next_cursor
+        assert len(pages) == 3 and len({row["id"] for row in pages}) == 3
+        assert {row["kind"] for row in pages} == {"embedding", "verification"}
+        assert (
+            next(row for row in pages if row["kind"] == "verification")["payload"]["method"]
+            == verifier.method
         )
+
+        if not embedding_only:
+            embeddings.unavailable = verifier.unavailable = False
+            verifier.fingerprint = "synthetic-verifier-v2"
+            changed_verifier = await runtime.orchestrator().run(configuration=config)
+            assert semantic_execution(changed_verifier).statistics["model_calls"] == 1
+            assert embeddings.calls == 1 and verifier.calls == 2
+            embeddings.fingerprint = "synthetic-embeddings-v2"
+            changed_embedding = await runtime.orchestrator().run(configuration=config)
+            assert semantic_execution(changed_embedding).statistics["embedding_calls"] == 1
+            assert embeddings.calls == 2 and verifier.calls == 2
+
+            (directory / "two.md").write_text(
+                "# Synthetic enterprise guideline\n\n"
+                "Operators must protect external web endpoints with filters."
+            )
+            changed_input = await runtime.orchestrator().run(configuration=config)
+            assert changed_input.run.status == "done"
+            assert semantic_execution(changed_input).statistics["model_calls"] == 1
+            assert embeddings.calls == verifier.calls == 3
+            assert len(embeddings.batches[-1]) == 1
+
         concept = (
             await runtime.knowledge.search("encrypt records" if embedding_only else "public web")
         )[0]
         assert not (await runtime.resolver.resolve_concept(concept.id)).authoritative
+    finally:
+        await runtime.__aexit__()
+
+
+@pytest.mark.parametrize(
+    "kind,path,replacement",
+    [
+        ("embedding", "{vector}", [0, 0]),
+        ("embedding", "{vector}", ["NaN", 1]),
+        ("embedding", "{vector}", [1, 0, 0]),
+        ("verification", "{judgment,confidence}", 2),
+        ("verification", "{judgment,old_excerpt}", "fabricated evidence"),
+        ("verification", "{method}", "model_failed"),
+        ("verification", "{status}", "failed"),
+    ],
+    ids=[
+        "zero-vector",
+        "nonfinite",
+        "dimensions",
+        "invalid",
+        "ungrounded",
+        "failed-method",
+        "failed-status",
+    ],
+)
+async def test_postgres_replay_recovers_invalid_cached_data(
+    database, tmp_path, kind, path, replacement
+):
+    runtime, _, config = await prepare(database, tmp_path)
+    verifier, embeddings = ReplayVerifier(), ReplayEmbeddings()
+    runtime.verifier, runtime.embeddings = verifier, embeddings
+    try:
+        orchestrator = runtime.orchestrator()
+        first = await orchestrator.run(configuration=config)
+        assert first.run.status == "done" and verifier.calls == embeddings.calls == 1
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE semantic_replay_cache "
+                    "SET payload = jsonb_set(payload, CAST(:path AS text[]), "
+                    "CAST(:replacement AS jsonb)) "
+                    "WHERE id = (SELECT id FROM semantic_replay_cache "
+                    "WHERE kind = :kind ORDER BY id LIMIT 1)"
+                ),
+                {
+                    "path": path.strip("{}").split(","),
+                    "replacement": json.dumps(replacement),
+                    "kind": kind,
+                },
+            )
+        check = next(
+            check
+            for check in orchestrator.registry.stages["enrichment"].checks
+            if check.spec.id == "semantic_duplicate"
+        )
+        check.spec = check.spec.model_copy(update={"version": "repair-cache"})
+        repaired = await orchestrator.run(configuration=config)
+        execution = semantic_execution(repaired)
+        assert repaired.run.status == "done"
+        assert embeddings.calls == (2 if kind == "embedding" else 1)
+        assert verifier.calls == (2 if kind == "verification" else 1)
+        assert execution.statistics["model_cost"] == pytest.approx(
+            0.25 if kind == "embedding" else 0.5
+        )
+
+        embeddings.unavailable = verifier.unavailable = True
+        check.spec = check.spec.model_copy(update={"version": "replay-repaired-cache"})
+        replay = await orchestrator.run(configuration=config)
+        assert replay.run.status == "done"
+        assert semantic_execution(replay).statistics["model_calls"] == 0
+        assert semantic_execution(replay).statistics["embedding_calls"] == 0
+    finally:
+        await runtime.__aexit__()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["legacy-failed", "legacy-context", "provider-failed", "provider-context", "ungrounded"],
+)
+async def test_postgres_never_persists_failed_or_ungrounded_verification(database, failure):
+    verifier = ReplayVerifier()
+    verifier.method = {
+        "legacy-failed": "model_failed",
+        "legacy-context": "context_limit",
+    }.get(failure, "independent.semantic-v1")
+    if failure == "provider-failed":
+        verifier.status = "failed"
+    elif failure == "provider-context":
+        verifier.status = "context_limit"
+    verifier.ungrounded = failure == "ungrounded"
+    old = SemanticAssertion(
+        occurrence_id=uuid4(),
+        statement="Protect endpoints.",
+        excerpt="Protect endpoints.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    new = SemanticAssertion(
+        occurrence_id=uuid4(),
+        statement="Protect external endpoints.",
+        excerpt="Protect external endpoints.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    with pytest.raises(ValueError):
+        await _verification(database, verifier, old, new, {})
+    async with database() as uow:
+        assert await uow.workflow.semantic_cache([_verification_key(verifier, old, new)]) == {}
+
+
+async def test_missing_replay_table_fails_safely_and_initialize_preserves_checkpoints(
+    database, tmp_path
+):
+    runtime, directory, _ = await prepare(database, tmp_path)
+    embeddings = ReplayEmbeddings()
+    try:
+        report = await runtime.pipeline().scan(runtime.connectors(directory))
+        assert report.processed == 2
+        async with database() as uow:
+            source = (await uow.sources.list())[0]
+            assert source.revision_id is not None
+            revision = await uow.sources.revision(source.revision_id)
+            assert revision is not None
+        artifact = await runtime.artifacts.get(revision.artifact_key)
+
+        tables = ("processing_tasks", "parse_checkpoints", "segment_results")
+        async with database.engine.begin() as connection:
+            before = {
+                table: await connection.scalar(text(f"SELECT count(*) FROM {table}"))
+                for table in tables
+            }
+            assert all(before.values())
+            await connection.execute(text("DROP TABLE semantic_replay_cache"))
+        with pytest.raises(DBAPIError):
+            await _embeddings(database, embeddings, ["Synthetic"])
+        assert embeddings.calls == 0
+
+        await database.initialize()
+        async with database.engine.connect() as connection:
+            after = {
+                table: await connection.scalar(text(f"SELECT count(*) FROM {table}"))
+                for table in tables
+            }
+            assert await connection.scalar(text("SELECT count(*) FROM semantic_replay_cache")) == 0
+        assert after == before
+        assert await runtime.artifacts.get(revision.artifact_key) == artifact
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_unknown_semantic_judgment_does_not_invent_a_distinction(database, tmp_path):
+    from ekb.domain.reconciliation import SemanticJudgment, Verification
+
+    class UnknownVerifier:
+        fingerprint = "synthetic-unknown-verifier"
+
+        def __init__(self):
+            self.calls = 0
+
+        async def verify(self, old, new):
+            self.calls += 1
+            return Verification(
+                method="small_model",
+                model_calls=1,
+                judgment=SemanticJudgment(
+                    outcome="unknown",
+                    confidence=0.1,
+                    rationale="Insufficient evidence to classify this pair.",
+                    old_excerpt=old.excerpt,
+                    new_excerpt=new.excerpt,
+                ),
+            )
+
+        async def close(self):
+            pass
+
+    runtime, _, config = await prepare(database, tmp_path)
+    verifier = UnknownVerifier()
+    runtime.verifier = verifier
+    try:
+        orchestrator = runtime.orchestrator()
+        run = await orchestrator.run(configuration=config)
+        semantic = next(
+            e for e in run.executions if e.processor_id == "enrichment/semantic_duplicate"
+        )
+        assert semantic.statistics["model_calls"] == 1
+        assert not [
+            f for f in await runtime.reconciliation.findings() if f.check_id == "semantic_duplicate"
+        ]
+        check = next(
+            check
+            for check in orchestrator.registry.stages["enrichment"].checks
+            if check.spec.id == "semantic_duplicate"
+        )
+        check.spec = check.spec.model_copy(update={"version": "replay-unknown"})
+        replay = await orchestrator.run(configuration=config)
+        assert semantic_execution(replay).statistics["model_calls"] == 0
+        assert verifier.calls == 1
     finally:
         await runtime.__aexit__()
 

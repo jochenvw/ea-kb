@@ -4,7 +4,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -47,52 +47,11 @@ async def test_concurrent_artifact_publication_is_create_once(tmp_path):
         assert await store.put(content) == keys[0]
 
 
-async def test_long_artifact_paths_preserve_atomic_originals_and_named_replacement(tmp_path):
+async def test_long_artifact_paths_preserve_atomic_originals(tmp_path):
     root = tmp_path / ("r" * 60) / ("s" * 60) / ("t" * 60)
     store = FilesystemArtifactStore(root)
     key = await store.put(b"long path original")
-    await store.put_named("normalized/snapshot.json", b"first")
-    await store.put_named("normalized/snapshot.json", b"second")
     assert await store.get(key) == b"long path original"
-    assert await store.get_named("normalized/snapshot.json") == b"second"
-
-
-async def test_named_artifacts_advance_without_changing_originals(tmp_path):
-    store = FilesystemArtifactStore(
-        tmp_path / "artifacts", document_directory=tmp_path / "benchmark"
-    )
-    original = await store.put(b"original")
-    await store.put_named("mcsb_v2/raw/source.md", b"original")
-    await store.put_named("manifest.json", b'{"revision":1}')
-    await store.put_named("manifest.json", b'{"revision":2}')
-    assert await store.get_named("manifest.json") == b'{"revision":2}'
-    assert await store.get_named("mcsb_v2/raw/source.md") == b"original"
-    assert await store.get(original) == b"original"
-    for key in ("../escape", "/absolute", "C:\\outside", "a//b", "a/../b"):
-        with pytest.raises(ValueError):
-            await store.put_named(key, b"not written")
-    with pytest.raises(FileNotFoundError):
-        await store.get_named("missing.json")
-
-
-async def test_named_checkpoint_retries_short_windows_reader_locks(tmp_path, monkeypatch):
-    import os
-
-    original = os.replace
-    attempts = 0
-
-    def replace(source, target):
-        nonlocal attempts
-        attempts += 1
-        if attempts < 3:
-            raise PermissionError("Synthetic Windows reader lock")
-        original(source, target)
-
-    monkeypatch.setattr("ekb.adapters.artifacts.os.replace", replace)
-    store = FilesystemArtifactStore(tmp_path)
-    await store.put_named("manifest.json", b'{"revision":2}')
-    assert await store.get_named("manifest.json") == b'{"revision":2}'
-    assert attempts == 3
 
 
 async def test_azure_artifact_adapter_contract_without_cloud_credentials():
@@ -113,37 +72,13 @@ async def test_azure_artifact_adapter_contract_without_cloud_credentials():
     client.close.assert_awaited_once()
 
 
-async def test_azure_named_documents_match_filesystem_checkpoint_contract():
-    blob = MagicMock(upload_blob=AsyncMock(), download_blob=AsyncMock())
-    stream = MagicMock(readall=AsyncMock(return_value=b'{"revision":2}'))
-    blob.download_blob.return_value = stream
-    client = MagicMock()
-    client.get_blob_client.return_value = blob
-    store = AzureBlobArtifactStore("https://example.blob.core.windows.net", "test", client=client)
-    await store.put_named("manifest.json", b'{"revision":2}')
-    assert await store.get_named("manifest.json") == b'{"revision":2}'
-    client.get_blob_client.assert_called_with(
-        "test", "test-corpus/public/microsoft_security_benchmark/manifest.json"
-    )
-    blob.upload_blob.assert_awaited_once_with(
-        b'{"revision":2}',
-        overwrite=True,
-        metadata={"sha256": content_hash(b'{"revision":2}')},
-    )
-    blob.download_blob.side_effect = ResourceNotFoundError("missing")
-    with pytest.raises(FileNotFoundError):
-        await store.get_named("missing.json")
-    with pytest.raises(ValueError):
-        await store.put_named("../outside", b"not written")
-
-
 def test_installed_connector_entry_points_are_loadable(tmp_path):
     assert {
         "filesystem",
         "http",
         "oscal",
-        "microsoft-security-benchmark",
     } <= connector_plugins().keys()
+    assert "microsoft-security-benchmark" not in connector_plugins()
     connector = load_plugin("filesystem", {"root": tmp_path})
     assert connector.name.startswith("filesystem:")
     with pytest.raises(ValueError):

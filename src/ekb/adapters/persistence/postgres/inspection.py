@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ekb.adapters.persistence.postgres.implementation_graph import implementation_context
 from ekb.adapters.persistence.postgres.models import (
     Base,
     ConceptRow,
@@ -21,7 +20,6 @@ from ekb.adapters.persistence.postgres.models import (
     SourceRow,
     VersionRow,
 )
-from ekb.adapters.persistence.postgres.source_groups import source_group
 from ekb.domain.inspection import (
     BacklogItem,
     BacklogPage,
@@ -35,7 +33,7 @@ from ekb.domain.inspection import (
     TableInfo,
     TablePage,
 )
-from ekb.domain.models import SourceRecord, knowledge_level
+from ekb.domain.models import Occurrence, SourceRecord, knowledge_level
 from ekb.domain.resolution import Decision, Finding
 
 
@@ -110,16 +108,10 @@ class Inspection:
         self, source_id: UUID, limit: int = 50, *, after: UUID | None = None
     ) -> SourceInspection | None:
         source = await self.session.get(SourceRow, source_id)
-        group = None
         if source is None:
-            group = await source_group(self.session, source_id)
-            if group is None:
-                return None
-            record = group.documents[0]
-        else:
-            record = SourceRecord.model_validate(source.payload)
-        members = [document.item.id for document in group.documents] if group else [source_id]
-        revisions = select(RevisionRow.id).where(RevisionRow.source_id.in_(members))
+            return None
+        record = SourceRecord.model_validate(source.payload)
+        revisions = select(RevisionRow.id).where(RevisionRow.source_id == source_id)
         segments = select(SegmentRow.id).where(SegmentRow.revision_id.in_(revisions))
         own_versions = (
             select(OccurrenceRow.concept_version_id)
@@ -151,7 +143,6 @@ class Inspection:
         rows = list((await self.session.execute(query.limit(limit + 1))).all())
         return SourceInspection(
             source=record,
-            group=group,
             revisions=counts[0],
             segments=counts[1],
             versions=counts[2],
@@ -260,6 +251,14 @@ class Inspection:
                 .limit(13)
             )
         )
+        occurrences = {
+            row.id: Occurrence.model_validate(row.payload)
+            for row in await self.session.scalars(
+                select(OccurrenceRow).where(
+                    OccurrenceRow.id.in_([row.occurrence_id for row in relations[:12]])
+                )
+            )
+        }
         edges = [
             GraphEdge(
                 source=row.from_id,
@@ -267,6 +266,7 @@ class Inspection:
                 kind=row.kind,
                 status=row.payload.get("status", "asserted"),
                 href=f"/concepts/{concept_id}",
+                evidence=occurrences.get(row.occurrence_id),
             )
             for row in relations[:12]
         ]
@@ -283,10 +283,6 @@ class Inspection:
                             href=f"/review?finding_id={finding.id}",
                         )
                     )
-        context_nodes, context_edges, context_truncated = await implementation_context(
-            self.session, concept_id
-        )
-        edges = [*context_edges, *edges]
         ids = {concept_id}
         retained = []
         for edge in edges:
@@ -334,7 +330,6 @@ class Inspection:
             )
             for version in (row.to_domain() for row in versions)
         ]
-        nodes.extend(node for node in context_nodes if node.id in ids)
         sources = list(
             (
                 await self.session.execute(
@@ -372,9 +367,5 @@ class Inspection:
             root=concept_id,
             nodes=nodes,
             edges=retained,
-            truncated=len(relations) > 12
-            or len(findings) > 12
-            or len(sources) > 8
-            or truncated
-            or context_truncated,
+            truncated=len(relations) > 12 or len(findings) > 12 or len(sources) > 8 or truncated,
         )

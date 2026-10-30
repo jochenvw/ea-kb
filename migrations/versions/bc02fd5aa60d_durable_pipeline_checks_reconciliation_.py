@@ -7,12 +7,20 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "bc02fd5aa60d"
-down_revision: str | None = "e30bd82f190c"
+down_revision: str | None = "c9b12e70a641"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    op.create_table(
+        "semantic_replay_cache",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("kind", sa.String(length=20), nullable=False),
+        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.CheckConstraint("kind IN ('embedding','verification')", name="semantic_replay_kind"),
+        sa.PrimaryKeyConstraint("id"),
+    )
     op.create_table(
         "enrichment_findings",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -137,3 +145,4 @@ def downgrade() -> None:
     op.drop_index("ix_findings_alias", table_name="enrichment_findings")
     op.drop_index(op.f("ix_enrichment_findings_check_id"), table_name="enrichment_findings")
     op.drop_table("enrichment_findings")
+    op.drop_table("semantic_replay_cache")

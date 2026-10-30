@@ -189,42 +189,6 @@ class ParseRow(Base):
     parser_fingerprint: Mapped[str] = mapped_column(String(64))
 
 
-class BenchmarkDocumentRow(Base):
-    __tablename__ = "benchmark_documents"
-    __table_args__ = (UniqueConstraint("revision_id", "parser_version", "extractor_version"),)
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    source_id: Mapped[UUID] = mapped_column(ForeignKey("sources.id"), index=True)
-    revision_id: Mapped[UUID] = mapped_column(ForeignKey("source_revisions.id"), index=True)
-    segment_id: Mapped[UUID] = mapped_column(ForeignKey("segments.id"), index=True)
-    edition: Mapped[str] = mapped_column(String(30), index=True)
-    role: Mapped[str] = mapped_column(String(30))
-    parser_version: Mapped[str] = mapped_column(String(64))
-    extractor_version: Mapped[str] = mapped_column(String(64))
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
-
-
-class BenchmarkComparisonRow(Base):
-    __tablename__ = "benchmark_comparisons"
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    from_edition: Mapped[str] = mapped_column(String(30), index=True)
-    to_edition: Mapped[str] = mapped_column(String(30), index=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
-
-
-class BenchmarkEmbeddingRow(Base):
-    __tablename__ = "benchmark_embeddings"
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
-
-
-class BenchmarkMatchRow(Base):
-    __tablename__ = "benchmark_match_cache"
-    id: Mapped[UUID] = mapped_column(primary_key=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
-
-
 class ExecutionRow(Base):
     __tablename__ = "pipeline_executions"
     __table_args__ = (
@@ -239,6 +203,16 @@ class ExecutionRow(Base):
     fingerprint: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class SemanticCacheRow(Base):
+    __tablename__ = "semantic_replay_cache"
+    __table_args__ = (
+        CheckConstraint("kind IN ('embedding','verification')", name="semantic_replay_kind"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 

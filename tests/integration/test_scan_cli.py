@@ -22,7 +22,6 @@ from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
 from ekb.adapters.persistence.postgres.models import TaskRow, WorkflowLeaseRow
 from ekb.adapters.sources import FilesystemConnector
-from ekb.config import Settings
 from ekb.domain.models import now
 from ekb.interfaces.api import create_app
 from ekb.interfaces.cli import app
@@ -30,6 +29,14 @@ from ekb.maintenance import reset_workspace
 from ekb.pipeline import IngestionPipeline
 
 pytestmark = pytest.mark.integration
+
+LEGACY_TABLES = (
+    "concept_aliases",
+    "benchmark_documents",
+    "benchmark_comparisons",
+    "benchmark_embeddings",
+    "benchmark_match_cache",
+)
 
 
 def build(database, tmp_path):
@@ -185,6 +192,17 @@ async def test_cli_human_json_replay_and_fresh_use_disposable_state(
     assert worker.exit_code == 0, worker.output
     scans = await asyncio.to_thread(CliRunner().invoke, app, ["scans", "list"])
     assert scans.exit_code == 0 and json.loads(scans.stdout)[0]["skipped"] == 1
+    async with database.engine.begin() as connection:
+        await connection.execute(
+            text(
+                "CREATE TABLE concept_aliases "
+                "(id integer PRIMARY KEY, alias_id uuid REFERENCES concepts(id))"
+            )
+        )
+        await connection.execute(
+            text("INSERT INTO concept_aliases (id, alias_id) SELECT 1, id FROM concepts LIMIT 1")
+        )
+        assert await connection.scalar(text("SELECT count(*) FROM concept_aliases")) == 1
     fresh = await asyncio.to_thread(
         CliRunner().invoke, app, [*arguments, "--fresh", "--yes", "--json"]
     )
@@ -192,6 +210,8 @@ async def test_cli_human_json_replay_and_fresh_use_disposable_state(
     reset = json.loads(fresh.stdout)
     assert reset["fresh"] and reset["passed"] and reset["before"]["concepts"] == 0
     assert reset["scan"]["unknown"] == reset["scan"]["processed"] == 1
+    async with database.engine.connect() as connection:
+        assert await connection.scalar(text("SELECT to_regclass('concept_aliases')")) is None
     assert (source / "policy.txt").read_text() == "Users must authenticate."
     (source / "broken.docx").write_bytes(b"Not a Word archive")
     failed = await asyncio.to_thread(CliRunner().invoke, app, [*arguments, "--json"])
@@ -400,11 +420,21 @@ async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(da
     pipeline, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")
     await pipeline.scan([FilesystemConnector(source)])
+    async with database() as uow:
+        retained = (await uow.sources.list())[0]
+        assert retained.revision_id
+        revision = await uow.sources.revision(retained.revision_id)
+        assert revision
+        artifact_key = revision.artifact_key
     data = tmp_path / "data"
-    paths = (data / "artifacts", data / "test-corpus/public/microsoft_security_benchmark")
+    paths = (
+        data / "artifacts",
+        data / "test-corpus" / "public" / "retained-source",
+        data / "test-corpus" / "public" / "microsoft_security_benchmark",
+    )
     for path in paths:
         path.mkdir(parents=True)
-        (path / "generated.txt").write_text("Generated cache")
+        (path / "original.txt").write_text("Retained original")
     reports = data / "reports"
     reports.mkdir()
     (reports / "retained.json").write_text("{}")
@@ -413,54 +443,122 @@ async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(da
         await connection.execute(text("INSERT INTO unrelated VALUES ('retained')"))
         await connection.execute(text("CREATE TABLE alembic_version (version_num text)"))
         await connection.execute(text("INSERT INTO alembic_version VALUES ('retained')"))
-    await reset_workspace(Settings(data_dir=data), database, (source,))
+    await reset_workspace(database)
     async with database() as uow:
         assert (await uow.knowledge.counts()).sources == 0
     async with database.engine.connect() as connection:
         for table in ("unrelated", "alembic_version"):
             assert await connection.scalar(text(f"SELECT count(*) FROM {table}")) == 1
-    assert all(not path.exists() for path in paths)
+    assert all((path / "original.txt").read_text() == "Retained original" for path in paths)
     assert (reports / "retained.json").exists() and (source / "policy.txt").exists()
+    assert await pipeline.artifacts.get(artifact_key) == b"Users must authenticate."
 
 
-async def test_fresh_rolls_back_database_and_quarantine_on_filesystem_failure(
+async def test_cli_recreate_retains_originals_and_unrelated_resources(
     database, tmp_path, monkeypatch
 ):
-    import os
+    async with database.engine.connect() as connection:
+        schema = await connection.scalar(text("SELECT current_schema()"))
+    monkeypatch.setattr("ekb.runtime.Postgres", lambda url: Postgres(url, schema=schema))
+    monkeypatch.setenv(
+        "EKB_DATABASE_URL", database.engine.url.render_as_string(hide_password=False)
+    )
+    data = tmp_path / "runtime"
+    monkeypatch.setenv("EKB_DATA_DIR", str(data))
+    monkeypatch.setenv("EKB_INFERENCE", "rules")
+    for name in ("EKB_RECONCILIATION_MODEL_ID", "EKB_EMBEDDING_MODEL_ID"):
+        monkeypatch.setenv(name, "")
+    source = tmp_path / "input"
+    source.mkdir()
+    original = b"Users must authenticate before access.\n"
+    (source / "source.txt").write_bytes(original)
+    old_corpus = data / "test-corpus" / "public" / "microsoft_security_benchmark"
+    old_corpus.mkdir(parents=True)
+    (old_corpus / "downloaded-source.txt").write_bytes(original)
+    artifacts = FilesystemArtifactStore(data / "artifacts")
+    pipeline = IngestionPipeline(database, artifacts, StructuredParser(), RulesInference())
+    report = await pipeline.scan([FilesystemConnector(source)])
+    assert report.processed == 1
+    async with database() as uow:
+        source_record = (await uow.sources.list())[0]
+        assert source_record.revision_id
+        revision = await uow.sources.revision(source_record.revision_id)
+        assert revision
+        artifact_key = revision.artifact_key
+    assert await artifacts.get(artifact_key) == original
+    async with database.engine.begin() as connection:
+        for name in LEGACY_TABLES:
+            await connection.execute(text(f'CREATE TABLE "{name}" (id integer PRIMARY KEY)'))
+        await connection.execute(text("CREATE TABLE unrelated_records (value text)"))
+        await connection.execute(text("INSERT INTO unrelated_records VALUES ('retained')"))
+    result = await asyncio.to_thread(CliRunner().invoke, app, ["init", "--recreate"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["recreated"] is True
+    async with database.engine.connect() as connection:
+        for name in LEGACY_TABLES:
+            assert (
+                await connection.scalar(text("SELECT to_regclass(:name)"), {"name": name}) is None
+            )
+        assert await connection.scalar(text("SELECT count(*) FROM sources")) == 0
+        assert await connection.scalar(text("SELECT value FROM unrelated_records")) == "retained"
+    assert await artifacts.get(artifact_key) == original
+    assert (source / "source.txt").read_bytes() == original
+    assert (old_corpus / "downloaded-source.txt").read_bytes() == original
 
-    from ekb.adapters.sources import FilesystemConnector
+
+@pytest.mark.parametrize("recreate", [False, True])
+@pytest.mark.parametrize("blocked_table", ["concept_aliases", "benchmark_documents"])
+async def test_reset_rolls_back_when_unrelated_table_depends_on_legacy_table(
+    database, tmp_path, recreate, blocked_table
+):
+    from sqlalchemy.exc import DBAPIError
 
     pipeline, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")
     await pipeline.scan([FilesystemConnector(source)])
-    data = tmp_path / "data"
-    paths = (data / "artifacts", data / "test-corpus/public/microsoft_security_benchmark")
-    for path in paths:
-        path.mkdir(parents=True)
-        (path / "generated.txt").write_text("Generated cache")
-    original = os.replace
-
-    def fail_second(path, destination):
-        if path == paths[1]:
-            raise PermissionError("Synthetic cache rename failure")
-        return original(path, destination)
-
-    monkeypatch.setattr("ekb.maintenance.os.replace", fail_second)
-    with pytest.raises(PermissionError):
-        await reset_workspace(Settings(data_dir=data), database, (source,))
+    async with database.engine.begin() as connection:
+        for name in LEGACY_TABLES:
+            await connection.execute(text(f'CREATE TABLE "{name}" (id integer PRIMARY KEY)'))
+        await connection.execute(
+            text(f'CREATE TABLE unrelated_dependency (id integer REFERENCES "{blocked_table}")')
+        )
+        await connection.execute(text(f'INSERT INTO "{blocked_table}" VALUES (17)'))
+        await connection.execute(text("INSERT INTO unrelated_dependency VALUES (17)"))
+    with pytest.raises(DBAPIError):
+        await reset_workspace(database, recreate=recreate)
     async with database() as uow:
         assert (await uow.knowledge.counts()).concepts == 1
-    assert all((path / "generated.txt").exists() for path in paths)
+    async with database.engine.connect() as connection:
+        for name in LEGACY_TABLES:
+            assert (
+                await connection.scalar(text("SELECT to_regclass(:name)"), {"name": name})
+                is not None
+            )
+        assert await connection.scalar(text(f'SELECT id FROM "{blocked_table}"')) == 17
+        assert await connection.scalar(text("SELECT id FROM unrelated_dependency")) == 17
+        assert (
+            await connection.scalar(text("SELECT to_regclass('unrelated_dependency')")) is not None
+        )
+    assert (source / "policy.txt").exists()
 
 
-async def test_fresh_refuses_an_active_pipeline_lease(database, tmp_path):
+async def test_fresh_refuses_an_active_pipeline_lease(database):
     from uuid import uuid4
 
+    async with database.engine.begin() as connection:
+        for name in LEGACY_TABLES:
+            await connection.execute(text(f'CREATE TABLE "{name}" (id integer PRIMARY KEY)'))
     async with database() as uow:
         assert await uow.workflow.lease("knowledge-pipeline", uuid4())
         await uow.commit()
     with pytest.raises(ValueError, match="active"):
-        await reset_workspace(Settings(data_dir=tmp_path / "runtime"), database)
+        await reset_workspace(database)
+    async with database.engine.connect() as connection:
+        for name in LEGACY_TABLES:
+            assert (
+                await connection.scalar(text("SELECT to_regclass(:name)"), {"name": name})
+                is not None
+            )
 
 
 async def test_fresh_refuses_a_standalone_scan_before_any_task_is_claimed(database, tmp_path):

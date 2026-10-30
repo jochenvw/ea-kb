@@ -5,14 +5,11 @@
   Usage summarizes at most 1,000 tasks and retains unknown cost if any task is unpriced.
 - `assertions.py` phrases existing versions with bounded model workers and replay caching;
   it never changes original candidates, occurrences, identities or authority.
-- `benchmarks.py` materializes deterministic requirement candidates from structured publisher records.
-  Preserve complete oversized statements in records rather than truncating their qualifiers.
-- `reconciliation.py` shares control, historical comparison and evidence-chain queries.
-  Published identifier mappings remain distinct from review-only semantic/version proposals.
 - CLI, terminal, web and MCP presentation reuse these services.
 - `knowledge_resolver.py` strictly resolves accepted identities, scope, dates and canonical authority.
 - `reconciliation_service.py` and `issue_service.py` share audited decisions and issue lifecycle.
-- `retrieval.py` supplies validated, bounded cosine-neighbor retrieval shared by enrichment and evals.
+- `retrieval.py` supplies validated cosine-neighbor retrieval shared by enrichment and evals;
+  scaling avoids overflow and underflow for finite nonzero embedding vectors.
 
 Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.
 Do not silently expand bounded inspection into whole-corpus analytics.

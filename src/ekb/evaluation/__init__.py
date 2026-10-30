@@ -3,16 +3,19 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import time
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 from pydantic import Field
+from pydantic_evals import Case as EvalCase
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext
 
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
     Candidate,
     Extraction,
+    InferenceResult,
     Modality,
     Model,
     Segment,
@@ -21,6 +24,7 @@ from ekb.domain.models import (
     now,
     stable_id,
 )
+from ekb.evaluation.runner import evaluate_sequential, serialize_results
 from ekb.ports import InferencePort
 
 
@@ -151,12 +155,53 @@ def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
     return result
 
 
+class _ExtractionOutcome(Model):
+    candidate_count: int = 0
+    error: str | None = None
+
+
+class _ExtractionEvaluator(Evaluator[str, _ExtractionOutcome, None]):
+    def __init__(self, cases: dict[str, Case], results: dict[str, InferenceResult]):
+        # Non-dataclass state is excluded from framework evaluator specifications.
+        self._cases = cases
+        self._results = results
+
+    def evaluate(
+        self, ctx: EvaluatorContext[str, _ExtractionOutcome, None]
+    ) -> dict[str, bool | int]:
+        result = self._results.get(ctx.inputs)
+        metrics = score(
+            [self._cases[ctx.inputs]], [result.extraction if result is not None else Extraction()]
+        )
+        categories = [value for value in metrics.values() if isinstance(value, dict)]
+        tp = sum(value["tp"] for value in categories)
+        fp = sum(value["fp"] for value in categories)
+        fn = sum(value["fn"] for value in categories)
+        return {
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "false_mandates": metrics["false_mandatory_requirements"],
+            "returned_candidates": ctx.output.candidate_count,
+            "case_exact_match": ctx.output.error is None
+            and fp == 0
+            and fn == 0
+            and metrics["scope_accuracy"] in {None, 1}
+            and metrics["modality_accuracy"] in {None, 1}
+            and metrics["false_mandatory_requirements"] == 0,
+            "evidence_grounded": ctx.output.error is None,
+        }
+
+
 async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dict[str, Any]:
     raw = await asyncio.to_thread(dataset.read_bytes)
     cases = [Case.model_validate(case) for case in json.loads(raw)["cases"]]
-    predictions: list[Extraction] = []
-    documents: list[dict[str, Any]] = []
-    for case in cases:
+    cases_by_key = {f"extraction-{index}": case for index, case in enumerate(cases)}
+    results: dict[str, InferenceResult] = {}
+    evaluator = _ExtractionEvaluator(cases_by_key, results)
+
+    async def extract(key: str) -> _ExtractionOutcome:
+        case = cases_by_key[key]
         segment = Segment(
             id=stable_id("golden", case.id),
             revision_id=stable_id("golden", case.source),
@@ -164,27 +209,41 @@ async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dic
             text=case.text,
             location=case.location,
         )
-        started = time.monotonic()
         try:
             result = await inference.extract(segment)
             validate_evidence(result.extraction, segment)
-            predictions.append(result.extraction)
-            documents.append(
-                {
-                    "id": case.id,
-                    "result": result.model_dump(mode="json"),
-                    "latency_ms": (time.monotonic() - started) * 1000,
-                }
-            )
+            outcome = _ExtractionOutcome(candidate_count=len(result.extraction.candidates))
+            results[key] = result
+            return outcome
         except Exception as error:
+            return _ExtractionOutcome(error=type(error).__name__)
+
+    evaluated = await evaluate_sequential(
+        [
+            EvalCase[str, _ExtractionOutcome, None](name=key, inputs=key, evaluators=[evaluator])
+            for key in cases_by_key
+        ],
+        extract,
+        name="grounded-extraction",
+    )
+    predictions: list[Extraction] = []
+    documents: list[dict[str, Any]] = []
+    for case, evaluated_case in zip(cases, evaluated, strict=True):
+        result = results.get(evaluated_case.inputs)
+        if result is not None:
+            predictions.append(result.extraction)
+            document = {"id": case.id, "result": result.model_dump(mode="json")}
+        else:
             predictions.append(Extraction())
-            documents.append(
-                {
-                    "id": case.id,
-                    "error": type(error).__name__,
-                    "latency_ms": (time.monotonic() - started) * 1000,
-                }
-            )
+            document = {"id": case.id, "error": evaluated_case.output.error}
+        document.update(
+            {
+                "latency_ms": evaluated_case.task_duration * 1000,
+                "scores": serialize_results(evaluated_case.scores),
+                "assertions": serialize_results(evaluated_case.assertions),
+            }
+        )
+        documents.append(document)
     metrics = score(cases, predictions)
     report = {
         "recorded_at": now().isoformat(),
@@ -192,6 +251,8 @@ async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dic
         "provider": inference.capabilities.model_id,
         "prompt_version": inference.prompt_version,
         "offline_baseline": inference.capabilities.model_id.startswith("offline-"),
+        "evaluation_runner": "pydantic-evals",
+        "evaluation_runner_version": version("pydantic-evals"),
         "metrics": metrics,
         "documents": documents,
         "mean_latency_ms": sum(d["latency_ms"] for d in documents) / len(documents),
@@ -203,7 +264,7 @@ async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dic
             "No small-versus-strong model comparison is claimed without actual model runs.",
         ],
     }
-    output.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(output.parent.mkdir, parents=True, exist_ok=True)
     await asyncio.to_thread(output.write_text, json.dumps(report, indent=2), encoding="utf-8")
     summary = (
         f"EKB evaluation: {report['provider']} ({len(cases)} cases)\n"

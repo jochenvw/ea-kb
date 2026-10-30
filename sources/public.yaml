@@ -4,33 +4,64 @@ sources:
     publisher: Microsoft
     name: Azure Security Benchmark v2
     location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2
-    format: md
-    category: microsoft-security-benchmark
-    retrieval: microsoft-security-benchmark
+    format: html
+    category: security-guidance
+    retrieval: http
     publisher_version: v2
-    access_notes: Official Microsoft Learn and linked MicrosoftDocs SecurityBenchmarks sources; preserve originals and CC-BY 4.0 attribution. Sync explicitly with ekb sources sync microsoft-security-benchmark.
-    intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate. Sync explicitly before cached structured ingestion.
+    access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
+    intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate.
   - id: mcsb-v1
     publisher: Microsoft
     name: Microsoft Cloud Security Benchmark v1
     location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview-mcsb-v1
-    format: md
-    category: microsoft-security-benchmark
-    retrieval: microsoft-security-benchmark
+    format: html
+    category: security-guidance
+    retrieval: http
     publisher_version: v1
-    access_notes: Official Learn articles and linked MicrosoftDocs workbook; preserve originals and CC-BY 4.0 attribution. Workbook self-describes as a private preview independently of web-article maturity.
-    intended_scope: Earlier MCSB edition, with source-specific publication maturity; no automatic enterprise adoption. Use the explicit sync command.
+    access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
+    intended_scope: Earlier edition, with source-specific publication maturity; no automatic enterprise adoption.
   - id: mcsb-v2
     publisher: Microsoft
     name: Microsoft Cloud Security Benchmark v2 (preview)
     location: https://learn.microsoft.com/en-us/security/benchmark/azure/overview
-    format: md
-    category: microsoft-security-benchmark
-    retrieval: microsoft-security-benchmark
+    format: html
+    category: security-guidance
+    retrieval: http
     publisher_version: v2
     publication_status: preview
-    access_notes: Official Learn content and published Azure Policy JSON links. No v2 workbook is fabricated; preserve original URLs, hashes and publisher notices.
-    intended_scope: Preview edition explicitly superseding MCSB v1; mappings are publisher assertions, not full coverage, semantic equivalence, or approved enterprise requirements. Use explicit sync.
+    access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
+    intended_scope: Preview edition; mappings are publisher assertions, not equivalence, coverage or approved enterprise requirements.
+  - id: asb-v2-network
+    publisher: Microsoft
+    name: Azure Security Benchmark v2 - network security
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security
+    format: html
+    category: security-guidance
+    retrieval: http
+    publisher_version: v2
+    access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
+    intended_scope: Historical source guidance; preserve explicit platform qualifiers without assuming adoption.
+  - id: mcsb-v1-network
+    publisher: Microsoft
+    name: Microsoft Cloud Security Benchmark v1 - network security
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-network-security
+    format: html
+    category: security-guidance
+    retrieval: http
+    publisher_version: v1
+    access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
+    intended_scope: Guidance contains vendor-independent and named-platform statements; assess each from its evidence.
+  - id: mcsb-v2-network
+    publisher: Microsoft
+    name: Microsoft Cloud Security Benchmark v2 - network security (preview)
+    location: https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-v2-network-security
+    format: html
+    category: security-guidance
+    retrieval: http
+    publisher_version: v2
+    publication_status: preview
+    access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
+    intended_scope: Preview guidance is not an approved enterprise obligation or evidence of cross-framework equivalence.
   - id: shell-annual-2025
     publisher: Shell plc
     name: Shell Annual Report and Accounts 2025 (selected strategy pages)
@@ -83,7 +114,7 @@ sources:
     retrieval: oscal
     jurisdiction: United States
     access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained; only selected controls parsed.
-    intended_scope: Selected access, incident and WAF-mapped boundary/input-validation controls; parameter placeholders remain unresolved. Native label resolution is not per-clause coverage or an enterprise mandate.
+    intended_scope: Selected access, incident response, boundary protection and input-validation controls; parameter placeholders remain unresolved. Publication does not establish enterprise authority.
     control_ids: [ac-1, ac-2, ir-4, sc-7, sc-7.5, si-10, si-10.1, si-11]
   - id: iso-iec-27001-metadata
     publisher: International Organization for Standardization

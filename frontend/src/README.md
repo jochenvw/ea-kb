@@ -3,7 +3,7 @@
 `app.tsx` leads with shared language and a source-to-scoped-standard consolidation journey.
 Workspace, Consolidate, Reference and Operations support architect tasks and generic inspection.
 Ingestion execution and monitoring are CLI-only; no browser scan control or dashboard is provided.
-`sources.tsx` groups benchmark editions, then drills into their documents and source-bound versions.
+`sources.tsx` inspects individual documents and their source-bound versions.
 `network.tsx` navigates evidence/relationship graphs; source evidence remains document-specific.
 `review.tsx` separates the active backlog from the read-only ledger in `reference.tsx`.
 `reference.tsx` also provides bounded, linked table previews and safe operational log tails.

@@ -25,13 +25,6 @@ from ekb.domain.models import (
     SourceRecord,
 )
 from ekb.domain.ontology import OntologyCatalog
-from ekb.domain.reconciliation import (
-    BenchmarkLineage,
-    ComparisonReport,
-    ControlContext,
-    EditionView,
-)
-from ekb.domain.sources import SourceGroup, source_groups
 from ekb.interfaces.api.governance import register as register_governance
 from ekb.interfaces.api.inspection import register as register_inspection
 from ekb.runtime import Runtime
@@ -99,11 +92,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         async with active(request).database() as uow:
             return await uow.sources.list()
 
-    @app.get("/api/source-groups", response_model=list[SourceGroup])
-    async def logical_sources(request: Request):
-        async with active(request).database() as uow:
-            return source_groups(await uow.sources.list())
-
     @app.get("/api/ui/config")
     async def ui_configuration(request: Request) -> dict[str, bool]:
         return {
@@ -111,41 +99,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 active(request).settings.governance_token.get_secret_value()
             ),
         }
-
-    @app.get("/api/benchmarks/compare", response_model=ComparisonReport)
-    async def compare_benchmarks(
-        request: Request,
-        from_edition: str = "mcsb-v1",
-        to_edition: str = "mcsb-v2",
-        control_id: str | None = None,
-    ):
-        try:
-            return await active(request).comparisons.compare(
-                from_edition, to_edition, control_id, read_only=True
-            )
-        except ValueError as error:
-            raise HTTPException(404, str(error)) from None
-
-    @app.get("/api/benchmarks/editions/{edition}", response_model=EditionView)
-    async def benchmark_edition(request: Request, edition: str):
-        try:
-            return await active(request).comparisons.edition(edition)
-        except ValueError as error:
-            raise HTTPException(404, str(error)) from None
-
-    @app.get("/api/benchmarks/controls/{reference}", response_model=ControlContext)
-    async def benchmark_control(request: Request, reference: str):
-        try:
-            return await active(request).comparisons.control(reference)
-        except ValueError as error:
-            raise HTTPException(404, str(error)) from None
-
-    @app.get("/api/benchmarks/controls/{reference}/lineage", response_model=BenchmarkLineage)
-    async def benchmark_lineage(request: Request, reference: str):
-        try:
-            return await active(request).comparisons.lineage(reference)
-        except ValueError as error:
-            raise HTTPException(404, str(error)) from None
 
     @app.get("/api/concepts", response_model=list[ConceptDetail])
     async def concepts(
@@ -178,7 +131,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     @app.get("/knowledge", response_class=HTMLResponse)
     @app.get("/sources", response_class=HTMLResponse)
-    @app.get("/benchmarks", response_class=HTMLResponse)
     @app.get("/explore", response_class=HTMLResponse)
     @app.get("/reconciliation", response_class=HTMLResponse)
     @app.get("/data", response_class=HTMLResponse)

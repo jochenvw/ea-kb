@@ -13,8 +13,6 @@
 - Orchestrated scans fail rather than report success for a task still owned by another worker.
 - Keep downloads, parsing and inference outside database transactions.
 - Sources report absence through the port contract; transport retries belong to their adapters.
-- `_execute_benchmark` consumes hash-validated normalized cache and persists typed records/candidates.
-  It bypasses generic parsing/inference; model configuration does not invalidate structured work.
 
 Preserve cancellation, unchanged-scan efficiency and historical evidence.
 Start with `tests\integration\test_pipeline.py` and `docs\architecture.md`.

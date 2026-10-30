@@ -317,20 +317,9 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         async def operation():
             labels = await asyncio.to_thread(load_dataset, dataset)
             async with Runtime() as runtime:
-                revisions = []
-                async with runtime.database() as uow:
-                    sources = {s.item.location: s for s in await uow.sources.list()}
-                    for reference in labels.sources:
-                        source = sources.get(reference.url)
-                        if source is None or source.revision_id is None:
-                            raise ValueError("Dataset source is not retained: " + reference.id)
-                        revision = await uow.sources.revision(source.revision_id)
-                        if revision is None or revision.content_hash != reference.sha256:
-                            raise ValueError("Retained original hash changed: " + reference.id)
-                        revisions.append((reference, revision))
                 checked = 0
-                for reference, revision in revisions:
-                    raw = await runtime.artifacts.get(revision.artifact_key)
+                for reference in labels.sources:
+                    raw = await runtime.artifacts.get(reference.sha256)
                     if content_hash(raw) != reference.sha256:
                         raise ValueError("Retained artifact hash changed: " + reference.id)
                     text = raw.decode("utf-8-sig").replace("\r\n", "\n")

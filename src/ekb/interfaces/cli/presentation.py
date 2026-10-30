@@ -8,7 +8,6 @@ import typer
 from sqlalchemy.engine import URL, make_url
 
 from ekb.config import Settings
-from ekb.domain.benchmarks import BenchmarkSyncReport
 from ekb.domain.execution import Execution
 from ekb.domain.models import ScanReport, SourceItem, WorkspaceCounts
 
@@ -33,9 +32,6 @@ def locations(settings: Settings, report: Path) -> dict[str, str]:
         "workspace": "http://127.0.0.1:8000",
         "issues": "http://127.0.0.1:8000/review",
         "artifacts": (settings.data_dir / "artifacts").resolve().as_uri(),
-        "benchmark_cache": (settings.data_dir / "test-corpus/public/microsoft_security_benchmark")
-        .resolve()
-        .as_uri(),
         "database": URL.create(
             "postgresql", host=url.host, port=url.port or 5432, database=url.database
         ).render_as_string(),
@@ -61,10 +57,7 @@ class ScanConsole:
 
             specifications = read_manifest(manifest)
             self.line(f"Sources YAML: {safe(str(manifest.resolve()))}")
-            self.line(
-                f"  {sum(s.enabled for s in specifications)} enabled definitions; "
-                "benchmark seeds expand into individual files."
-            )
+            self.line(f"  {sum(s.enabled for s in specifications)} enabled definitions.")
             for source in specifications:
                 status = (
                     "disabled"
@@ -97,8 +90,6 @@ class ScanConsole:
         if status in {
             "known",
             "unknown",
-            "cache_known",
-            "cache_new",
             "downloaded",
             "reused",
             "metadata_only",
@@ -126,12 +117,6 @@ class ScanConsole:
                 f"candidate results emitted={report.concepts}, failed={report.failed}."
             )
 
-    def synchronized(self, report: BenchmarkSyncReport) -> None:
-        self.line(
-            f"Benchmark acquisition: found={report.discovered}, downloaded={report.downloaded}, "
-            f"normalized-cache reused={report.skipped}, failed={report.failed}."
-        )
-
     def execution(self, execution: Execution) -> None:
         if execution.kind == "pipeline":
             self.run_id = execution.id
@@ -140,9 +125,7 @@ class ScanConsole:
             return
         if execution.status == "running":
             if execution.processor_id == "indexing":
-                self.line(
-                    "[1/3] Source acquisition (including configured benchmark synchronization)"
-                )
+                self.line("[1/3] Source acquisition")
             elif execution.processor_id == "enrichment":
                 self.line("\n[3/3] Reconcile knowledge, then identify persistent issues")
             elif execution.processor_id == "issues":

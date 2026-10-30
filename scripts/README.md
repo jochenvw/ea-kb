@@ -4,7 +4,7 @@
 
 - From the repository root: `uv run python scripts\download_test_corpus.py`.
 - Use `--dry-run` to inspect destinations and `--force` to refresh cached originals.
-- `--benchmark [--domains NS]` delegates to the resumable application benchmark sync; no inference.
+- Each configured URL is downloaded directly; linked pages are not crawled.
 - Files and SHA-256/retrieval/failure metadata stay under ignored `data\test-corpus\public`.
 
 Publisher refusals and invalid/empty responses are failures, not fabricated corpus documents.

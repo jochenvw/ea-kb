@@ -11,10 +11,17 @@ Knowledge search supports exact-source/level filters and exclusive UUID cursors 
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.
 Processing task inspection is bounded and uses exclusive UUID cursors in stable order.
 `InspectionRepository` provides bounded source, graph, backlog and allowlisted table queries.
-`ArtifactStore` separates immutable content-addressed originals from named corpus views/checkpoints.
-`SemanticVerifier` and `EmbeddingPort` are opt-in boundaries; `BenchmarkRepository` preserves
-source-bound comparisons and native identifier resolution without equating mapping with coverage.
+`ArtifactStore` preserves immutable content-addressed originals.
+`SemanticVerifier` and `EmbeddingPort` are opt-in boundaries for generic, evidence-bound comparisons.
+Verifier `method` identifiers are adapter-defined; `Verification.status` distinguishes completion,
+failure and context limits. Adapters must mark incomplete results; legacy `model_failed` and
+`context_limit` methods are recognized as incomplete. Successful `unknown` is not a failure.
+Embedding `usage_complete` is `True` only when all calls are metered (including no calls), `False`
+when incomplete, and `None` when unknown; it is independent of whether prices are available.
 `workflow.py` defines stage/check contracts and execution, resolution and issue repositories.
+Its workflow repository stores typed embedding and judgment replay entries, keyed by provider and
+exact ordered input. Implementations must reject invalid entries and permit their replacement.
+Failed cache lookups abort rather than silently making provider calls; hits do not repeat usage.
 Future stores must preserve these semantics through `tests\contract\test_resolution.py`.
 
 These contracts use domain values; do not import concrete adapters or provider/transport SDKs.

@@ -31,6 +31,8 @@ requirements or included in requirement-only semantic pairs.
 Requirement seeds without evidence of an ontology layer remain unclassified; they measure extraction,
 not per-class precision. Independent labeling skill evaluations measure ontology classification.
 Published NIST mappings are not semantic equivalence with Azure WAF guidance.
+Retrieval-relevance and hard-negative seed IDs are explicit dataset annotations, validated within
+each split; relevance to a query does not assert equivalence.
 
 Verify the actual retained originals, including their bytes and every quotation:
 
@@ -38,7 +40,10 @@ Verify the actual retained originals, including their bytes and every quotation:
 uv run ekb eval verify-corpus
 ```
 
-This requires the previously synchronized corpus/database. Missing or changed originals fail
+This requires retained content-addressed originals matching the dataset's exact hashes, including
+the recorded representation of each document; a newly downloaded HTML rendition may differ from
+an earlier Markdown rendition. The verifier checks bytes and quotations, not database state.
+Missing or changed originals fail
 explicitly; normal offline evaluations use the committed attributed excerpts without downloading.
 The v2 corpus verifier checks all retained original bytes and quotations before reporting coverage.
 Labels remain teacher-only; additional domains broaden coverage but do not constitute independent
@@ -57,7 +62,7 @@ Playwright against local synthetic API fixtures. It requires the Node toolchain,
 or skipped cases fail the combined result. `frontend.txt` records the frontend checks.
 
 It then runs all unit, contract and PostgreSQL/interface integration tests, followed by extraction,
-semantic-pair, retrieval and existing actual-source parser/mapping/lineage evaluations.
+semantic-pair and retrieval evaluations.
 `suite.json`, pytest output/JUnit and detailed predictions are retained under the output directory.
 Failure of either code tests or evaluation makes the command fail. Full runs reject skipped tests;
 missing integration dependencies are not successful coverage.
@@ -348,6 +353,18 @@ Select/configure models before using the live examples. Expected labels are not 
 student/verifier requests; structural short-circuits depend on input evidence, never expected
 answers. Retrieval measures generated queries against held-out original-quotation candidates.
 Embedding neighbors are retrieval proposals; they do not establish equivalence or authority.
+Verifier validity requires exact evidence and a completed `Verification.status`; adapter-defined
+method names do not determine success. Failed or context-limited results fail the safety gate.
+
+Extraction, semantic pairs, retrieval queries and the single deduplicated embedding batch (when
+configured) run through Pydantic Evals with domain evaluators. Batches are sequential
+(`max_concurrency=1`); the framework adds no retries or duplicate inference. A failed framework
+task/evaluator aborts qualification. Existing aggregate scoring and gates remain authoritative,
+including cross-case duplicate metrics. Extraction documents, semantic judgments and retrieval
+queries retain their existing fields and add per-case `scores` and `assertions`; runner identity
+and version are recorded.
+Pydantic Evals receives opaque case IDs and scalar outcomes, not source text, expected labels,
+model responses or vectors. The output artifacts still contain evidence and require protection.
 
 `evals\gates.json` versions provisional requirements:
 
@@ -358,7 +375,7 @@ Embedding neighbors are retrieval proposals; they do not establish equivalence o
 | Semantic-pair accuracy | >= .85 |
 | Retrieval Recall@3 / MRR | >= .90 / .75 |
 | False mandates / false equivalence / provider errors | 0 |
-| Exact grounding, parser/mapping/lineage safety | pass |
+| Exact grounding, parser and lineage safety | pass |
 | Extraction/comparison p95 and total embedding batch latency | <= 15 seconds each |
 | Total reported tokens / estimated run cost | <= 100,000 / 1 currency unit |
 
@@ -370,6 +387,11 @@ hash, prompt, student, verifier/embedding fingerprints, thresholds, usage and ca
 Only passing **live test-split** reports set `student_meets_provisional_gates=true`.
 Missing/zero token accounting for model calls also prevents cost qualification; reported token
 totals are not treated as complete merely because the provider omitted its usage object.
+Retrieval reports retain the embedding provider's `cost` and tri-state `usage_complete`. Unknown
+or incomplete accounting cannot pass the metering or priced-cost gates, even when a token price
+is configured. With complete, consistent usage, provider cost takes precedence; otherwise an
+explicit token price can price the reported tokens. Confirmed zero calls and tokens cost zero;
+an unknown price remains null.
 
 Use validation for model/prompt selection and threshold calibration; reserve test for final
 comparison. Do not select a model by repeatedly tuning against held-out test results. Version

@@ -4,10 +4,8 @@ from uuid import UUID
 
 from pydantic import JsonValue
 
-from ekb.domain.benchmarks import BenchmarkPassage
-from ekb.domain.models import ConceptVersion, KnowledgeLevel, Model, SourceRecord
+from ekb.domain.models import ConceptVersion, KnowledgeLevel, Model, Occurrence, SourceRecord
 from ekb.domain.resolution import Decision, Finding
-from ekb.domain.sources import SourceGroup
 
 
 class SourceExtraction(Model):
@@ -19,7 +17,6 @@ class SourceExtraction(Model):
 
 class SourceInspection(Model):
     source: SourceRecord
-    group: SourceGroup | None = None
     revisions: int
     segments: int
     versions: int
@@ -42,7 +39,7 @@ class GraphEdge(Model):
     kind: str
     status: str
     href: str
-    evidence: BenchmarkPassage | None = None
+    evidence: Occurrence | None = None
     note: str | None = None
 
 

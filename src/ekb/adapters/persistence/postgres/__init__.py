@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from ekb.adapters.persistence.postgres.benchmarks import Benchmarks
 from ekb.adapters.persistence.postgres.inspection import Inspection
 from ekb.adapters.persistence.postgres.issues import Issues
 from ekb.adapters.persistence.postgres.models import (
@@ -40,7 +39,6 @@ from ekb.adapters.persistence.postgres.models import (
     VersionRow,
     WorkflowLeaseRow,
 )
-from ekb.adapters.persistence.postgres.source_groups import source_ids
 from ekb.adapters.persistence.postgres.workflow import ResolutionStore, Workflow
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
@@ -316,12 +314,11 @@ class Knowledge:
                 )
             )
         if source_id is not None:
-            members = await source_ids(self.session, source_id)
             own = (
                 select(OccurrenceRow.concept_version_id)
                 .join(SegmentRow, OccurrenceRow.segment_id == SegmentRow.id)
                 .join(RevisionRow, SegmentRow.revision_id == RevisionRow.id)
-                .where(RevisionRow.source_id.in_(members))
+                .where(RevisionRow.source_id == source_id)
             )
             matches = matches.where(VersionRow.id.in_(own))
         matched = matches.subquery()
@@ -850,7 +847,6 @@ class PostgresUnitOfWork:
         self.knowledge = Knowledge(self.session)
         self.lineage = Lineage(self.session)
         self.processing = Processing(self.session)
-        self.benchmarks = Benchmarks(self.session)
         self.workflow = Workflow(self.session)
         self.resolution = ResolutionStore(self.session)
         self.issues = Issues(self.session)
@@ -887,25 +883,34 @@ class Postgres:
     async def reset(self, *, recreate: bool = False) -> AsyncIterator[None]:
         """Clear only EKB tables, keeping migrations and unrelated application tables."""
         async with self.engine.begin() as connection:
+            schema = await connection.scalar(text("SELECT current_schema()"))
+            if not schema:
+                raise ValueError("Cannot determine the EKB schema for reset")
             preparer = connection.dialect.identifier_preparer
-            obsolete_tables = []
+            await connection.execute(
+                text(f"SET LOCAL search_path TO {preparer.quote_schema(schema)}")
+            )
             if recreate:
                 await connection.run_sync(Base.metadata.create_all)
-                schema = await connection.scalar(text("SELECT current_schema()"))
-                if not schema:
-                    raise ValueError("Cannot determine the EKB schema for recreation")
-                for name in ("concept_aliases",):
-                    exists = await connection.scalar(
-                        text(
-                            "SELECT to_regclass(format('%I.%I', "
-                            "CAST(:schema AS text), CAST(:name AS text))) IS NOT NULL"
-                        ),
-                        {"schema": schema, "name": name},
+            obsolete_tables = []
+            for name in (
+                "concept_aliases",
+                "benchmark_documents",
+                "benchmark_comparisons",
+                "benchmark_embeddings",
+                "benchmark_match_cache",
+            ):
+                exists = await connection.scalar(
+                    text(
+                        "SELECT to_regclass(format('%I.%I', "
+                        "CAST(:schema AS text), CAST(:name AS text))) IS NOT NULL"
+                    ),
+                    {"schema": schema, "name": name},
+                )
+                if exists:
+                    obsolete_tables.append(
+                        f"{preparer.quote_schema(schema)}.{preparer.quote(name)}"
                     )
-                    if exists:
-                        obsolete_tables.append(
-                            f"{preparer.quote_schema(schema)}.{preparer.quote(name)}"
-                        )
             names = ", ".join(
                 [preparer.quote(table.name) for table in Base.metadata.sorted_tables]
                 + obsolete_tables
@@ -924,9 +929,9 @@ class Postgres:
             )
             if active_lease or active_scan or active_task:
                 raise ValueError("Workspace has an active scan or lease; stop it before --fresh")
+            for name in obsolete_tables:
+                await connection.execute(text(f"DROP TABLE {name}"))
             if recreate:
-                for name in obsolete_tables:
-                    await connection.execute(text(f"DROP TABLE {name}"))
                 await connection.run_sync(Base.metadata.drop_all)
                 await connection.run_sync(Base.metadata.create_all)
             else:

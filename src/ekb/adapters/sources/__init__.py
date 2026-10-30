@@ -191,11 +191,7 @@ def connector_plugins() -> dict[str, Any]:
 
 def manifest_connector(path: Path, max_bytes: int) -> HTTPConnector:
     return HTTPConnector(
-        [
-            source
-            for source in read_manifest(path)
-            if source.retrieval != "microsoft-security-benchmark"
-        ],
+        read_manifest(path),
         max_bytes,
         name=f"http:{stable_id(str(path.resolve()))}",
     )

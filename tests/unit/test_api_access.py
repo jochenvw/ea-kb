@@ -44,7 +44,6 @@ async def test_workspace_routes_serve_the_prebuilt_shell_without_templates():
             "/",
             "/knowledge",
             "/sources",
-            "/benchmarks",
             "/explore",
             "/reconciliation",
             "/data",
@@ -60,12 +59,15 @@ async def test_workspace_routes_serve_the_prebuilt_shell_without_templates():
         assert (await client.get("/review?finding_id=invalid")).status_code == 422
 
 
-async def test_ingestion_routes_and_monitoring_schemas_are_absent():
+async def test_ingestion_and_legacy_benchmark_routes_and_monitoring_schemas_are_absent():
     app = create_app()
     transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 41000))
     async with httpx.AsyncClient(transport=transport, base_url="http://ekb.test") as client:
         for path in (
             "/pipeline",
+            "/benchmarks",
+            "/api/benchmarks/compare",
+            "/api/source-groups",
             "/api/scans",
             "/api/tasks",
             "/api/statistics",
@@ -75,6 +77,7 @@ async def test_ingestion_routes_and_monitoring_schemas_are_absent():
         assert (await client.post("/scans")).status_code == 404
         schema = (await client.get("/openapi.json")).json()
         assert "/scans" not in schema["paths"]
+        assert "/api/benchmarks/compare" not in schema["paths"]
         assert not {"ScanReport", "ProcessingTask", "Statistics"} & set(
             schema["components"]["schemas"]
         )

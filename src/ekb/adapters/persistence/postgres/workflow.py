@@ -3,21 +3,22 @@ from __future__ import annotations
 from datetime import date, timedelta
 from uuid import UUID
 
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ekb.adapters.persistence.postgres.models import (
     AuthorityRow,
-    BenchmarkDocumentRow,
     ConceptRow,
     DecisionRow,
     ExecutionRow,
     FindingRow,
     OccurrenceRow,
+    PublicationRow,
     RelationshipRow,
-    RevisionRow,
     SegmentRow,
+    SemanticCacheRow,
     SourceRow,
     VersionRow,
     WorkflowLeaseRow,
@@ -33,6 +34,7 @@ from ekb.domain.models import (
     now,
     stable_id,
 )
+from ekb.domain.reconciliation import SemanticCacheEntry
 from ekb.domain.resolution import (
     Decision,
     Deviation,
@@ -43,6 +45,8 @@ from ekb.domain.resolution import (
     resolve_alias,
     version_evidence,
 )
+
+semantic_cache_adapter = TypeAdapter(SemanticCacheEntry)
 
 
 async def governance_lock(session: AsyncSession) -> None:
@@ -102,6 +106,37 @@ class Workflow:
         )
         return Execution.model_validate(row.payload) if row else None
 
+    async def semantic_cache(self, keys: list[str]) -> dict[str, SemanticCacheEntry]:
+        if not keys:
+            return {}
+        rows = await self.session.scalars(
+            select(SemanticCacheRow).where(SemanticCacheRow.id.in_(keys))
+        )
+        entries: dict[str, SemanticCacheEntry] = {}
+        for row in rows:
+            try:
+                entry = semantic_cache_adapter.validate_python(row.payload)
+            except ValidationError:
+                continue
+            if entry.kind == row.kind:
+                entries[row.id] = entry
+        return entries
+
+    async def save_semantic_cache(self, entries: dict[str, SemanticCacheEntry]) -> None:
+        if not entries:
+            return
+        values = []
+        for key, entry in entries.items():
+            valid = semantic_cache_adapter.validate_python(entry.model_dump())
+            values.append({"id": key, "kind": valid.kind, "payload": valid.model_dump(mode="json")})
+        statement = insert(SemanticCacheRow).values(values)
+        await self.session.execute(
+            statement.on_conflict_do_update(
+                index_elements=["id"],
+                set_={"kind": statement.excluded.kind, "payload": statement.excluded.payload},
+            )
+        )
+
     async def lease(self, name: str, owner: UUID, seconds: int = 120) -> bool:
         current = now()
         statement = insert(WorkflowLeaseRow).values(
@@ -158,22 +193,35 @@ class ResolutionStore:
         current_versions = frozenset(
             o.concept_version_id for o in occurrences if o.segment_id in current_segments
         )
-        benchmarks = [
-            r
-            for r in await self._bounded(BenchmarkDocumentRow)
-            if str(r.revision_id) in current_revisions
-        ]
-        edition_status = {}
-        for row in sorted(benchmarks, key=lambda r: (r.recorded_at, str(r.id))):
-            if row.role == "overview":
-                edition_status[row.edition] = row.payload["document"]["publication"][
-                    "publication_status"
-                ]
+        latest_assessments: dict[UUID, PublicationRow] = {}
+        for row in await self._bounded(PublicationRow):
+            previous = latest_assessments.get(row.revision_id)
+            # Match the source repository's timestamp and ID ordering.
+            if (
+                previous is None
+                or row.recorded_at > previous.recorded_at
+                or (row.recorded_at == previous.recorded_at and row.id < previous.id)
+            ):
+                latest_assessments[row.revision_id] = row
+        publication_status = {
+            revision_id: row.payload["publication_status"]
+            for revision_id, row in latest_assessments.items()
+        }
         preview_segments = {
-            r.segment_id
-            for r in benchmarks
-            if edition_status.get(r.edition)
-            in {"preview", "draft", "alpha", "beta", "release_candidate"}
+            row.id
+            for row in segments
+            if str(row.revision_id) in current_revisions
+            and publication_status.get(row.revision_id)
+            in {
+                "draft",
+                "working_draft",
+                "proposed",
+                "consultation",
+                "preview",
+                "alpha",
+                "beta",
+                "release_candidate",
+            }
         }
         concepts = []
         for cid in sorted({v.concept_id for v in versions}, key=str):
@@ -207,10 +255,14 @@ class ResolutionStore:
                     (
                         str(r.id),
                         r.payload.get("revision_id"),
-                        r.payload["item"].get("metadata", {}).get("framework_namespace"),
-                        r.payload["item"].get("metadata", {}).get("framework_revision"),
+                        r.payload.get("status"),
                     )
                     for r in sources
+                ),
+                publication=sorted(
+                    (str(revision), status)
+                    for revision, status in publication_status.items()
+                    if str(revision) in current_revisions
                 ),
                 versions=sorted(str(v.id) for v in versions),
                 occurrences=sorted(str(o.id) for o in occurrences),
@@ -249,20 +301,7 @@ class ResolutionStore:
             )
             if version is None or version.concept_id not in finding.concept_ids:
                 raise ValueError("Finding evidence must belong to an affected concept")
-        for passage in finding.passages:
-            rows = await self.session.scalars(
-                select(SegmentRow)
-                .join(RevisionRow)
-                .where(
-                    RevisionRow.source_id == passage.source_id,
-                    RevisionRow.content_hash == passage.content_hash,
-                )
-            )
-            if not any(
-                r.payload["text"][passage.start : passage.end] == passage.excerpt for r in rows
-            ):
-                raise ValueError("Published relationship evidence must match a stored segment")
-        if not finding.occurrence_ids and not finding.passages:
+        if not finding.occurrence_ids:
             raise ValueError("Finding requires source evidence")
         await self.session.execute(
             insert(FindingRow)

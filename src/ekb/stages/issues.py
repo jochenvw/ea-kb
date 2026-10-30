@@ -59,7 +59,6 @@ def issue(
         evidence_revision=fingerprint(
             concepts=identities,
             occurrences=refs,
-            passages=[p.model_dump() for f in findings for p in f.passages],
             condition=explanation,
         ),
         explanation=explanation,
@@ -269,21 +268,7 @@ async def provenance_gaps(context: CheckContext) -> CheckResult:
                 )
             )
     for f in unresolved(context):
-        if f.relationship and f.relationship.value == "mapsTo" and f.uncertainty:
-            results.append(
-                issue(
-                    context,
-                    "provenance_gaps",
-                    "unresolved_published_mapping",
-                    f.concept_ids,
-                    f.explanation + " Native target is not established.",
-                    findings=(f,),
-                    severity="low",
-                    confidence=1.0,
-                    scope=f.scope,
-                )
-            )
-        elif not f.occurrence_ids and not f.passages:
+        if not f.occurrence_ids:
             results.append(
                 issue(
                     context,

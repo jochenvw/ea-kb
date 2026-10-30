@@ -36,9 +36,9 @@ Use `uv run ekb --help` for other commands.
 
 For the full configured corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.
 It prints file progress, stage/check outcomes and a retained JSON report. Add `--fresh` for a
-confirmed reset of EKB tables and owned local caches; source inputs are preserved. See
-[operations](docs/usage.md).
-Ingestion runs and monitoring are CLI-owned; browser and TUI are for knowledge and governance.
+confirmed reset of EKB-owned database state; filesystem/Azure originals and source inputs are
+preserved. Ingestion and its monitoring are CLI-owned; the browser and TUI support knowledge
+inspection and governance. See [operations](docs/usage.md).
 
 ## Documentation
 

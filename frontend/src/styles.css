@@ -999,7 +999,7 @@ blockquote {
   margin: 12px 0;
 }
 .record-block a,
-.mapping-evidence a,
+.graph-evidence a,
 .external-link {
   color: var(--cp-link);
   display: inline-flex;
@@ -1106,61 +1106,15 @@ blockquote {
   height: 16px;
   accent-color: var(--cp-accent);
 }
-.benchmark-form {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.benchmark-form label {
-  font-size: 12px;
-}
-.benchmark-form input {
-  max-width: 320px;
-}
-.mapping-evidence {
+.graph-evidence {
   margin-top: 8px;
   font-size: 11px;
 }
-.mapping-evidence summary {
+.graph-evidence summary {
   color: var(--cp-text-muted);
 }
-.mapping-evidence blockquote {
+.graph-evidence blockquote {
   min-width: 220px;
-}
-.preserve-lines {
-  white-space: pre-wrap;
-  font-size: 13px;
-  line-height: 1.9;
-}
-.comparison-list {
-  display: grid;
-  margin-top: 20px;
-}
-.comparison {
-  border-top: 1px solid var(--cp-border);
-  padding: 16px 0;
-  font-size: 12px;
-}
-.comparison summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-.comparison summary::before {
-  content: "+";
-  color: var(--cp-text-muted);
-  font-size: 16px;
-}
-.comparison[open] summary::before {
-  content: "-";
-}
-.comparison summary > span:first-child {
-  flex: 1;
-}
-.comparison p {
-  margin-top: 12px;
 }
 .workspace-footer {
   display: flex;
@@ -1330,22 +1284,6 @@ blockquote {
   }
   .attention-item > .status {
     display: none;
-  }
-  .benchmark-form {
-    align-items: stretch;
-  }
-  .benchmark-form label {
-    flex-basis: 100%;
-  }
-  .benchmark-form input {
-    max-width: none;
-  }
-  .comparison summary {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .comparison summary > span:first-child {
-    min-width: 180px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

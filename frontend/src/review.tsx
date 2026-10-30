@@ -36,7 +36,7 @@ import {
   CursorPager,
 } from "@/components/workspace";
 import { RelatedConcept } from "@/knowledge";
-import { date, externalUrl, label, useResource } from "@/lib/api";
+import { date, label, useResource } from "@/lib/api";
 import type { BacklogPage, Decision, Finding, Issue } from "@/types";
 
 export function Review({ governance }: { governance: boolean }) {
@@ -567,35 +567,9 @@ function FindingDetails({
             <h3>Proposed applicability</h3>
             <ScopeInfo scope={finding.scope} />
             <ConceptReferences ids={finding.concept_ids} />
-            <h3>Published passages</h3>
-            {finding.passages.length ? (
-              finding.passages.map((passage, index) => (
-                <article className="evidence" key={index}>
-                  <h4>{passage.section}</h4>
-                  <blockquote>{passage.excerpt}</blockquote>
-                  <p className="table-note">
-                    Exact offsets {passage.start}–{passage.end}
-                  </p>
-                  {externalUrl(passage.source_url) && (
-                    <a
-                      className="external-link"
-                      href={externalUrl(passage.source_url)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Publisher location
-                      <ArrowUpRight size={14} />
-                    </a>
-                  )}
-                  <Technical value={passage} title="Passage provenance" />
-                </article>
-              ))
-            ) : (
-              <p className="muted">
-                No separate published passages. Inspect the linked concepts for
-                occurrence evidence.
-              </p>
-            )}
+            <p className="muted">
+              Inspect the linked concepts for exact occurrence evidence.
+            </p>
             <h3>Latest decision</h3>
             <LoadState resource={history}>
               {head ? (

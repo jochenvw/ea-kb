@@ -3,16 +3,14 @@
 ## Connectors
 
 Package entry points in group `ekb.connectors` map provider names to connector factories.
-The shipped `filesystem`, `http`, `oscal` and `microsoft-security-benchmark` entries are tested.
+The shipped `filesystem`, `http` and `oscal` entries are tested.
 `load_plugin(name, configuration)` constructs the selected factory through explicit injection.
 The composition root uses built-in connectors directly; adding an entry point alone does not
 automatically grant network access or enable a source.
 
-The benchmark factory takes an `ArtifactStore`, a bounded concurrency and optional injected HTTP
-client. `sync()` is the explicit network boundary; normal discovery/fetch only reads validated cache.
-It prefers official Learn Markdown, accepts validated HTML, discovers actual workbook paths from the
-linked public repository index and resolves published policy IDs to official JSON links. Focused sync
-does not prune other editions. Publication/mapping records do not become semantic types or approvals.
+Each manifest URL names an actual source; linked pages are not automatically discovered. Publisher
+names, document versions and access conditions stay in source metadata. A manifest can explicitly
+include individual guidance pages without adding a publisher-specific connector.
 
 A connector implements `name`, `discover()` and `fetch(item, previous)`. Discovery yields a
 stable ID, location, format, inexpensive revision indicator and metadata. Fetch receives the last
@@ -75,8 +73,9 @@ Extraction replay includes routing content and configuration and retains the lab
 Adapters must not turn a cache hit into another model call or bill cached usage again.
 
 Extraction also proposes directly evidenced local relationships. Enrichment independently runs
-bounded deterministic checks; optional `SemanticVerifier` / `EmbeddingPort` implementations reuse
-the benchmark service's provider/input-keyed caches. Registration never enables a paid provider.
+bounded deterministic checks; optional `SemanticVerifier` / `EmbeddingPort` implementations compare
+generic evidenced assertions. Completed check executions are replayed; changing a check/provider
+fingerprint reruns its work and can incur new calls. Registration never enables a paid provider.
 
 ## Pipeline stages and checks
 
@@ -106,9 +105,7 @@ repositories. Processing task inspection returns bounded pages in UUID order wit
 A future Neo4j implementation must pass the same contract tests and preserve
 transaction/checkpoint/evidence semantics; the relational design does not require Neo4j.
 
-`ArtifactStore` uses SHA-256 keys, idempotent writes and verified reads. Separate `put_named` /
-`get_named` operations maintain atomic corpus views and checkpoints; consumers validate content hashes.
-Named keys are safe relative object paths, never absolute filesystem paths. The Azure adapter uses
+`ArtifactStore` uses SHA-256 keys, idempotent writes and verified reads. The Azure adapter uses
 asynchronous clients and `DefaultAzureCredential`; provision the private container beforehand and
 grant the identity only needed blob permissions. No Azure resource provisioning happens on scan.
 

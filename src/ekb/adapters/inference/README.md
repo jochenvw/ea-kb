@@ -20,6 +20,10 @@ Canonical OWL definitions are appended by task; definition/schema changes invali
   limiter reserves each transport attempt for the actual deployment; use a dedicated evaluation instance.
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
+- Embedding and verification costs remain unknown if prices or request usage are unavailable,
+  including unmetered retries; cached results never repeat their original usage.
+- Embedding usage is complete only if every request has positive metering, independently of pricing;
+  an empty request has complete zero usage, while unmetered retries make usage incomplete.
 - Neither an embedding match nor a model answer merges concepts or promotes authority.
 - Assertion rewrites retain modality, numeric qualifiers and negation; unsupported phrasing stays unresolved.
 - Chat payloads support explicit completion-token fields and omitted temperature; config affects

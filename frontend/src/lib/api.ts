@@ -1,17 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SemanticVersion, SourceGroup, Version } from "@/types";
-
-export function sourceMembers(
-  groups: SourceGroup[] | null,
-  sourceId: string | null,
-): string[] {
-  if (!sourceId) return [];
-  return (
-    groups
-      ?.find((group) => group.id === sourceId)
-      ?.documents.map((doc) => doc.item.id) ?? [sourceId]
-  );
-}
+import type { SemanticVersion, Version } from "@/types";
 
 export function assertionMatches(
   version: Version | undefined,
