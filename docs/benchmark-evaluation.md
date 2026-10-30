@@ -39,7 +39,7 @@ unverified. `--configured` explicitly opts into the configured small model and p
 
 ## Actual-corpus acceptance
 
-All five `goal2.md` commands completed successfully against the retained corpus. The repeat sync
+All five phase-two acceptance commands completed successfully against the retained corpus. The repeat sync
 skipped 221 unchanged assets; ingestion skipped 222 cached records, with no failures or model calls.
 ASB v2 / MCSB v1 / MCSB v2 contain 70 / 86 / 81 controls respectively.
 

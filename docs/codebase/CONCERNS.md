@@ -65,7 +65,7 @@ targets and future phase-two choices are not inferred.
 
 ## 7) Evidence
 
-- `goal.md`, `goal2.md`, `README.md`, `docs\architecture.md`.
+- `ontology\README.md`, `README.md`, `docs\architecture.md`.
 - `src\ekb\pipeline\__init__.py`, `src\ekb\domain\models.py`.
 - `src\ekb\adapters\persistence\postgres\__init__.py`,
   `src\ekb\adapters\persistence\postgres\models.py`.

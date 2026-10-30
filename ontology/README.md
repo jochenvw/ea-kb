@@ -1,14 +1,55 @@
-# Application ontology
+# Enterprise Knowledge Base — formal ontology v0.1.0-draft.1
 
-Store the application-wide formal ontology here as version-controlled OWL/RDF source files.
-Keep this separate from `sources` (ingestion manifests) and `data` (ignored runtime artifacts).
+A deliberately small OWL 2 / RDF vocabulary, serialized in Turtle.
 
-- Preserve supplied ontology files, namespaces, ontology identifiers, versions and attribution.
-- Retain the supplied serialization, such as Turtle (`.ttl`) or RDF/XML (`.owl`, `.rdf`).
-- Keep required local imports alongside the ontology and preserve their relative paths.
-- Do not place credentials, downloaded corpus documents or generated runtime data here.
+Stored here as supplied; application loading, validation and reasoning are not yet integrated.
+Run the optional commands below from the repository root.
 
-This folder currently reserves the storage location; no ontology has been supplied or wired into
-the application. Adding files does not enable loading, validation, reasoning or ingestion.
-Runtime integration belongs in the existing domain/port/adapter boundaries; see
-[`docs/architecture.md`](../docs/architecture.md).
+## Files
+
+- `ontology/ekb.ttl` — normative vocabulary: **six classes** across four layers, **seven semantic relationships** and two classification properties.
+- `ontology/ekb.shacl.ttl` — minimal validation of instance data.
+- `examples/security-chain.ttl` — synthetic example illustrating a four-layer lineage chain; **not an assertion about any real company's policy**.
+
+## Layers
+
+1. **Company:** `StrategicGoal`, `StrategicRequirement`.
+2. **Conceptual:** `ArchitectureDomain`, `ConceptualRequirement`.
+3. **Logical:** `TechnicalRequirement`.
+4. **Platform:** `PlatformRequirement`.
+
+## Seven semantic relationships
+
+`refines`, `supports`, `constrains`, `mapsTo`, `dependsOn`, `tensionWith`, `conflictsWith`.
+
+`refines` always points from a **specific** requirement to a **broader** one. `mapsTo` never implies that the items are identical or that compliance is achieved. Tension and conflict are distinct claims, and are symmetric.
+
+`inDomain` and `platformName` are classification metadata, not additional business-semantic relationship types.
+
+## Intentionally separate from this ontology
+
+- Source documents and passage-level evidence
+- Authority, publication maturity and governance approval
+- Canonical identities, duplicate aliases, SemVer and supersession
+- Reconciliation decisions and issue-management workflow
+- Technical system facts and implementation verification
+
+These are still mandatory parts of the wider knowledge system, but should be tracked in its provenance/governance schemas rather than conflated with the minimal **enterprise semantic ontology**.
+
+Instances of platform-specific guidance are **not** automatically mandated enterprise policy. Scope and adoption are independent.
+
+OWL uses open-world semantics. SHACL validates instances; OWL alone does not guarantee that an extracted claim is complete, applicable, or approved.
+
+The `https://example.org/ekb/ontology#` namespace is a placeholder. Replace it with a stable organization-controlled IRI before publishing production data.
+
+## Parse/validate Turtle
+
+```powershell
+uv run --with rdflib python -c 'from pathlib import Path; from rdflib import Graph; [print(p, len(Graph().parse(p, format="turtle")), "triples") for p in Path("ontology").rglob("*.ttl")]'
+```
+
+SHACL validation with pySHACL (optional):
+
+```powershell
+uv run --with pyshacl pyshacl -s ontology\ontology\ekb.shacl.ttl -e ontology\ontology\ekb.ttl ontology\examples\security-chain.ttl
+```

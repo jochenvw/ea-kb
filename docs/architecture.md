@@ -7,8 +7,8 @@ in source manifests and scope metadata, not organization-specific domain logic.
 
 ## Scope and design drivers
 
-This describes implemented ingestion, benchmarks and governed reconciliation, not every capability
-requested in `goal.md` or `goal2.md`. The system extracts objective and requirement candidates while retaining
+This describes implemented ingestion, benchmarks and governed reconciliation, not every planned
+capability. The system extracts objective and requirement candidates while retaining
 the evidence needed to inspect each interpretation. Documents, interpretations and enterprise
 approval are separate concerns.
 

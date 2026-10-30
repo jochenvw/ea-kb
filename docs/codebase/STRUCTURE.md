@@ -14,7 +14,8 @@
 | `docs` | Architecture, plugin contracts, decisions and codebase reference | `docs\architecture.md`, `docs\plugins.md` |
 | `data` | Ignored artifacts, telemetry, evaluation and corpus | `.gitignore`, `Settings.data_dir` |
 | Root configuration | Packaging, lockfile, containers and tools | `pyproject.toml`, `uv.lock`, `Dockerfile`, `compose.yaml` |
-| Root intent/instructions | Original goal, phase-two requirements and coding rules | `goal.md`, `goal2.md`, `AGENTS.md` |
+| `ontology` | Formal OWL/RDF vocabulary, SHACL shapes and synthetic example | `ontology\README.md` |
+| Root instructions | Contributor coding rules | `AGENTS.md` |
 
 No separate frontend package, monorepo workspace or committed CI configuration exists.
 

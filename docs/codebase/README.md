@@ -8,4 +8,4 @@
 - `CONCERNS.md`: implementation limits, scaling risks and planned-versus-implemented differences.
 
 The canonical detailed design is `docs\architecture.md`. Keep evidence references current;
-describe unknowns honestly rather than treating `goal2.md` requirements as implemented features.
+describe unknowns honestly rather than treating planned requirements as implemented features.

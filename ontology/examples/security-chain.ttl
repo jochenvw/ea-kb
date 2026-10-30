@@ -1,0 +1,33 @@
+@prefix ekb: <https://example.org/ekb/ontology#> .
+@prefix ex: <https://example.org/ekb/examples#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Fictional enterprise policy illustration — NOT a statement of Shell policy
+# or a claim that NIST mandates Azure Front Door.
+
+ex:Trust a ekb:StrategicGoal ;
+    rdfs:label "Maintain customer and stakeholder trust"@en .
+
+ex:EnterpriseCybersecurity a ekb:StrategicRequirement ;
+    rdfs:label "Maintain appropriate enterprise cybersecurity protection"@en ;
+    ekb:constrains ex:Trust .
+
+ex:NetworkSecurity a ekb:ArchitectureDomain ;
+    rdfs:label "Network security"@en .
+
+ex:ProtectPublicApplications a ekb:ConceptualRequirement ;
+    rdfs:label "Protect publicly accessible applications from unauthorized or malicious traffic"@en ;
+    ekb:inDomain ex:NetworkSecurity ;
+    ekb:refines ex:EnterpriseCybersecurity ;
+    ekb:supports ex:Trust .
+
+ex:WafProtection a ekb:TechnicalRequirement ;
+    rdfs:label "Use appropriate application-layer request filtering for public web applications"@en ;
+    ekb:inDomain ex:NetworkSecurity ;
+    ekb:refines ex:ProtectPublicApplications .
+
+ex:AzureWafGuideline a ekb:PlatformRequirement ;
+    rdfs:label "For Azure, use an enterprise-approved WAF implementation"@en ;
+    ekb:platformName "Azure" ;
+    ekb:inDomain ex:NetworkSecurity ;
+    ekb:refines ex:WafProtection .

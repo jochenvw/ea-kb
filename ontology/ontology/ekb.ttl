@@ -1,0 +1,90 @@
+@prefix ekb: <https://example.org/ekb/ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.org/ekb/ontology> a owl:Ontology ;
+    rdfs:label "Enterprise Knowledge Base — minimal enterprise architecture ontology"@en ;
+    rdfs:comment "Six semantic classes across four architecture layers. Source evidence, governance authority, versions and reconciliation are managed by the knowledge system, not forced into this business ontology."@en ;
+    owl:versionInfo "0.1.0-draft.1" .
+
+# Layer 1 — company
+
+ekb:StrategicGoal a owl:Class ;
+    rdfs:label "Strategic goal"@en ;
+    rdfs:comment "An outcome the enterprise deliberately seeks to achieve."@en .
+
+ekb:StrategicRequirement a owl:Class ;
+    rdfs:label "Strategic requirement"@en ;
+    rdfs:comment "A fundamental enterprise-level obligation or guardrail, whether externally imposed or internally adopted."@en .
+
+# Layer 2 — conceptual (platform-independent)
+
+ekb:ArchitectureDomain a owl:Class ;
+    rdfs:label "Architecture domain"@en ;
+    rdfs:comment "An area of architectural concern used for classification, such as network security or identity. A domain is not itself a requirement."@en .
+
+ekb:ConceptualRequirement a owl:Class ;
+    rdfs:label "Conceptual requirement"@en ;
+    rdfs:comment "A technology-independent desired condition or constraint describing what must or should be true."@en .
+
+# Layer 3 — logical (platform-independent, more precise)
+
+ekb:TechnicalRequirement a owl:Class ;
+    rdfs:label "Technical requirement"@en ;
+    rdfs:comment "A concrete, vendor-neutral technical condition or practice, such as encryption in transit or network micro-segmentation."@en .
+
+# Layer 4 — platform-specific, not necessarily solution-specific
+
+ekb:PlatformRequirement a owl:Class ;
+    rdfs:label "Platform requirement"@en ;
+    rdfs:comment "A technical condition or implementation recommendation scoped to a named platform, such as Azure or AWS, without implying adoption by an enterprise."@en .
+
+# Directed business-semantic relationships: subject → object.
+
+ekb:refines a owl:ObjectProperty ;
+    rdfs:label "refines"@en ;
+    rdfs:comment "The subject is a more specific interpretation or requirement than the object. Direction: specific → broader."@en .
+
+ekb:supports a owl:ObjectProperty ;
+    rdfs:label "supports"@en ;
+    rdfs:comment "The subject contributes toward the objective or outcome represented by the object; it does not guarantee its achievement."@en .
+
+ekb:constrains a owl:ObjectProperty ;
+    rdfs:label "constrains"@en ;
+    rdfs:comment "The subject places an obligation, limitation or boundary on the object."@en .
+
+ekb:mapsTo a owl:ObjectProperty ;
+    rdfs:label "maps to"@en ;
+    rdfs:comment "The subject has a documented or proposed correspondence to the object. This does not imply equivalence, derivation or full compliance."@en .
+
+ekb:dependsOn a owl:ObjectProperty ;
+    rdfs:label "depends on"@en ;
+    rdfs:comment "Satisfaction or realization of the subject depends on the object."@en .
+
+ekb:tensionWith a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "in tension with"@en ;
+    rdfs:comment "The two items may require a trade-off within overlapping scopes; not necessarily an incompatibility."@en .
+
+ekb:conflictsWith a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "conflicts with"@en ;
+    rdfs:comment "The two items cannot both be fully satisfied in the stated overlapping scope and effective period. A link is a claim requiring evidence, not an OWL logical inconsistency."@en .
+
+# Classification fields, separate from the seven business-semantic links.
+
+ekb:inDomain a owl:ObjectProperty ;
+    rdfs:label "in domain"@en ;
+    rdfs:range ekb:ArchitectureDomain ;
+    rdfs:comment "Classifies a concept under an architecture domain. Does not imply hierarchy or refinement."@en .
+
+ekb:platformName a owl:DatatypeProperty ;
+    rdfs:label "platform name"@en ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The platform to which platform-specific guidance applies."@en .
+
+# Intentional modeling choice: requirement classes are peers, not subclasses.
+# Conceptual and logical requirements must remain platform independent;
+# subclassing PlatformRequirement under ConceptualRequirement would incorrectly
+# cause every platform-specific item to be inferred as conceptual as well.
+# Cross-layer semantics are expressed with explicit, evidence-backed ekb:refines links.

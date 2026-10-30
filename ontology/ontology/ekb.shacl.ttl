@@ -1,0 +1,38 @@
+@prefix ekb: <https://example.org/ekb/ontology#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Minimal ingestion validation: labels for all six semantic types.
+# Missing relationships or authority do not fail validation: sparse sources
+# and pre-reconciliation candidates are expected.
+
+ekb:LabeledConceptShape a sh:NodeShape ;
+    sh:targetClass ekb:StrategicGoal, ekb:StrategicRequirement,
+        ekb:ArchitectureDomain, ekb:ConceptualRequirement,
+        ekb:TechnicalRequirement, ekb:PlatformRequirement ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "A named concept needs at least one human-readable label."@en
+    ] .
+
+# If a platform is asserted, identify which platform. This is a validation
+# constraint, not a claim about the source's legal or governance status.
+
+ekb:PlatformRequirementShape a sh:NodeShape ;
+    sh:targetClass ekb:PlatformRequirement ;
+    sh:property [
+        sh:path ekb:platformName ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Platform-specific guidance must identify its platform."@en
+    ] .
+
+ekb:DomainReferenceShape a sh:NodeShape ;
+    sh:targetSubjectsOf ekb:inDomain ;
+    sh:property [
+        sh:path ekb:inDomain ;
+        sh:class ekb:ArchitectureDomain ;
+        sh:message "inDomain must reference an ArchitectureDomain."@en
+    ] .
