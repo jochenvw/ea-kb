@@ -83,6 +83,8 @@ optional typed `parameters` model; custom implementations may implement `Knowled
 Check dependencies must be registered in execution order; invalid/disabled prerequisites fail
 validation. Version/provider/configuration changes trigger targeted check replay. Relevant evidence
 determines proposal identity, preserving human decisions across unrelated corpus or check changes.
+Checks needing current or historical alias groups call `ekb.domain.resolution.active_aliases` with
+the snapshot and date; it derives edges from findings and effective accepted decisions.
 See `phase3.md` for a concrete example and configuration.
 
 ## Repositories, artifacts and future adapters
