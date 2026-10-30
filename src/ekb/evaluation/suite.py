@@ -14,7 +14,7 @@ from ekb.config import Settings
 from ekb.evaluation.dataset import write_json
 from ekb.evaluation.frugal import qualify
 from ekb.evaluation.nist import evaluate_nist
-from ekb.evaluation.skills import evaluate_skills
+from ekb.evaluation.skills import evaluate_skills, skill_run_metadata
 from ekb.runtime import Runtime
 
 
@@ -145,6 +145,7 @@ async def run_suite(
                         output / "skills.json",
                         runtime.inference,
                         live=True,
+                        run_metadata=skill_run_metadata(settings),
                     )
                     documents = await evaluate_skills(
                         Path("evals") / "documents-v1.json",
@@ -153,6 +154,7 @@ async def run_suite(
                         runtime.inference,
                         split="all",
                         live=True,
+                        run_metadata=skill_run_metadata(settings),
                     )
                     nist = await evaluate_nist(
                         None,
@@ -173,6 +175,7 @@ async def run_suite(
                     gates,
                     output / "skills.json",
                     RulesInference(),
+                    run_metadata=skill_run_metadata(None),
                 )
                 documents = await evaluate_skills(
                     Path("evals") / "documents-v1.json",
@@ -180,6 +183,7 @@ async def run_suite(
                     output / "documents.json",
                     RulesInference(),
                     split="all",
+                    run_metadata=skill_run_metadata(None),
                 )
                 nist = await evaluate_nist(
                     None, output / "nist", StructuredParser(), RulesInference()

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Protocol, Self
+from contextlib import AbstractContextManager
+from typing import Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from ekb.domain.benchmarks import BenchmarkRole, NativeControlBinding, StoredBenchmarkDocument
@@ -86,6 +87,17 @@ class IngestionSkills(InferencePort, Protocol):
     async def extract_scoped(
         self, segment: Segment, labeling: ContentLabeling
     ) -> InferenceResult: ...
+
+
+class ModelRequestLimiter(Protocol):
+    async def reserve(self, deployment: str, requests: int) -> None: ...
+
+
+@runtime_checkable
+class RequestControlledSkills(Protocol):
+    def limit_model_requests(
+        self, limiter: ModelRequestLimiter
+    ) -> AbstractContextManager[None]: ...
 
 
 class AssertionWriter(Protocol):

@@ -99,9 +99,10 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   Keep file indexing and sufficient deterministic transformations outside model calls. Select the
   smallest model that meets measured precision, grounding, scope and recall gates; never weaken
   precision to reduce cost or silently fall back to an unqualified model.
-- Use Pydantic Evals as the execution and reporting framework for new or materially changed
-  model-backed skill evaluations. Keep domain-specific scoring, gates, provenance checks and
-  gold-data isolation explicit; ordinary pytest remains for software behavior and contracts.
+- Use Pydantic Evals as the execution and reporting framework for all new or materially changed
+  AI or skill evaluations. Keep domain-specific scoring, gates, provenance checks and gold-data
+  isolation explicit; deterministic software unit and contract tests remain in pytest.
+  Migrate existing evaluation entry points to this standard when materially changing them.
   Bound case concurrency and call budgets, and retain immutable reports with model, prompt,
   dataset and performance metadata. Pydantic Evals complements the inference port and does not
   replace Microsoft Agent Framework or route inference through Pydantic AI.

@@ -6,6 +6,8 @@ import httpx
 
 from ekb.observability import log, tracer
 
+DEFAULT_RETRY_ATTEMPTS = 3
+
 
 def transient(error: Exception) -> bool:
     return isinstance(error, httpx.TransportError) or (
@@ -15,7 +17,9 @@ def transient(error: Exception) -> bool:
 
 
 async def retry[T](
-    operation: Callable[[], Awaitable[T]], attempts: int = 3, base_delay: float = 0.5
+    operation: Callable[[], Awaitable[T]],
+    attempts: int = DEFAULT_RETRY_ATTEMPTS,
+    base_delay: float = 0.5,
 ) -> T:
     for attempt in range(attempts):
         try:

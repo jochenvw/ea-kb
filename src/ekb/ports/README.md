@@ -4,6 +4,8 @@
 repositories and explicit units of work.
 `SourceMissingError` distinguishes absent sources from temporary retrieval/access failures.
 `IngestionSkills` separates ontology/scope labeling from scoped extraction with independent replay IDs.
+Optional `RequestControlledSkills` scopes a `ModelRequestLimiter` around evaluation requests;
+providers reserve each actual request, including retries, by deployment and reset on cancellation.
 Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.
 `AssertionWriter` rephrases a version against its exact evidence; original candidates stay immutable.
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.

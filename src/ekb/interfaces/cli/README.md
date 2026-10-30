@@ -8,6 +8,7 @@
 Unknown or incomplete prices remain null, including after a task retry.
 `eval skills/list/history` uses bounded Pydantic Evals cases and durable skill history.
 Live evaluation requires opt-in; `--compare-concurrency` additionally requires `--live`.
+Optional per-deployment request/token limits are shared across cases and comparison arms.
 `eval goals/documents/nist` checks source-grounded strategic, mixed-layer and framework cases.
 `eval report --latest` displays the newest retained strategic-goal Markdown report.
 `eval qualify/verify-corpus/distill/benchmarks` supports model gates, provenance and train-only export.

@@ -57,6 +57,14 @@ bounded schema retries and replayable results. The supplied optional Agent Frame
 a bounded Chat Completions client, not an autonomous agent. It preserves configured temperature and
 token-budget parameter names and disables SDK-internal retries in favor of the shared retry boundary.
 Model-backed profiles prefer this adapter; the direct OpenAI-compatible transport remains available.
+Live skill evaluations require a conservative `max_requests_per_skill` bound that includes all
+validation and transport retries, or an explicitly supplied bound for a replacement provider.
+To support optional evaluation rate limits, implement `RequestControlledSkills` and reserve via
+the supplied `ModelRequestLimiter` immediately before every actual provider request, including
+retries, using the actual deployment ID. The scoped hook must restore state on cancellation; use a
+dedicated inference instance for the evaluation. Report provider model IDs in response order and
+mark identity completeness only when every request's identity is known. Injected HTTP transports
+must disable their own retries so these bounds cannot be bypassed.
 
 Labels use the existing replay store with an empty extraction and typed `labeling` result; its
 checkpoint commits before extraction, including newly incurred labeling usage under ownership fencing.

@@ -68,8 +68,15 @@ def matching_labeler(dataset, *, delay=0.0):
                 return LabelingResult(
                     labeling=case.labeling,
                     model_id=self.capabilities.model_id,
+                    provider_model_ids=("synthetic-snapshot-v1",),
                     prompt_version="synthetic-v1",
-                    usage=Usage(input_tokens=10, output_tokens=5, model_calls=1, cost=0.001),
+                    usage=Usage(
+                        input_tokens=10,
+                        output_tokens=5,
+                        model_calls=1,
+                        cost=0.001,
+                        cached_input_tokens=0,
+                    ),
                 )
             finally:
                 state["active"] -= 1
@@ -362,6 +369,9 @@ async def test_framework_uses_real_chat_transport_and_preserves_provider_options
         assert not client.is_closed
     assert len(bodies) == 2 and result.extraction == extraction
     assert result.usage.input_tokens == 20
+    assert result.labeling is not None
+    assert result.labeling.provider_model_ids == ("labeler",)
+    assert result.provider_model_ids == ("extractor",)
 
 
 async def test_label_checkpoint_survives_extraction_failure_and_extractor_change():

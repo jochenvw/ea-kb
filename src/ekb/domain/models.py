@@ -376,9 +376,33 @@ class Usage(Model):
     latency_ms: float = Field(default=0, ge=0)
     cost: float | None = Field(default=None, ge=0)
     validation_failures: int = Field(default=0, ge=0)
+    unmetered_model_calls: int | None = Field(default=None, ge=0)
+    throttles: int | None = Field(default=None, ge=0)
+    cached_input_tokens: int | None = Field(default=None, ge=0)
 
 
 def total_usage(usages: list[Usage]) -> Usage:
+    unmetered = [
+        usage.unmetered_model_calls
+        if usage.unmetered_model_calls is not None
+        else 0
+        if usage.model_calls == 0
+        or (usage.model_calls == 1 and usage.input_tokens > 0 and usage.output_tokens > 0)
+        else None
+        for usage in usages
+    ]
+    throttles = [
+        usage.throttles if usage.throttles is not None else 0 if usage.model_calls == 0 else None
+        for usage in usages
+    ]
+    cached_tokens = [
+        usage.cached_input_tokens
+        if usage.cached_input_tokens is not None
+        else 0
+        if usage.model_calls == 0
+        else None
+        for usage in usages
+    ]
     return Usage(
         input_tokens=sum(u.input_tokens for u in usages),
         output_tokens=sum(u.output_tokens for u in usages),
@@ -388,6 +412,21 @@ def total_usage(usages: list[Usage]) -> Usage:
         if usages and all(u.cost is not None for u in usages)
         else None,
         validation_failures=sum(u.validation_failures for u in usages),
+        unmetered_model_calls=(
+            sum(value for value in unmetered if value is not None)
+            if all(value is not None for value in unmetered)
+            else None
+        ),
+        throttles=(
+            sum(value for value in throttles if value is not None)
+            if all(value is not None for value in throttles)
+            else None
+        ),
+        cached_input_tokens=(
+            sum(value for value in cached_tokens if value is not None)
+            if all(value is not None for value in cached_tokens)
+            else None
+        ),
     )
 
 
@@ -426,6 +465,8 @@ class LabelingResult(Model):
     usage: Usage = Field(default_factory=Usage)
     model_id: str
     prompt_version: str
+    provider_model_ids: tuple[str, ...] = ()
+    provider_model_identity_complete: bool | None = None
 
 
 class AssertionDraft(Model):
@@ -459,6 +500,8 @@ class InferenceResult(Model):
     model_id: str
     prompt_version: str
     labeling: LabelingResult | None = None
+    provider_model_ids: tuple[str, ...] = ()
+    provider_model_identity_complete: bool | None = None
 
 
 class Capabilities(Model):

@@ -4,7 +4,8 @@ import asyncio
 import json
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -16,7 +17,7 @@ from opentelemetry import trace
 from pydantic import BaseModel, ValidationError
 
 from ekb.adapters.ontology import load_ontology
-from ekb.adapters.retry import retry
+from ekb.adapters.retry import DEFAULT_RETRY_ATTEMPTS, retry
 from ekb.config import Settings
 from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
@@ -37,6 +38,7 @@ from ekb.domain.models import (
 )
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
+from ekb.ports import ModelRequestLimiter
 
 PROMPT_VERSION = "grounded-extraction-v1"
 INSTRUCTIONS = """Extract candidate strategic goals and requirements, never canonical knowledge.
@@ -132,6 +134,7 @@ class RulesInference:
     """Conservative offline baseline, explicitly not a language model."""
 
     capabilities = Capabilities(model_id="offline-rules-v1")
+    max_requests_per_skill = 1
     prompt_version = "rules-v4"
     label_fingerprint = fingerprint(
         skill="rules-labeling-v3", schema=ContentLabeling.model_json_schema()
@@ -197,6 +200,7 @@ class OpenAIInference:
         if not settings.model_id:
             raise ValueError("Set EKB_MODEL_ID when enabling model inference")
         self.settings = settings
+        self.max_requests_per_skill = DEFAULT_RETRY_ATTEMPTS * (settings.model_retries + 1)
         self.capabilities = Capabilities(
             model_id=settings.model_id,
             structured_output=settings.model_structured_output,
@@ -227,6 +231,21 @@ class OpenAIInference:
         self.owned_client = client is None
         self.client = client or httpx.AsyncClient(timeout=180)
         self.credential: Any = None
+        self._request_limiter: ModelRequestLimiter | None = None
+
+    @contextmanager
+    def limit_model_requests(self, limiter: ModelRequestLimiter) -> Iterator[None]:
+        if self._request_limiter is not None:
+            raise ValueError("An inference request limiter is already active")
+        self._request_limiter = limiter
+        try:
+            yield
+        finally:
+            self._request_limiter = None
+
+    async def _reserve_model_request(self, deployment: str) -> None:
+        if self._request_limiter is not None:
+            await self._request_limiter.reserve(deployment, 1)
 
     async def _headers(self) -> dict[str, str]:
         token = self.settings.model_api_key.get_secret_value()
@@ -263,6 +282,14 @@ class OpenAIInference:
     async def _complete(
         self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
     ) -> tuple[str, int, int]:
+        content, input_tokens, output_tokens, _, _ = await self._complete_with_metadata(
+            messages, schema
+        )
+        return content, input_tokens, output_tokens
+
+    async def _complete_with_metadata(
+        self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
+    ) -> tuple[str, int, int, str | None, int | None]:
         payload: dict[str, Any] = {
             "model": self.settings.labeling_model_id or self.capabilities.model_id
             if schema is ContentLabeling
@@ -281,9 +308,11 @@ class OpenAIInference:
                     "schema": schema.model_json_schema(),
                 },
             }
+        headers = await self._headers()
+        await self._reserve_model_request(payload["model"])
         response = await self.client.post(
             self.settings.model_endpoint.rstrip("/") + "/chat/completions",
-            headers=await self._headers(),
+            headers=headers,
             json=payload,
         )
         trace.get_current_span().set_attribute("http.response.status_code", response.status_code)
@@ -293,7 +322,18 @@ class OpenAIInference:
         if not isinstance(content, str):
             raise ValueError("Model did not return text content")
         usage = body.get("usage", {})
-        return content, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+        provider_model = body.get("model")
+        input_details = usage.get("prompt_tokens_details")
+        cached_tokens = (
+            input_details.get("cached_tokens") if isinstance(input_details, dict) else None
+        )
+        return (
+            content,
+            usage.get("prompt_tokens", 0),
+            usage.get("completion_tokens", 0),
+            provider_model if isinstance(provider_model, str) else None,
+            cached_tokens if isinstance(cached_tokens, int) and cached_tokens >= 0 else None,
+        )
 
     async def extract(self, segment: Segment) -> InferenceResult:
         labeling = await self.label(segment)
@@ -303,7 +343,7 @@ class OpenAIInference:
         )
 
     async def label(self, segment: Segment) -> LabelingResult:
-        labeling, usage = await self._run_skill(
+        labeling, usage, provider_model_ids, identity_complete = await self._run_skill(
             segment,
             self._messages(segment, LABEL_INSTRUCTIONS, ContentLabeling),
             ContentLabeling,
@@ -315,6 +355,8 @@ class OpenAIInference:
             usage=usage,
             model_id=self.settings.labeling_model_id or self.capabilities.model_id,
             prompt_version=LABEL_PROMPT_VERSION,
+            provider_model_ids=provider_model_ids,
+            provider_model_identity_complete=identity_complete,
         )
 
     async def extract_scoped(self, segment: Segment, labeling: ContentLabeling) -> InferenceResult:
@@ -333,7 +375,7 @@ class OpenAIInference:
                 model_id=self.capabilities.model_id,
                 prompt_version=self.prompt_version,
             )
-        extraction, usage = await self._run_skill(
+        extraction, usage, provider_model_ids, identity_complete = await self._run_skill(
             segment,
             self._messages(segment, SCOPED_INSTRUCTIONS, Extraction, labeling),
             Extraction,
@@ -345,6 +387,8 @@ class OpenAIInference:
             usage=usage,
             model_id=self.capabilities.model_id,
             prompt_version=self.prompt_version,
+            provider_model_ids=provider_model_ids,
+            provider_model_identity_complete=identity_complete,
         )
 
     async def _run_skill[T: BaseModel](
@@ -354,7 +398,7 @@ class OpenAIInference:
         schema: type[T],
         validate: Callable[[T], None],
         prompt_version: str,
-    ) -> tuple[T, Usage]:
+    ) -> tuple[T, Usage, tuple[str, ...], bool]:
         started = time.monotonic()
         model_id = (
             self.settings.labeling_model_id or self.capabilities.model_id
@@ -362,11 +406,21 @@ class OpenAIInference:
             else self.capabilities.model_id
         )
         input_tokens, output_tokens, failures, model_calls = 0, 0, 0, 0
+        successful_responses = throttles = 0
+        cached_input_tokens = 0
+        cache_usage_known = True
+        provider_identity_known = True
+        provider_model_ids: list[str] = []
 
-        async def complete() -> tuple[str, int, int]:
-            nonlocal model_calls
+        async def complete() -> tuple[str, int, int, str | None, int | None]:
+            nonlocal model_calls, throttles
             model_calls += 1
-            return await self._complete(messages, schema)
+            try:
+                return await self._complete_with_metadata(messages, schema)
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code == 429:
+                    throttles += 1
+                raise
 
         for attempt in range(self.settings.model_retries + 1):
             if (
@@ -386,7 +440,16 @@ class OpenAIInference:
                     "validation.attempt": attempt,
                 },
             ) as span:
-                text, tokens_in, tokens_out = await retry(complete)
+                text, tokens_in, tokens_out, provider_model, cached = await retry(complete)
+                successful_responses += 1
+                if cached is None:
+                    cache_usage_known = False
+                else:
+                    cached_input_tokens += cached
+                if provider_model:
+                    provider_model_ids.append(provider_model)
+                else:
+                    provider_identity_known = False
                 input_tokens += tokens_in
                 output_tokens += tokens_out
                 span.set_attribute("model.input_tokens", tokens_in)
@@ -433,7 +496,11 @@ class OpenAIInference:
                     if schema is ContentLabeling and self.settings.labeling_model_id
                     else (self.settings.model_input_price, self.settings.model_output_price)
                 )
-                if price_in is not None and price_out is not None:
+                if (
+                    price_in is not None
+                    and price_out is not None
+                    and successful_responses == model_calls
+                ):
                     cost = (input_tokens * price_in + output_tokens * price_out) / 1_000_000
                 return (
                     value,
@@ -444,7 +511,16 @@ class OpenAIInference:
                         latency_ms=(time.monotonic() - started) * 1000,
                         cost=cost,
                         validation_failures=failures,
+                        unmetered_model_calls=model_calls - successful_responses,
+                        throttles=throttles,
+                        cached_input_tokens=(
+                            cached_input_tokens
+                            if cache_usage_known and successful_responses == model_calls
+                            else None
+                        ),
                     ),
+                    tuple(provider_model_ids),
+                    provider_identity_known and successful_responses == model_calls,
                 )
         raise AssertionError("Unreachable extraction retry")
 
@@ -493,6 +569,8 @@ class AgentFrameworkInference(OpenAIInference):
         from agent_framework.openai import OpenAIChatCompletionClient
         from openai import AsyncOpenAI
 
+        if sdk_client is not None and sdk_client.max_retries != 0:
+            raise ValueError("Disable SDK retries; the inference adapter manages retries")
         super().__init__(settings)
         self.owned_chat = sdk_client is None
         self.chat = OpenAIChatCompletionClient(
@@ -510,9 +588,9 @@ class AgentFrameworkInference(OpenAIInference):
         headers = await self._headers()
         return headers.get("Authorization", "Bearer local").removeprefix("Bearer ")
 
-    async def _complete(
+    async def _complete_with_metadata(
         self, messages: list[dict[str, str]], schema: type[BaseModel] = Extraction
-    ) -> tuple[str, int, int]:
+    ) -> tuple[str, int, int, str | None, int | None]:
         from agent_framework import ChatOptions, Message
         from openai import APIConnectionError, APIStatusError
 
@@ -530,6 +608,7 @@ class AgentFrameworkInference(OpenAIInference):
                 options["temperature"] = self.settings.model_temperature
             if self.capabilities.structured_output:
                 options["response_format"] = schema
+            await self._reserve_model_request(options["model"])
             response = await self.chat.get_response(
                 messages=[Message(role=m["role"], contents=[m["content"]]) for m in messages],
                 options=cast(ChatOptions[Any], options),
@@ -548,6 +627,8 @@ class AgentFrameworkInference(OpenAIInference):
             response.text,
             usage.get("input_token_count") or 0,
             usage.get("output_token_count") or 0,
+            response.model,
+            usage.get("cache_read_input_token_count"),
         )
 
     async def close(self) -> None:

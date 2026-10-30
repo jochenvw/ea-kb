@@ -92,6 +92,9 @@ uv run --extra agent-framework ekb eval skills --live --split test
 # Explicitly authorized live performance comparison; budget covers both runs:
 uv run --extra agent-framework ekb eval skills --live --compare-concurrency `
   --max-concurrency 8 --max-model-calls 10000
+# Illustrative limits only: set these below each deployment's available quota and leave headroom.
+uv run --extra agent-framework ekb eval skills --live --requests-per-minute 120 `
+  --tokens-per-minute 600000
 ```
 
 `--skill both` is the default. Labeling sees only raw segment text; extractor evaluation uses the
@@ -108,24 +111,58 @@ an inference backend. Gold labels remain evaluator metadata and are not sent to 
 extraction inference.
 
 The default is eight concurrent cases, capped at 32; selected case count is capped separately.
-Live calls reserve a conservative per-case model-call allowance against a shared run budget.
-Provider retries remain the inference adapter's responsibility, and actual requests/tokens/cost
-are recorded separately from reservations. When retry or throttle counts are unavailable from an
-adapter, reports leave them unknown rather than claiming zero. Live quality/cost gates are
-measured after execution; call reservations are not a provider billing cap.
+Pydantic Evals is submitted batches of at most twice the concurrency, so queued case tasks are
+bounded as well. Labeling finishes before extraction; extraction still uses the gold routes.
+Every live case reserves a conservative request allowance, including cases an adapter might
+short-circuit. The built-in adapters declare a bound covering each validation attempt and all
+three transport attempts; SDK retries are disabled. Replacement adapters must declare
+`max_requests_per_skill` or callers must explicitly supply a safe per-case bound. An observed
+overrun fails the run, but cannot undo requests a nonconforming adapter already made.
 
-Each run creates a uniquely named, create-only JSON report and compact index under
+`--requests-per-minute` and `--tokens-per-minute` optionally reserve quota immediately before
+each provider request, including every retry, per deployment over a rolling minute. This is separate
+from the per-case call budget. The token reservation uses the configured model context limit per
+request; it is a conservative estimate, not measured provider usage. The same limiter is shared
+across cases, skills and comparison arms, with a cooldown between arms. Rate-limited live runs
+require an inference adapter implementing the request-control contract; use a dedicated adapter
+instance for the evaluation.
+Limits apply only within this evaluation process: leave headroom for other clients and use
+provider-level controls to coordinate aggregate quotas. A single request whose estimated allowance
+exceeds a configured limit is rejected before inference. Concurrency alone is not rate limiting, and
+neither reservations nor post-run quality/cost gates are a provider billing cap.
+
+Reports distinguish observed requests and retries from estimated rate-limit reservations.
+Provider-returned model IDs and cached-input token counts are retained when available; the actual
+model version, cache counts and throttles remain explicitly unknown when unavailable. A failed
+request may have consumed tokens even if it returned no usage: report total token usage and priced
+cost as unknown in that case, while retaining known partial counts. Cost is calculated from
+reported tokens and configured prices, not an invoice; cached-token discounts are not inferred.
+The current evaluator is deterministic and makes zero judge requests.
+
+Each run atomically publishes a uniquely named, create-only JSON report and compact index under
 `data\evaluation-history` by default; `--history-dir` can select another durable location, while
-`--output` is maintained as a latest-report alias. Point `eval list --history-dir` and
+`--output` is maintained as a latest-report alias and cannot overwrite a retained report or input.
+Completed, partial, failed and cancelled runs retain their status. If index publication is
+interrupted, the catalog derives its entry from the immutable report; corrupt indexes or missing
+reports fail explicitly. Point `eval list --history-dir` and
 `eval history --history-dir` at the same location to inspect custom history. The index lets
 `eval list` show each bundled dataset/skill, including never-run combinations. `eval history`
-filters the retained run index by dataset or skill and reports quality and performance over time.
-Invalid history indexes fail explicitly rather than hiding retained runs as an empty catalog.
+filters history by dataset or skill and reports deployment, actual IDs, quality and performance
+over time. Reports include dataset/gate hashes, evaluator and skill fingerprints, configuration,
+code revision/dirty state and timestamps.
 Do not edit retained reports; use a new run to preserve comparison history. The optional
 `--compare-concurrency` runs sequential and bounded-parallel arms only with explicit `--live`
-authorization, records both child reports and the comparison, and marks quality/cache-incompatible
-results incomparable. It may incur provider cost. It was not run for this offline implementation,
-so no live speedup or cost result is claimed.
+authorization and sufficient budget for equivalent work. It records both child reports and the
+comparison; interrupted comparisons retain their status and links to any started child runs.
+It reports speedup only when both arms completed and their datasets, split, gates,
+skill/evaluator definitions, provider/deployment conditions, case-level quality and measured
+provider identities and cached-input profiles agree. Missing provider model identity for any model
+request or unknown cache accounting makes the comparison incomparable, not implicitly cold.
+Provider-reported model identifiers are not necessarily immutable model versions; versions remain
+unknown unless explicitly available. Offline, live without cached input, live with cached input and
+unknown-cache runs are identified separately; there is no skill-evaluation-layer cache. A comparison
+may incur provider cost. No live comparison was authorized for this implementation, so live speedup,
+throttling and cost remain unverified.
 
 ### Document classification and mixed ontology layers
 

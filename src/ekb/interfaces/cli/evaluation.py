@@ -16,17 +16,33 @@ from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
 from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_latest
 from ekb.evaluation.history import HISTORY, list_skill_catalog, skill_history
+from ekb.evaluation.limits import DeploymentRateLimiter
 from ekb.evaluation.nist import evaluate_nist
 from ekb.evaluation.skills import (
     SkillSelection,
     compare_skill_concurrency,
     evaluate_skills,
+    skill_run_metadata,
 )
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
 
 DATASET = Path("evals") / "teacher-v2.json"
 GATES = Path("evals") / "gates.json"
+
+
+def _rate_limiter(
+    settings: Settings | None, requests_per_minute: int | None, tokens_per_minute: int | None
+) -> DeploymentRateLimiter | None:
+    if requests_per_minute is None and tokens_per_minute is None:
+        return None
+    if settings is None:
+        raise ValueError("Evaluation rate limits require --live")
+    return DeploymentRateLimiter(
+        requests_per_minute=requests_per_minute,
+        tokens_per_minute=tokens_per_minute,
+        estimated_tokens_per_request=settings.model_context_tokens if tokens_per_minute else None,
+    )
 
 
 def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], None]) -> None:
@@ -129,6 +145,12 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
         max_concurrency: Annotated[int, typer.Option(min=1, max=32)] = 8,
         max_model_calls: Annotated[int, typer.Option(min=1, max=100000)] = 10_000,
+        requests_per_minute: Annotated[
+            int | None, typer.Option(min=1, help="Conservative per-deployment request allowance.")
+        ] = None,
+        tokens_per_minute: Annotated[
+            int | None, typer.Option(min=1, help="Conservative per-deployment token allowance.")
+        ] = None,
         compare_concurrency: Annotated[
             bool,
             typer.Option(
@@ -141,23 +163,11 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         async def operation():
             selection = TypeAdapter(SkillSelection).validate_python(skill)
             selected = TypeAdapter(Split).validate_python(split)
-            settings = Settings() if live or compare_concurrency else None
             if compare_concurrency and not live:
                 raise ValueError("--compare-concurrency requires explicit --live authorization")
-            run_metadata = (
-                {
-                    "provider": settings.inference,
-                    "deployment": settings.model_id,
-                    "labeling_deployment": settings.labeling_model_id or settings.model_id,
-                    "model_version": None,
-                    "temperature": settings.model_temperature,
-                    "retries": settings.model_retries,
-                    "structured_output": settings.model_structured_output,
-                }
-                if settings
-                else {"provider": "offline-rules"}
-            )
-            calls_per_case = 6 * (settings.model_retries + 1) if settings else 1
+            settings = Settings() if live else None
+            run_metadata = skill_run_metadata(settings)
+            rate_limiter = _rate_limiter(settings, requests_per_minute, tokens_per_minute)
             if live:
                 assert settings is not None
                 if settings.inference not in {"openai", "agent-framework"}:
@@ -174,9 +184,10 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                             max_cases=max_cases,
                             max_concurrency=max_concurrency,
                             max_model_calls=max_model_calls,
-                            calls_per_case=calls_per_case,
+                            calls_per_case=None,
                             run_metadata=run_metadata,
                             history_dir=history_dir,
+                            rate_limiter=rate_limiter,
                         )
                     return await evaluate_skills(
                         dataset,
@@ -189,9 +200,9 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                         max_cases=max_cases,
                         max_concurrency=max_concurrency,
                         max_model_calls=max_model_calls,
-                        calls_per_case=calls_per_case,
                         run_metadata=run_metadata,
                         history_dir=history_dir,
+                        rate_limiter=rate_limiter,
                     )
             return await evaluate_skills(
                 dataset,
@@ -203,9 +214,9 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                 max_cases=max_cases,
                 max_concurrency=max_concurrency,
                 max_model_calls=max_model_calls,
-                calls_per_case=calls_per_case,
                 run_metadata=run_metadata,
                 history_dir=history_dir,
+                rate_limiter=rate_limiter,
             )
 
         execute(operation)
@@ -252,12 +263,19 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         ] = False,
         dataset: Annotated[Path, typer.Option()] = Path("evals") / "documents-v1.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "document-evaluation.json",
+        history_dir: Annotated[Path, typer.Option()] = HISTORY,
+        max_concurrency: Annotated[int, typer.Option(min=1, max=32)] = 8,
+        max_model_calls: Annotated[int, typer.Option(min=1, max=100000)] = 10_000,
+        requests_per_minute: Annotated[int | None, typer.Option(min=1)] = None,
+        tokens_per_minute: Annotated[int | None, typer.Option(min=1)] = None,
     ):
         """Evaluate document coverage, mixed ontology labels and gold-routed extraction."""
 
         async def operation():
+            settings = Settings() if live else None
+            rate_limiter = _rate_limiter(settings, requests_per_minute, tokens_per_minute)
             if live:
-                settings = Settings()
+                assert settings is not None
                 if settings.inference not in {"openai", "agent-framework"}:
                     raise ValueError(
                         "Select agent-framework or openai for live document evaluation"
@@ -271,9 +289,23 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                         split="all",
                         live=True,
                         verify_sources=verify_sources,
+                        max_concurrency=max_concurrency,
+                        max_model_calls=max_model_calls,
+                        run_metadata=skill_run_metadata(settings),
+                        history_dir=history_dir,
+                        rate_limiter=rate_limiter,
                     )
             return await evaluate_skills(
-                dataset, GATES, output, RulesInference(), split="all", verify_sources=verify_sources
+                dataset,
+                GATES,
+                output,
+                RulesInference(),
+                split="all",
+                verify_sources=verify_sources,
+                max_concurrency=max_concurrency,
+                max_model_calls=max_model_calls,
+                run_metadata=skill_run_metadata(None),
+                history_dir=history_dir,
             )
 
         execute(operation)
