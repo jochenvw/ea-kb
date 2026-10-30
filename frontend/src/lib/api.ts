@@ -105,6 +105,7 @@ export function useDebounced(value: string) {
 export function label(value: string) {
   return value
     .replaceAll("_", " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 

@@ -202,9 +202,10 @@ async def qualify(
         output.with_name(output.stem + "-benchmarks.json"),
     )
     metrics = extraction["metrics"]
-    total_tp = sum(metrics[k]["tp"] for k in ("objective", "requirement"))
-    total_fp = sum(metrics[k]["fp"] for k in ("objective", "requirement"))
-    total_fn = sum(metrics[k]["fn"] for k in ("objective", "requirement"))
+    categories = [value for value in metrics.values() if isinstance(value, dict) and "tp" in value]
+    total_tp = sum(value["tp"] for value in categories)
+    total_fp = sum(value["fp"] for value in categories)
+    total_fn = sum(value["fn"] for value in categories)
     precision = ratio(total_tp, total_tp + total_fp) or 0
     recall = ratio(total_tp, total_tp + total_fn) or 0
     accuracy = sum(j["valid"] and j.get("actual") == j["expected"] for j in judgments) / len(

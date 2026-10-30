@@ -120,13 +120,13 @@ def extraction_metrics(cases: list[SkillCase], predictions: list[Extraction]) ->
                     index
                     for index, expected in enumerate(case.expected.candidates)
                     if index not in used
-                    and candidate.kind == expected.kind
                     and candidate.semantic_type == expected.semantic_type
                     and candidate.scope == expected.scope
                     and candidate.modality == expected.modality
                     and expected.excerpt in candidate.excerpt
                     and qualifier_preserved(
-                        candidate, Expected(kind=expected.kind, excerpt=expected.excerpt)
+                        candidate,
+                        Expected(semantic_type=expected.semantic_type, excerpt=expected.excerpt),
                     )
                 ),
                 None,
@@ -181,7 +181,11 @@ async def evaluate_skills(
                     validate_scoped_extraction(result.extraction, case.segment(), case.labeling)
                     extractions.append(result.extraction)
                     requires_model = any(
-                        label.semantic_type != SemanticType.ARCHITECTURE_DOMAIN
+                        label.semantic_type
+                        not in {
+                            SemanticType.ARCHITECTURE_DOMAIN,
+                            SemanticType.ORGANIZATIONAL_SCOPE,
+                        }
                         for label in case.labeling.labels
                     )
                 if requires_model:
@@ -210,7 +214,7 @@ async def evaluate_skills(
                     text=case.text,
                     expected=[
                         Expected(
-                            kind=c.kind,
+                            semantic_type=c.semantic_type,
                             excerpt=c.excerpt,
                             modality=c.modality,
                             scope=c.scope.model_dump(mode="json", exclude_none=True),

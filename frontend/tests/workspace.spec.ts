@@ -12,6 +12,67 @@ const publication = {
   semantic_version: null,
 };
 const statement = "Teams must retain audit logs.";
+const namespace = "https://example.org/ekb/ontology#";
+const ontology = {
+  iri: "https://example.org/ekb/ontology",
+  namespace,
+  label: "Enterprise Knowledge Base ontology",
+  definition: "Shared enterprise architecture vocabulary.",
+  version: "0.1.0-draft.3",
+  sha256: "a".repeat(64),
+  terms: [
+    {
+      name: "TechnicalRequirement",
+      label: "Technical requirement",
+      definition:
+        "A specific, technically actionable condition or constraint that remains independent of any particular vendor, product, or platform.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "OrganizationalScope",
+      label: "Organizational scope",
+      definition:
+        "An organizational entity or area, such as an enterprise, division, business unit, or department, within which goals and requirements may apply.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "supports",
+      label: "supports",
+      definition:
+        "Indicates that satisfying or achieving one concept contributes to achieving another, typically a goal or desired outcome.",
+      kind: "object_property",
+      category: "relation",
+    },
+    {
+      name: "subScopeOf",
+      label: "sub-scope of",
+      definition:
+        "Indicates that an organizational scope is contained within another organizational scope, without automatically implying inherited regulatory applicability.",
+      kind: "object_property",
+      category: "classification",
+      characteristics: ["transitive"],
+      domains: [namespace + "OrganizationalScope"],
+      ranges: [namespace + "OrganizationalScope"],
+    },
+    {
+      name: "platformName",
+      label: "platform name",
+      definition:
+        "Identifies the technology platform to which a platform-specific requirement applies.",
+      kind: "datatype_property",
+      category: "classification",
+      ranges: ["http://www.w3.org/2001/XMLSchema#string"],
+    },
+  ].map((term) => ({
+    iri: namespace + term.name,
+    domains: [],
+    ranges: [],
+    characteristics: [],
+    ...term,
+  })),
+};
 const excerpt = "Teams must retain <em>audit logs</em>.";
 const source = {
   item: {
@@ -42,7 +103,7 @@ const concept = {
       id,
       candidate: {
         statement,
-        kind: "requirement",
+        semantic_type: "TechnicalRequirement",
         modality: "mandated",
         confidence: 0.9,
         uncertainty: "Synthetic fixture; human review required.",
@@ -114,6 +175,7 @@ async function fixture(page: Page, governance = false) {
     let data: unknown;
     if (path === "/api/ui/config")
       data = { governance_enabled: governance, scan_running: false };
+    else if (path === "/api/ontology") data = ontology;
     else if (path === "/api/sources") data = [source];
     else if (path === "/api/source-groups") data = [sourceGroup];
     else if (path === `/api/sources/${sourceId}`)
@@ -408,6 +470,105 @@ async function fixture(page: Page, governance = false) {
     await route.fulfill({ json: data });
   });
 }
+
+test("ontology shows read-only definitions, relations and linked scope constraints", async ({
+  page,
+}) => {
+  await fixture(page);
+  const mutations: string[] = [];
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname === "/api/ontology" &&
+      request.method() !== "GET"
+    )
+      mutations.push(request.method());
+  });
+  await page.goto("/ontology");
+  await expect(
+    page.getByRole("heading", { name: "Ontology", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Concepts", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Semantic relations" }),
+  ).toBeVisible();
+  await expect(page.locator("#TechnicalRequirement")).toContainText(
+    ontology.terms[0].definition,
+  );
+  await expect(page.locator("#supports")).toContainText(
+    ontology.terms[2].definition,
+  );
+  await expect(page.locator("#subScopeOf")).toContainText("transitive");
+  await expect(
+    page
+      .locator("#subScopeOf")
+      .getByRole("link", { name: "Organizational scope" })
+      .first(),
+  ).toHaveAttribute("href", "/ontology#OrganizationalScope");
+  await page.locator("#platformName summary").click();
+  await expect(page.locator("#platformName")).toContainText(
+    namespace + "platformName",
+  );
+  await expect(
+    page.locator(
+      "main textarea, main [contenteditable=true], main button[type=submit]",
+    ),
+  ).toHaveCount(0);
+
+  await page.getByRole("searchbox", { name: "Search ontology" }).fill("vendor");
+  await expect(page.locator("#TechnicalRequirement")).toBeVisible();
+  await expect(page.locator("#supports")).toHaveCount(0);
+  await page
+    .getByRole("searchbox", { name: "Search ontology" })
+    .fill("not-an-ontology-term");
+  await expect(page.getByText("No matching ontology terms")).toBeVisible();
+  expect(mutations).toEqual([]);
+});
+
+test("ontology supports deep links, mobile themes and escaped definitions", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route("**/api/ontology", async (route) => {
+    const data = structuredClone(ontology);
+    data.terms[0].definition = "<img src=x onerror=alert('not markup')>";
+    await route.fulfill({ json: data });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/ontology#TechnicalRequirement");
+  const term = page.locator("#TechnicalRequirement");
+  await expect(term).toBeInViewport();
+  await expect(term).toContainText("<img src=x");
+  await expect(term.locator("img")).toHaveCount(0);
+  const before = await term.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  await page.getByRole("button", { name: "Use dark theme" }).click();
+  await expect(term).not.toHaveCSS("background-color", before);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("ontology request failure is explicit and retryable", async ({ page }) => {
+  await fixture(page);
+  let fail = true;
+  await page.route("**/api/ontology", async (route) => {
+    if (fail)
+      await route.fulfill({ status: 503, json: { detail: "Unavailable" } });
+    else await route.fulfill({ json: ontology });
+  });
+  await page.goto("/ontology");
+  await expect(page.getByRole("alert")).toContainText(
+    "No results have been substituted",
+  );
+  fail = false;
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator("#TechnicalRequirement")).toBeVisible();
+});
 
 test.beforeEach(async ({ page }) => {
   await fixture(page);

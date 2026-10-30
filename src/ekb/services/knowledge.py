@@ -1,8 +1,8 @@
 from uuid import UUID
 
 from ekb.domain.models import (
+    REQUIREMENT_TYPES,
     ConceptDetail,
-    ConceptKind,
     KnowledgeLevel,
     Model,
     ProcessingTask,
@@ -73,7 +73,7 @@ class KnowledgeService:
             results = []
             for cid in ids:
                 detail = await uow.knowledge.get(cid)
-                if detail and detail.versions[-1].candidate.kind == ConceptKind.REQUIREMENT:
+                if detail and detail.versions[-1].candidate.semantic_type in REQUIREMENT_TYPES:
                     results.append(detail)
             return results
 

@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from ekb.domain.assertions import checked_assertion
-from ekb.domain.models import Assertion, ConceptVersion, now
+from ekb.domain.models import Assertion, ConceptVersion, RelationshipKind, SemanticType, now
 
 
 class Base(DeclarativeBase):
@@ -68,14 +68,24 @@ class ConceptRow(Base):
     __tablename__ = "concepts"
     id: Mapped[UUID] = mapped_column(primary_key=True)
     identity_key: Mapped[str] = mapped_column(Text, unique=True)
-    kind: Mapped[str] = mapped_column(String(20))
 
 
 class VersionRow(Base):
     __tablename__ = "concept_versions"
-    __table_args__ = (UniqueConstraint("concept_id", "semantic_version"),)
+    __table_args__ = (
+        UniqueConstraint("concept_id", "semantic_version"),
+        CheckConstraint(
+            "semantic_type IN (" + ",".join(repr(value.value) for value in SemanticType) + ")",
+            name="version_semantic_type",
+        ),
+        CheckConstraint(
+            "semantic_type IS NOT DISTINCT FROM (payload #>> '{candidate,semantic_type}')",
+            name="version_semantic_type_payload",
+        ),
+    )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+    semantic_type: Mapped[str | None] = mapped_column(String(40), index=True)
     semantic_version: Mapped[str | None] = mapped_column(Text)
     predecessor_id: Mapped[UUID | None] = mapped_column(ForeignKey("concept_versions.id"))
     statement: Mapped[str] = mapped_column(Text)
@@ -111,6 +121,10 @@ class RelationshipRow(Base):
     __table_args__ = (
         UniqueConstraint("from_id", "to_id", "kind", "occurrence_id"),
         CheckConstraint("from_id <> to_id"),
+        CheckConstraint(
+            "kind IN (" + ",".join(repr(value.value) for value in RelationshipKind) + ")",
+            name="ontology_relationship_kind",
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True)
     from_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)

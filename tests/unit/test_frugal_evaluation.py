@@ -64,10 +64,10 @@ def test_actual_quotations_are_distinct_from_scoped_and_adversarial_variants():
         assert variants["negation"].expected[0].modality == "mandated"
         assert "must not" in variants["negation"].text
         assert variants["scope"].expected[0].scope == {"platform": "Azure"}
-        assert variants["objective"].expected[0].kind == "objective"
+        assert variants["objective"].expected[0].semantic_type == "StrategicGoal"
         assert variants["injection"].expected[0].excerpt == seed.quote
         assert "approved enterprise policy" in variants["injection"].text
-        assert variants["injection"].expected[0].kind == seed.kind
+        assert variants["injection"].expected[0].semantic_type == seed.semantic_type
         assert variants["injection"].expected[0].modality == seed.modality
 
 
@@ -88,11 +88,11 @@ def test_v2_preserves_source_assertion_types_and_broadens_holdout_families():
     }
     objective = cases["shell-liquids-goal/source"].expected[0]
     regulation = cases["cfr-hazard-correction/source"].expected[0]
-    assert objective.kind == "objective"
+    assert objective.semantic_type == "StrategicGoal"
     assert objective.modality == "unspecified"
-    assert regulation.kind == "requirement"
+    assert regulation.semantic_type is None
     assert regulation.modality == "mandated"
-    assert cases["nist-csf-mission/source"].expected[0].kind == "requirement"
+    assert cases["nist-csf-mission/source"].expected[0].semantic_type is None
     assert seeds["shell-liquids-goal"].teacher_model == "Copilot Auto (model identity unavailable)"
     assert not any(
         pair_id.startswith("shell-liquids-goal/")
@@ -106,7 +106,7 @@ def student():
         c.text: Extraction(
             candidates=[
                 Candidate(
-                    kind=e.kind,
+                    semantic_type=e.semantic_type,
                     statement=e.excerpt,
                     excerpt=e.excerpt,
                     modality=e.modality,

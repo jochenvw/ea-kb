@@ -31,11 +31,6 @@ class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class ConceptKind(StrEnum):
-    OBJECTIVE = "objective"
-    REQUIREMENT = "requirement"
-
-
 class SemanticType(StrEnum):
     STRATEGIC_GOAL = "StrategicGoal"
     STRATEGIC_REQUIREMENT = "StrategicRequirement"
@@ -43,6 +38,7 @@ class SemanticType(StrEnum):
     CONCEPTUAL_REQUIREMENT = "ConceptualRequirement"
     TECHNICAL_REQUIREMENT = "TechnicalRequirement"
     PLATFORM_REQUIREMENT = "PlatformRequirement"
+    ORGANIZATIONAL_SCOPE = "OrganizationalScope"
 
 
 class KnowledgeLevel(StrEnum):
@@ -57,14 +53,30 @@ class Modality(StrEnum):
 
 
 class RelationshipKind(StrEnum):
-    DERIVES_FROM = "DERIVES_FROM"
-    SUPPORTS = "SUPPORTS"
-    DEPENDS_ON = "DEPENDS_ON"
-    OVERLAPS_WITH = "OVERLAPS_WITH"
-    TENSION_WITH = "TENSION_WITH"
-    CONFLICTS_WITH = "CONFLICTS_WITH"
-    MAPS_TO = "MAPS_TO"
-    SUPERSEDES = "SUPERSEDES"
+    REFINES = "refines"
+    SUPPORTS = "supports"
+    CONSTRAINS = "constrains"
+    MAPS_TO = "mapsTo"
+    DEPENDS_ON = "dependsOn"
+    TENSION_WITH = "tensionWith"
+    CONFLICTS_WITH = "conflictsWith"
+
+
+class ClassificationProperty(StrEnum):
+    IN_DOMAIN = "inDomain"
+    SUB_SCOPE_OF = "subScopeOf"
+    APPLIES_TO_SCOPE = "appliesToScope"
+    PLATFORM_NAME = "platformName"
+
+
+REQUIREMENT_TYPES = frozenset(
+    {
+        SemanticType.STRATEGIC_REQUIREMENT,
+        SemanticType.CONCEPTUAL_REQUIREMENT,
+        SemanticType.TECHNICAL_REQUIREMENT,
+        SemanticType.PLATFORM_REQUIREMENT,
+    }
+)
 
 
 class Scope(Model):
@@ -293,7 +305,6 @@ class Segment(Model):
 
 
 class Candidate(Model):
-    kind: ConceptKind
     statement: str = Field(min_length=1, max_length=4000)
     excerpt: str = Field(min_length=1)
     modality: Modality = Modality.UNSPECIFIED
@@ -304,15 +315,18 @@ class Candidate(Model):
     semantic_type: SemanticType | None = None
 
     @model_validator(mode="after")
-    def objective_has_no_modality(self) -> Self:
-        if self.kind == ConceptKind.OBJECTIVE and self.modality != Modality.UNSPECIFIED:
-            raise ValueError("Objectives do not have requirement modality")
-        if self.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
-            raise ValueError("Architecture domains classify content; they are not requirements")
+    def valid_ontology_classification(self) -> Self:
+        if (
+            self.semantic_type == SemanticType.STRATEGIC_GOAL
+            and self.modality != Modality.UNSPECIFIED
+        ):
+            raise ValueError("Strategic goals do not have requirement modality")
+        if self.semantic_type in {
+            SemanticType.ARCHITECTURE_DOMAIN,
+            SemanticType.ORGANIZATIONAL_SCOPE,
+        }:
+            raise ValueError("Architecture domains and organizational scopes classify content")
         if self.semantic_type is not None:
-            objective = self.semantic_type == SemanticType.STRATEGIC_GOAL
-            if objective != (self.kind == ConceptKind.OBJECTIVE):
-                raise ValueError("Ontology type must agree with objective/requirement kind")
             if self.semantic_type == SemanticType.PLATFORM_REQUIREMENT and not self.scope.platform:
                 raise ValueError("Platform requirements must identify a platform")
             if (
@@ -328,7 +342,7 @@ class Candidate(Model):
 
 
 def knowledge_level(candidate: Candidate) -> KnowledgeLevel:
-    if candidate.kind == ConceptKind.REQUIREMENT and (candidate.scope.platform or "").strip():
+    if candidate.semantic_type == SemanticType.PLATFORM_REQUIREMENT:
         return KnowledgeLevel.IMPLEMENTATION
     return KnowledgeLevel.TOP_LEVEL
 

@@ -4,6 +4,7 @@
 `reconciliation.py` adds explicitly configured small-model verification and bounded embeddings.
 `assertions.py` rephrases selected candidates as source-grounded single-sentence assertions.
 `skills\labeling.md` and `skills\extraction.md` are independently hashed, bounded runtime prompts.
+Canonical OWL definitions are appended by task; definition/schema changes invalidate prompt replay.
 
 - Input is a persisted segment; output is typed extraction, provider identity and measured usage.
 - `label` identifies ontology spans/scopes; `extract_scoped` cannot broaden their scope or type.

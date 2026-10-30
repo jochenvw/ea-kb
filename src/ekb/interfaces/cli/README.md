@@ -2,7 +2,9 @@
 
 `app` in `__init__.py` is registered as the `ekb` console script by `pyproject.toml`.
 
-- `init` migrates; `scan` ingests/resumes; inspection commands return persisted knowledge.
+- `init` creates the development schema; `--recreate` rebuilds owned tables/caches before v1 only.
+- From v1, `init` uses migrations; `scan` ingests/resumes; inspection reads persisted knowledge.
+- `reset` clears guarded EKB tables/caches without re-indexing; `--yes` bypasses confirmation.
 - `concepts phrase` caches concise assertions using the configured model; `--source-id` restricts inputs.
 - `concepts list --level implementation` separates platform requirements from goals/guidance.
 - `sources sync microsoft-security-benchmark` downloads and normalizes actual published assets.

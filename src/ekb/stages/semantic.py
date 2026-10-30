@@ -74,7 +74,7 @@ def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Ch
                         benchmark="source-assertion",
                         edition="knowledge",
                         publisher_version=version.publication.publisher_version or "",
-                        domain=version.candidate.kind,
+                        domain=version.candidate.semantic_type or "unclassified",
                         control_id=str(version.id),
                         title=version.candidate.statement,
                         security_principle=occurrence.excerpt,
@@ -103,7 +103,10 @@ def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Ch
             for old_id, new_id, score in retrieved:
                 left, old = assertions[old_id]
                 right, new = assertions[new_id]
-                if left.id != right.id and old.candidate.kind == new.candidate.kind:
+                if (
+                    left.id != right.id
+                    and old.candidate.semantic_type == new.candidate.semantic_type
+                ):
                     key = (old_id, new_id)
                     if key not in unique:
                         unique[key] = (left, old, right, new, score)
@@ -158,7 +161,7 @@ def semantic_check(database: UnitOfWorkFactory, service: BenchmarkService) -> Ch
                 if outcome == "distinct":
                     action = "keep_distinct"
                 elif outcome in {"compatible_extension", "more_specific_guidance", "unknown"}:
-                    action, relation = "relationship", RelationshipKind.OVERLAPS_WITH
+                    action = "keep_distinct"
                 elif outcome == "potential_conflict":
                     action, relation = "relationship", RelationshipKind.TENSION_WITH
             results.append(

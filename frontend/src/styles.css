@@ -155,6 +155,39 @@ pre {
   border-radius: var(--radius);
   margin: 16px 0;
 }
+.ontology-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+.ontology-term {
+  border: 1px solid var(--cp-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  background: var(--cp-bg-elevated);
+  scroll-margin-top: 85px;
+}
+.ontology-term h3 {
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+.ontology-term code {
+  overflow-wrap: anywhere;
+}
+.ontology-term dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ontology-term dd {
+  margin: 0;
+}
+.ontology-characteristics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
 .graph-viewport svg {
   width: 100%;
   min-width: 860px;

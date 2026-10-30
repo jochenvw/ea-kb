@@ -11,7 +11,9 @@
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
 - `sources.py` groups explicit benchmark-edition metadata into logical sources; documents retain IDs.
 - Knowledge levels separate goals/guidance from explicit platform requirements; they grant no authority.
-- Objectives and requirements remain candidates until an explicit authority decision.
+- `ontology.py` types the read-only authoritative catalog; `SemanticType` and `RelationshipKind`
+  use OWL identifiers, not a parallel objective/requirement taxonomy or lifecycle relation kinds.
+- Strategic goals and requirements remain candidates until an explicit authority decision.
 - `assertions.py` guards concise phrasing, qualifiers and source-bound replay fingerprints.
 
 Keep this layer deterministic and independent of persistence, transport, cloud and model SDKs.

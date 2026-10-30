@@ -298,26 +298,10 @@ class Knowledge:
     ) -> list[ConceptDetail]:
         matches = select(VersionRow.concept_id, VersionRow.id)
         if level is not None:
-            explicit_platform = (
-                func.length(
-                    func.regexp_replace(
-                        func.coalesce(
-                            VersionRow.payload["candidate"]["scope"]["platform"].astext, ""
-                        ),
-                        r"\s",
-                        "",
-                        "g",
-                    )
-                )
-                > 0
-            )
             matches = matches.where(
                 case(
                     (
-                        and_(
-                            VersionRow.payload["candidate"]["kind"].astext == "requirement",
-                            explicit_platform,
-                        ),
+                        VersionRow.semantic_type == "PlatformRequirement",
                         "implementation",
                     ),
                     else_="top_level",
@@ -452,7 +436,7 @@ class Knowledge:
             normalized = re.sub(r"\s+", " ", candidate.statement).strip().casefold()
             identity_key = json.dumps(
                 [
-                    candidate.kind,
+                    candidate.semantic_type,
                     normalized,
                     candidate.modality,
                     candidate.scope.model_dump(mode="json"),
@@ -490,7 +474,7 @@ class Knowledge:
                 await immutable(
                     self.session,
                     ConceptRow,
-                    {"id": concept_id, "identity_key": identity_key, "kind": candidate.kind},
+                    {"id": concept_id, "identity_key": identity_key},
                 )
                 await immutable(
                     self.session,
@@ -498,6 +482,7 @@ class Knowledge:
                     {
                         "id": version.id,
                         "concept_id": concept_id,
+                        "semantic_type": version.candidate.semantic_type,
                         "semantic_version": None,
                         "statement": candidate.statement,
                         "predecessor_id": None,
@@ -669,6 +654,7 @@ class Knowledge:
             insert(VersionRow).values(
                 id=version.id,
                 concept_id=version.concept_id,
+                semantic_type=version.candidate.semantic_type,
                 semantic_version=str(version.version),
                 predecessor_id=version.predecessor_id,
                 statement=version.candidate.statement,
@@ -696,7 +682,7 @@ class Lineage:
                 UNION ALL
                 SELECT r.{target}, l.path || r.{target}, l.depth + 1
                 FROM relationships r JOIN lineage l ON r.{start} = l.id
-                WHERE r.kind IN ('DERIVES_FROM','DEPENDS_ON')
+                WHERE r.kind IN ('refines','dependsOn')
                 AND NOT r.{target} = ANY(l.path) AND l.depth < :depth
             )
             SELECT DISTINCT id FROM lineage WHERE depth > 0
@@ -890,10 +876,16 @@ class Postgres:
     def __call__(self) -> PostgresUnitOfWork:
         return PostgresUnitOfWork(self.sessions)
 
+    async def initialize(self) -> None:
+        async with self.engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+
     @asynccontextmanager
-    async def reset(self) -> AsyncIterator[None]:
+    async def reset(self, *, recreate: bool = False) -> AsyncIterator[None]:
         """Clear only EKB tables, keeping migrations and unrelated application tables."""
         async with self.engine.begin() as connection:
+            if recreate:
+                await connection.run_sync(Base.metadata.create_all)
             names = ", ".join(
                 connection.dialect.identifier_preparer.quote(table.name)
                 for table in Base.metadata.sorted_tables
@@ -912,8 +904,12 @@ class Postgres:
             )
             if active_lease or active_scan or active_task:
                 raise ValueError("Workspace has an active scan or lease; stop it before --fresh")
-            for table in reversed(Base.metadata.sorted_tables):
-                await connection.execute(table.delete())
+            if recreate:
+                await connection.run_sync(Base.metadata.drop_all)
+                await connection.run_sync(Base.metadata.create_all)
+            else:
+                for table in reversed(Base.metadata.sorted_tables):
+                    await connection.execute(table.delete())
             yield
 
     async def close(self) -> None:

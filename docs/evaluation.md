@@ -26,8 +26,10 @@ posture/vulnerability and corporate-strategy documents validate; incident respon
 editions, NIST CSF, NIST SP 800-53 and US regulation are held out. Related network editions share the
 test split. Reused source URLs, original hashes, families or normalized text cannot cross splits.
 The held-out set also has 38 semantic pairs, including misleading reused NS-6 identifiers and
-native-mapping hard negatives. Objective seeds are evaluated as objectives, not mislabeled as
+native-mapping hard negatives. `StrategicGoal` seeds are evaluated as goals, not mislabeled as
 requirements or included in requirement-only semantic pairs.
+Requirement seeds without evidence of an ontology layer remain unclassified; they measure extraction,
+not per-class precision. Independent labeling skill evaluations measure ontology classification.
 Published NIST mappings are not semantic equivalence with Azure WAF guidance.
 
 Verify the actual retained originals, including their bytes and every quotation:
@@ -151,7 +153,7 @@ comparison. Do not select a model by repeatedly tuning against held-out test res
 labels/gates when reviewed or expanded. Small teacher-only sets need independent review and more
 document families before production qualification.
 
-The measured v2 **offline rules/lexical diagnostic** was:
+The historical v2 **offline rules/lexical diagnostic**, before the ontology vocabulary transition, was:
 
 | Measure | Result |
 |---|---|

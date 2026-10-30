@@ -5,10 +5,10 @@ import pytest
 from ekb.domain.execution import Execution
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     Extraction,
     InferenceResult,
     Segment,
+    SemanticType,
     SourceItem,
     SourceRecord,
     SourceRevision,
@@ -54,12 +54,12 @@ async def test_resolution_repository_contract(database: UnitOfWorkFactory):
                 extraction=Extraction(
                     candidates=[
                         Candidate(
-                            kind=ConceptKind.REQUIREMENT,
+                            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                             statement=statement,
                             excerpt=statement,
                         ),
                         Candidate(
-                            kind=ConceptKind.OBJECTIVE,
+                            semantic_type=SemanticType.STRATEGIC_GOAL,
                             statement=statement,
                             excerpt=statement,
                         ),

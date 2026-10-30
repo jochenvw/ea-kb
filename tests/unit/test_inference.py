@@ -9,12 +9,12 @@ from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference
 from ekb.config import Settings
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     ContentLabel,
     ContentLabeling,
     Extraction,
     Modality,
     Segment,
+    SemanticType,
 )
 
 
@@ -28,7 +28,7 @@ def output(excerpt):
     return Extraction(
         candidates=[
             Candidate(
-                kind=ConceptKind.REQUIREMENT,
+                semantic_type=None,
                 statement=excerpt,
                 excerpt=excerpt,
             )
@@ -197,7 +197,7 @@ def test_assertion_qualifier_gates_reject_changed_meaning(original, modality, re
     from ekb.domain.models import AssertionDraft
 
     candidate = Candidate(
-        kind=ConceptKind.REQUIREMENT,
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
         statement=original,
         excerpt=original,
         modality=Modality(modality),
@@ -223,7 +223,7 @@ async def test_assertion_writer_retries_unsafe_phrasing_and_accounts_for_usage(v
         id=uuid4(),
         concept_id=uuid4(),
         candidate=Candidate(
-            kind=ConceptKind.REQUIREMENT,
+            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
             statement=source_segment.text.replace("must not", "must\nnot"),
             excerpt=source_segment.text,
             modality=Modality.MANDATED,
@@ -298,5 +298,7 @@ async def test_assertion_writer_retries_unsafe_phrasing_and_accounts_for_usage(v
 def test_existing_assertions_reuse_only_clear_single_sentence_wording(text, accepted):
     from ekb.domain.assertions import existing_assertion
 
-    candidate = Candidate(kind=ConceptKind.REQUIREMENT, statement=text, excerpt=text)
+    candidate = Candidate(
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT, statement=text, excerpt=text
+    )
     assert (existing_assertion(candidate) == text) is accepted

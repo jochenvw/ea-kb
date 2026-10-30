@@ -1,6 +1,11 @@
 # Enterprise Knowledge Base (EKB)
 
-An enterprise architecture knowledge tool for extracting objective and requirement candidates while
+**Application v0.1.0 (development).** `pyproject.toml` is the release-version source of truth.
+While the major version is below 1, breaking changes and rebuilding EKB-owned data/schema are
+permitted; compatibility migrations are not required. Use `uv run ekb init --recreate` after schema
+changes. Normal startup does not delete data; source inputs and unrelated tables remain separate.
+
+An enterprise architecture knowledge tool for extracting strategic-goal and requirement candidates while
 preserving original documents, exact source evidence and revision history. Incremental scans resume
 interrupted work and skip unchanged inputs. Built with async Python 3.13, PostgreSQL and replaceable
 adapters.
@@ -36,6 +41,7 @@ of EKB tables and owned local caches; source inputs are preserved. See [operatio
 ## Documentation
 
 - [Application ontology](ontology/README.md): v0.1.0-draft.3 OWL/RDF vocabulary, SHACL shapes and example.
+- Read-only ontology viewer: **Reference > Ontology** (`/ontology`); canonical definitions also at `/api/ontology`.
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
 - [Architecture](docs/architecture.md) and [plugin contracts](docs/plugins.md).
 - [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).

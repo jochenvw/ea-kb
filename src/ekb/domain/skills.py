@@ -43,7 +43,11 @@ def validate_scoped_extraction(
         ):
             raise GroundingError("Extraction invented a mandatory obligation")
         if not any(
-            label.semantic_type != SemanticType.ARCHITECTURE_DOMAIN
+            label.semantic_type
+            not in {
+                SemanticType.ARCHITECTURE_DOMAIN,
+                SemanticType.ORGANIZATIONAL_SCOPE,
+            }
             and candidate.semantic_type == label.semantic_type
             and candidate.scope == label.scope
             and candidate.excerpt in label.excerpt

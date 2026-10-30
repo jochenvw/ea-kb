@@ -96,6 +96,16 @@ shared Azure Blob storage. Stop ingestion workers first; a read-only browser may
 Files are quarantined while the DB reset is transactional and restored if that reset fails.
 Do not use `--fresh` merely to retry failed work; ordinary reruns reuse valid checkpoints.
 
+To clear indexed knowledge/runs and owned ingestion caches **without re-indexing**, use
+`uv run ekb reset` (confirmation) or `uv run ekb reset --yes` (automation). The same safety
+boundaries and retained source inputs apply.
+
+Application **0.1.0** is pre-release development: before major version 1, backwards compatibility and
+data-preserving migrations are not required. After schema changes, run `uv run ekb init --recreate`
+to drop/recreate only EKB-owned tables and clear owned ingestion caches. No re-indexing starts.
+`ekb init` without that flag creates missing tables; normal web startup never rebuilds anything.
+From v1, `--recreate` is disabled and schema changes require migrations. See decision `0009`.
+
 ### Foundry models with local storage
 
 `config\foundry.yaml` opts into paid extraction/reconciliation (`ekb-student`) and embeddings
@@ -245,6 +255,7 @@ The browser separates looking things up from doing governed work:
 | Reference | `/sources` and `/sources/{id}`: source inventory, extracted versions and exact evidence |
 | Reference | `/knowledge`, `/concepts/{id}`, `/explore`: interpretations, provenance and visual navigation |
 | Reference | `/benchmarks`, `/reconciliation`: publisher records, proposal ledger and decision history |
+| Reference | `/ontology`: read-only OWL concepts, relations and exact definitions |
 | Work | `/review`: active reconciliation backlog and issue triage; `/pipeline`: ingestion activity |
 | Operations | `/data`: read-only EKB tables and foreign-key drill-down; `/logs`: recent application events |
 
@@ -323,9 +334,15 @@ context, section/page and revision metadata. Quotes and context are rendered as 
 When a quote spans its whole segment, adjacent retained passages provide context where available;
 their section headings are shown explicitly. Missing context is disclosed, never reconstructed.
 
-**Architecture level** defaults to **Goals & guidance**: company objectives and requirements without
-recorded platform scope, including native NIST guidance. Select **Platform implementation** for
-explicitly platform-scoped requirements such as Azure security baselines, or **All levels** to compare.
+**Ontology** under Reference (`/ontology`, read-only API `/api/ontology`) shows the canonical concepts,
+semantic relations, classification/scope properties and exact definitions from the committed OWL/RDF.
+Search names/definitions, inspect domain/range, symmetric/transitive characteristics, IRIs and version.
+Knowledge/source badges use these concept labels and link to their definitions; unknown types say
+**Unclassified**. The catalog is available even when no documents have been indexed.
+
+**Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified
+as `PlatformRequirement`, including unclassified native guidance. Select **Platform implementation**
+for `PlatformRequirement` records such as Azure security baselines, or **All levels** to compare.
 Level, text and source filters select the same version; CLI/API also accept `--level implementation`
 and `level=implementation`. Unknown scope remains unknown, not universal applicability.
 
@@ -445,8 +462,11 @@ uv run pytest -q
 uv run ruff check src tests migrations scripts
 uv run ruff format --check src tests migrations scripts
 uv run basedpyright
-uv run alembic check
 ```
+
+Before v1, persistence tests recreate disposable schemas from current ORM metadata.
+Use `uv run ekb init --recreate` for a breaking local schema change; from v1, also run
+`uv run alembic check` against the migrated database.
 
 Integration/contract tests verify unchanged scans, selective revisions, exact provenance, restart,
 cancellation, concurrent claims, ownership fencing, immutable version/authority history, cyclic
@@ -493,7 +513,7 @@ for an independent deployment. Local PostgreSQL/web ports bind only to localhost
 The Azure foundation is the same image, with separate web and worker processes, managed-identity
 blob/model access, an existing PostgreSQL database and Application Insights. See
 `deploy\azure\container-apps.env.example` for environment contracts. Pre-create the private blob
-container, assign narrowly scoped permissions, configure secure PostgreSQL access, run migrations,
+container, assign narrowly scoped permissions, configure secure PostgreSQL access, initialize the schema,
 and deploy the web/worker with the same settings. Full infrastructure provisioning, public endpoint
 enterprise authentication, private networking, secret rotation and deployment automation are
 intentionally deferred. Non-loopback requests are rejected; do not expose this MVP through a proxy.

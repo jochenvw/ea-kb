@@ -5,6 +5,7 @@
 `network.tsx` navigates evidence/relationship graphs; source evidence remains document-specific.
 `review.tsx` separates the active backlog from the read-only ledger in `reference.tsx`.
 `reference.tsx` also provides bounded, linked table previews and safe operational log tails.
+`ontology.tsx` reads canonical definitions/IRIs from `/api/ontology`; shared badges link to its terms.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
 `knowledge.tsx` filters editions or exact documents, links matching versions and highlights retained quotes.
 Goals/guidance and platform implementations have separate filters and graph lanes; mappings show evidence.

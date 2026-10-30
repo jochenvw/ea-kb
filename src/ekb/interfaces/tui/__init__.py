@@ -131,7 +131,7 @@ class KnowledgeApp(App):
         for concept in concepts:
             candidate = concept.versions[-1].candidate
             concept_table.add_row(
-                candidate.kind.value,
+                candidate.semantic_type.value if candidate.semantic_type else "Unclassified",
                 candidate.statement,
                 candidate.modality.value,
                 concept.versions[-1].publication.publication_status.value,

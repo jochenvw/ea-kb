@@ -42,6 +42,7 @@ import {
   useResource,
 } from "@/lib/api";
 import type { SourceGroup, SourceInspection } from "@/types";
+import { OntologyBadge } from "@/ontology";
 
 export function Sources() {
   const resource = useResource<SourceGroup[]>("/api/source-groups");
@@ -436,7 +437,7 @@ export function SourcePage({ id }: { id: string }) {
                       <TableHead className="statement-column">
                         Assertion
                       </TableHead>
-                      <TableHead>Kind</TableHead>
+                      <TableHead>Ontology concept</TableHead>
                       <TableHead>Version</TableHead>
                       <TableHead>Evidence</TableHead>
                       <TableHead>Explore</TableHead>
@@ -462,9 +463,9 @@ export function SourcePage({ id }: { id: string }) {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">
-                            {label(item.version.candidate.kind)}
-                          </Badge>
+                          <OntologyBadge
+                            name={item.version.candidate.semantic_type}
+                          />
                         </TableCell>
                         <TableCell>
                           {semanticVersion(item.version.semantic_version)}

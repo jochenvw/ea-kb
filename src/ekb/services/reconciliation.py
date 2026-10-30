@@ -445,12 +445,12 @@ class BenchmarkService:
                         embedding_similarity=embedding,
                         verification=verification,
                         confidence=verification.judgment.confidence,
-                        relationship_kind=(
-                            "CONFLICTS_WITH"
+                        comparison_kind=(
+                            "conflict"
                             if outcome == "potential_conflict"
-                            else "SUPERSEDES"
+                            else "succession"
                             if lineage == "updated_version"
-                            else "OVERLAPS_WITH"
+                            else "overlap"
                             if outcome in {"equivalent", "distinct"}
                             else None
                         ),

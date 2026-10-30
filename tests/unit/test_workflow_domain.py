@@ -7,10 +7,10 @@ from ekb.domain.execution import CheckOptions, PipelineConfiguration, ProcessorS
 from ekb.domain.models import (
     Candidate,
     ConceptDetail,
-    ConceptKind,
     ConceptVersion,
     Occurrence,
     Scope,
+    SemanticType,
 )
 from ekb.domain.resolution import Deviation, KnowledgeSnapshot, overlaps, resolve_alias
 from ekb.orchestration.registry import StageRegistry
@@ -36,7 +36,9 @@ def context(scopes=None):
             id=vid,
             concept_id=cid,
             candidate=Candidate(
-                kind=ConceptKind.REQUIREMENT,
+                semantic_type=SemanticType.PLATFORM_REQUIREMENT
+                if scope.platform
+                else SemanticType.TECHNICAL_REQUIREMENT,
                 statement=text,
                 excerpt=text,
                 scope=scope,

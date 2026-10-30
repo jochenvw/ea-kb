@@ -1,6 +1,8 @@
 # PostgreSQL repositories
 
 - `models.py` declares relational constraints/indexes and JSONB domain payloads.
+- `concept_versions.semantic_type` and relationship kinds are SQL-constrained to OWL identifiers;
+  type projections must match payloads. Unknown stays null; succession is lifecycle metadata.
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters and text search match the same evidenced version, not an unrelated latest one.
@@ -21,5 +23,6 @@
 - `issues.py` prioritizes scoped issues before limiting and preserves review/reopening history.
 
 Preserve immutable revisions, exact occurrences and idempotent checkpoints.
-Schema changes require `migrations` updates; verification starts with
+Before v1, `initialize` creates current ORM tables and `reset(recreate=True)` rebuilds owned tables
+under existing reset locks/lease guards. From v1, schema changes require migrations. Verification starts with
 `tests\contract\test_repositories.py` against disposable schemas.

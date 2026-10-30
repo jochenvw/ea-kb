@@ -9,6 +9,7 @@ ARG UV_DEFAULT_INDEX=https://packagefeedproxy.microsoft.io/pypi/simple
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
+COPY ontology ./ontology
 RUN uv sync --frozen --no-dev --all-extras
 COPY alembic.ini ./
 COPY migrations ./migrations

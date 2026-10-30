@@ -8,11 +8,11 @@ from pydantic import ValidationError
 from ekb.domain.grounding import GroundingError, validate_evidence
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     Extraction,
     Modality,
     Scope,
     Segment,
+    SemanticType,
     SemanticVersion,
     content_hash,
     fingerprint,
@@ -37,15 +37,22 @@ def test_scope_and_modality_validation():
         Scope.model_validate({"effective_from": "2026-02-01", "effective_to": "2026-01-01"})
     with pytest.raises(ValidationError):
         Candidate(
-            kind=ConceptKind.OBJECTIVE,
+            semantic_type=SemanticType.STRATEGIC_GOAL,
             statement="Reduce costs",
             excerpt="Reduce costs",
             modality=Modality.MANDATED,
         )
     with pytest.raises(ValidationError):
-        Candidate(kind=ConceptKind.REQUIREMENT, statement="x", excerpt="x", confidence=1.1)
+        Candidate(
+            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+            statement="x",
+            excerpt="x",
+            confidence=1.1,
+        )
     assert (
-        Candidate(kind=ConceptKind.REQUIREMENT, statement="x", excerpt="x").modality
+        Candidate(
+            semantic_type=SemanticType.TECHNICAL_REQUIREMENT, statement="x", excerpt="x"
+        ).modality
         == Modality.UNSPECIFIED
     )
 
@@ -99,7 +106,11 @@ def test_exact_evidence_grounding_preserves_negation():
         ordinal=0,
         text="Operators must not disable alarms except during approved maintenance.",
     )
-    valid = Candidate(kind=ConceptKind.REQUIREMENT, statement=segment.text, excerpt=segment.text)
+    valid = Candidate(
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+        statement=segment.text,
+        excerpt=segment.text,
+    )
     validate_evidence(Extraction(candidates=[valid]), segment)
     with pytest.raises(GroundingError):
         validate_evidence(

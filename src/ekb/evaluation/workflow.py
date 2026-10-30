@@ -12,7 +12,6 @@ from ekb.config import Settings
 from ekb.domain.execution import CheckOptions
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     Extraction,
     FetchResult,
     InferenceResult,
@@ -80,7 +79,7 @@ async def enterprise_fixture(runtime: Runtime, path: Path) -> Deviation:
     )
     candidates = [
         Candidate(
-            kind=ConceptKind.REQUIREMENT,
+            semantic_type=None,
             statement=fact["statement"],
             excerpt=fact["statement"],
             scope=Scope.model_validate(fact["scope"]),

@@ -11,12 +11,14 @@ from alembic import command
 from alembic.config import Config
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from ekb import __version__
 from ekb.config import Settings
 from ekb.domain.models import KnowledgeLevel
 from ekb.interfaces.cli.evaluation import register as register_evaluation
 from ekb.interfaces.cli.workflow import register
+from ekb.maintenance import reset_paths, reset_workspace
 from ekb.runtime import Runtime
 
 app = typer.Typer(help="Enterprise Knowledge Base: incremental, grounded knowledge.")
@@ -55,14 +57,75 @@ register_evaluation(app, eval_app, emit)
 
 
 @app.command()
-def init() -> None:
-    """Migrate PostgreSQL; never drops existing knowledge."""
+def reset(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Confirm permanent reset.")] = False,
+) -> None:
+    """Clear EKB-owned tables and caches without starting a new ingestion run."""
+    settings = Settings()
+    protected = tuple(
+        path
+        for path in (settings.config_file, settings.manifest, settings.source_directory)
+        if path
+    )
+    paths = reset_paths(settings, protected)
+    if not yes:
+        typer.confirm(
+            "Permanently erase EKB knowledge, runs, decisions and owned caches?", abort=True
+        )
+
+    async def execute() -> None:
+        async with Runtime(settings) as runtime:
+            await reset_workspace(settings, runtime.database, protected)
+
+    try:
+        asyncio.run(execute())
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from None
+    except (SQLAlchemyError, OSError) as error:
+        raise typer.BadParameter(
+            f"Reset did not finish ({type(error).__name__}); "
+            "check database access and cache cleanup."
+        ) from None
+    emit({"status": "reset", "caches": [str(path) for path in paths]})
+
+
+@app.command()
+def init(
+    recreate: Annotated[
+        bool,
+        typer.Option(help="Drop/recreate EKB-owned tables and caches; allowed before v1 only."),
+    ] = False,
+) -> None:
+    """Initialize the current development schema; use migrations from v1 onward."""
+    development = int(__version__.partition(".")[0]) < 1
+    if recreate and not development:
+        raise typer.BadParameter("--recreate is only available before application v1")
     settings = Settings()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
-    if not Path("alembic.ini").is_file():
-        raise typer.BadParameter("Run init from the project checkout containing alembic.ini")
-    command.upgrade(Config("alembic.ini"), "head")
-    emit({"status": "initialized", "version": __version__})
+    if development:
+
+        async def execute() -> None:
+            async with Runtime(settings) as runtime:
+                if recreate:
+                    protected = tuple(
+                        path
+                        for path in (
+                            settings.config_file,
+                            settings.manifest,
+                            settings.source_directory,
+                        )
+                        if path
+                    )
+                    await reset_workspace(settings, runtime.database, protected, recreate=True)
+                else:
+                    await runtime.database.initialize()
+
+        asyncio.run(execute())
+    else:
+        if not Path("alembic.ini").is_file():
+            raise typer.BadParameter("Run init from the project checkout containing alembic.ini")
+        command.upgrade(Config("alembic.ini"), "head")
+    emit({"status": "initialized", "version": __version__, "recreated": recreate})
 
 
 @app.command()

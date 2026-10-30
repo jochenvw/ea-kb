@@ -375,11 +375,18 @@ class ResolutionStore:
         if finding.action == "alias":
             if len(finding.concept_ids) != 2 or finding.concept_ids[0] == finding.concept_ids[1]:
                 raise ValueError("Aliases require two different identities")
-            source = await self.session.get(ConceptRow, finding.concept_ids[0])
-            target = await self.session.get(ConceptRow, finding.concept_ids[1])
-            assert source is not None and target is not None
-            if source.kind != target.kind:
-                raise ValueError("Objective and Requirement identities cannot be merged")
+            types = []
+            for concept_id in finding.concept_ids:
+                types.append(
+                    await self.session.scalar(
+                        select(VersionRow.semantic_type)
+                        .where(VersionRow.concept_id == concept_id)
+                        .order_by(VersionRow.payload["recorded_at"].astext.desc(), VersionRow.id)
+                        .limit(1)
+                    )
+                )
+            if types[0] != types[1]:
+                raise ValueError("Different ontology classes cannot be merged")
             heads = decision_heads(tuple(await self.decisions()))
             aliases = await self._bounded(AliasRow)
             edges = {
@@ -396,9 +403,7 @@ class ResolutionStore:
                 resolve_alias(identity, edges)
         if finding.relationship and len(finding.concept_ids) < 2:
             raise ValueError("A relationship needs two concept identities")
-        if finding.relationship and finding.relationship.value == "SUPERSEDES":
-            if len(finding.concept_ids) != 2:
-                raise ValueError("A successor proposal needs exactly two identities")
+        if finding.action == "version" and len(finding.concept_ids) == 2:
             findings = {
                 f.id: f
                 for r in await self._bounded(FindingRow)
@@ -407,7 +412,12 @@ class ResolutionStore:
             edges: dict[UUID, UUID] = {}
             for head in decision_heads(tuple(await self.decisions())).values():
                 f = findings.get(head.finding_id)
-                if head.outcome == "accepted" and f and f.relationship == finding.relationship:
+                if (
+                    head.outcome == "accepted"
+                    and f
+                    and f.action == "version"
+                    and len(f.concept_ids) == 2
+                ):
                     edges[f.concept_ids[0]] = f.concept_ids[1]
             edges[finding.concept_ids[0]] = finding.concept_ids[1]
             for identity in edges:

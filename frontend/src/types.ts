@@ -1,5 +1,36 @@
 export type Scope = Record<string, string | null>;
 
+export type SemanticType =
+  | "StrategicGoal"
+  | "StrategicRequirement"
+  | "OrganizationalScope"
+  | "ArchitectureDomain"
+  | "ConceptualRequirement"
+  | "TechnicalRequirement"
+  | "PlatformRequirement";
+
+export interface OntologyTerm {
+  name: string;
+  iri: string;
+  label: string;
+  definition: string;
+  kind: "class" | "object_property" | "datatype_property";
+  category: "concept" | "relation" | "classification";
+  domains: string[];
+  ranges: string[];
+  characteristics: ("symmetric" | "transitive")[];
+}
+
+export interface OntologyCatalog {
+  iri: string;
+  label: string;
+  definition: string;
+  namespace: string;
+  version: string;
+  sha256: string;
+  terms: OntologyTerm[];
+}
+
 export interface SemanticVersion {
   major: number;
   minor: number;
@@ -34,7 +65,7 @@ export interface Version {
   id: string;
   semantic_version: SemanticVersion | null;
   candidate: {
-    kind: string;
+    semantic_type: SemanticType | null;
     statement: string;
     modality: string;
     confidence: number;

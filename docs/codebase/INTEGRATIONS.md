@@ -19,7 +19,7 @@ coordinate through PostgreSQL, not a broker.
 
 | Store | Role/access layer | Operational limit | Evidence |
 |---|---|---|---|
-| PostgreSQL | Authoritative rows/JSONB through unit-of-work repositories | Explicit migrations and historical retention | PostgreSQL models/repositories |
+| PostgreSQL | Authoritative rows/JSONB through unit-of-work repositories | Disposable schema before v1; migrations from v1 | PostgreSQL models/repositories |
 | Filesystem | Content-addressed originals through artifact port | Hard-link support; backup with database | Artifact adapter |
 | Azure Blob | Alternative artifact-port implementation | Provision container and identity first | Artifact adapter |
 | Telemetry/debug files | Observability/inference adapters | Operator-owned retention and permissions | Observability, `Settings` |

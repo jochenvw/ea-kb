@@ -38,6 +38,7 @@ import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Activity } from "@/activity";
 import { Benchmarks } from "@/benchmarks";
+import { Ontology } from "@/ontology";
 import type { Issue, Pipeline, SourceGroup } from "@/types";
 
 const navigation = [
@@ -51,6 +52,7 @@ const navigation = [
   { href: "/pipeline", name: "Pipeline", icon: Workflow, group: "Work" },
   { href: "/sources", name: "Sources", icon: Files, group: "Reference" },
   { href: "/knowledge", name: "Knowledge", icon: BookOpen, group: "Reference" },
+  { href: "/ontology", name: "Ontology", icon: Layers3, group: "Reference" },
   {
     href: "/explore",
     name: "Visual explorer",
@@ -223,6 +225,7 @@ export function App() {
             <Activity scanRunning={config.data?.scan_running === true} />
           )}
           {section === "/benchmarks" && <Benchmarks />}
+          {section === "/ontology" && <Ontology />}
         </main>
         <footer className="workspace-footer">
           <ShieldCheck size={14} />

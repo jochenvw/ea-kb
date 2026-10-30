@@ -5,10 +5,16 @@ original documents live in content-addressed filesystem or Azure Blob artifacts.
 It is a general enterprise architecture knowledge tool: sample publishers and industries belong
 in source manifests and scope metadata, not organization-specific domain logic.
 
+The application is `0.1.0`, registered in `pyproject.toml` and read through installed package metadata.
+Before major version 1, data/schema compatibility is not required: `ekb init --recreate` rebuilds
+EKB-owned tables and clears owned ingestion caches without re-indexing. It preserves unrelated tables
+and source inputs, refuses active work and is disabled from v1 onward. Ordinary startup is not destructive.
+Development initialization uses current ORM metadata, not migration history; see decision `0009`.
+
 ## Scope and design drivers
 
 This describes implemented ingestion, benchmarks and governed reconciliation, not every planned
-capability. The system extracts objective and requirement candidates while retaining
+capability. The system extracts strategic-goal and ontology requirement candidates while retaining
 the evidence needed to inspect each interpretation. Documents, interpretations and enterprise
 approval are separate concerns.
 
@@ -76,13 +82,14 @@ Architecture layer and applicability are independent: a business-unit goal is st
 `StrategicGoal`, not a technical requirement. Typed labels follow the six semantic class names in
 `ontology\ontology\ekb.ttl`; `OrganizationalScope` describes applicability. Unknown layers remain
 null with an explanation. Architecture-domain labels remain classification metadata and are not
-materialized as requirements. There is no OWL runtime loader/reasoner or inferred scope inheritance.
+materialized as requirements. The OWL catalog loader performs no reasoning or scope inheritance.
 
 Label checkpoints commit separately before extraction, reusing the existing typed JSON replay
 store without a schema migration. Extraction-only changes/failures reuse labels; a successful
 segment still commits candidates, evidence, extraction replay and newly incurred extraction usage
 atomically. Label results are retained in extraction replay for audit. Existing historical concept
-versions/identities are not rewritten when a new label becomes available.
+versions/identities are not rewritten when a new label becomes available. During pre-v1 development,
+breaking ontology/schema changes may rebuild disposable state instead of historical relabeling.
 
 Use the smallest/cheapest model **that passes the task's precision and safety gates**, not simply
 the smallest deployment. `EKB_LABELING_MODEL_ID` can select a separate cheaper labeler on the same
@@ -93,6 +100,29 @@ Model/prompt changes require independently evaluated skill results and end-to-en
 document-family-isolated validation/test data. See `evaluation.md` and decision `0007`.
 
 ## Components and runtime composition
+
+### Ontology as ubiquitous language
+
+`ontology\ontology\ekb.ttl` is authoritative for class/property identifiers and English definitions.
+`adapters\ontology.py` uses RDFLib to read the same source in a checkout, wheel and container.
+The read-only `/api/ontology` catalog and `/ontology` browser expose concepts, semantic relations,
+classification properties, exact definitions, IRIs, version, domain/range and OWL characteristics.
+No database, inference call, ontology editing or OWL reasoning is required to view the vocabulary.
+
+`SemanticType` covers all seven classes; extracted goal/requirement candidates use `semantic_type`,
+not a second objective/requirement kind. Organizational scopes and architecture domains are labeling
+context, not requirement candidates. Unsupported classifications stay null, not an invented class.
+`concept_versions.semantic_type` is indexed, SQL-constrained to ontology classes and checked against
+its candidate payload. Classification belongs to each interpretation/version, not a timeless record.
+Initial identity includes semantic type; explicit later interpretations retain their predecessor chain.
+`RelationshipKind` and the SQL relationship constraint allow only the seven semantic property names.
+Scope facets retain source labels: organization/business unit describe `appliesToScope`, and platform
+describes `platformName`; they do not establish normalized scope identities or inferred containment.
+The catalog also exposes `inDomain` and `subScopeOf`; no hierarchy is inferred from free-text facets.
+Version succession and comparison overlap are lifecycle/comparison metadata, not semantic relations.
+Prompts include the canonical definitions; UI concept badges link back to the catalog.
+`tests\unit\test_ontology.py` checks OWL/domain/SQL/browser parity, and integration tests exercise
+real SQL constraints and schema recreation. See decision `0008`.
 
 | Component | Implementation | Role |
 |---|---|---|
@@ -108,7 +138,8 @@ document-family-isolated validation/test data. See `evaluation.md` and decision 
 knowledge service. Connector instances are cached per directory/manifest configuration and closed
 with the runtime. CLI commands enter one asynchronous runtime; FastAPI creates one in application
 lifespan; MCP does so in server lifespan. Tests can inject a runtime or knowledge service.
-Migrations run explicitly through `ekb init`; web startup does not migrate the schema.
+`ekb init` creates the current ORM schema during pre-v1 development; `--recreate` explicitly rebuilds
+it after breaking changes. From v1, initialization uses Alembic. Web startup never changes the schema.
 
 The application targets ports, but one concrete dependency remains: the pipeline imports
 `SourceMissingError` from the source adapter. This is a boundary limitation, not a fully isolated
@@ -142,7 +173,7 @@ disabled by default. Configuration/deployment does not establish provider qualit
    stable segments with page, heading, table, slide or structured-control locations.
 4. Each usable segment reuses or executes its labeling skill, commits that checkpoint, then reuses
    or executes extraction within the labeled spans/scopes. Results must satisfy schema, exact
-   grounding, ontology/kind consistency and qualifier/scope checks. Domain-only and irrelevant
+   grounding, ontology classification consistency and qualifier/scope checks. Domain-only and irrelevant
    content skips model extraction. Image-only segments remain references and do not enter text inference.
 5. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
    usage commit together. Task/scan records expose completion, partial failure or cancellation.
@@ -236,7 +267,7 @@ neither a graph database nor a vector index is required.
 | `processing_runs`, `processing_tasks` | Scan summaries and revision/fingerprint tasks with status, owner, lease, attempts and usage |
 | `segment_results` | Validated extraction replay indexed by inference/context fingerprint and linked to its originating segment |
 | `benchmark_documents` | Immutable normalized publisher records, exact passages and semantic occurrence bindings |
-| `benchmark_comparisons` | Source-bound review-only comparisons, published MAPS_TO records and candidate semantic lineage |
+| `benchmark_comparisons` | Source-bound review-only comparisons, published mapsTo records and candidate semantic lineage |
 | `benchmark_embeddings`, `benchmark_match_cache` | Provider/input-keyed vector and valid grounded-judgment replay |
 | `pipeline_executions`, `pipeline_leases` | Pipeline/stage/check attempts, artifacts and renewable ownership |
 | `enrichment_findings`, `reconciliation_decisions`, `concept_aliases` | Evidence-bound proposals and append-only reversible identity decisions |
@@ -249,21 +280,21 @@ exists. Database backups and original-document storage must be retained together
 
 ## Knowledge and authority
 
-Objectives and requirements retain original evidence separately from interpreted statements,
+Strategic goals and requirements retain original evidence separately from interpreted statements,
 textual modality, scope and confidence. Candidate evidence must match the persisted segment exactly,
 including substring offsets. Relationship proposals carry their own evidence occurrence and scope.
 Candidate status is independent of explicitly recorded promotion or withdrawal.
 
-Exact identity uses normalized statement, kind, modality and scope. No embedding-based merging.
+Exact identity uses normalized statement, ontology semantic type, modality and scope. No embedding-based merging.
 Inspection uses bounded lexical similarity; optional enrichment also uses cached embedding neighbors.
 Neither path promotes or merges matches.
 Stable concept identities, immutable versions, source occurrences and authority events preserve
 history. Explicit version additions require a caller-supplied semantic version and predecessor;
 automatic semantic version classification and promotion are intentionally absent.
 
-Version predecessor references preserve explicit concept history. Published framework supersession
-can use the separate `SUPERSEDES` relationship kind; published mappings use `MAPS_TO`.
-Recursive origin/dependent queries traverse `DERIVES_FROM` and `DEPENDS_ON`;
+Version predecessor references and reviewed version findings preserve explicit concept history.
+Published framework succession remains lifecycle metadata; published semantic mappings use `mapsTo`.
+Recursive origin/dependent queries traverse `refines` and `dependsOn`;
 SQL tracks visited paths and bounds depth to terminate cycles. Other relationship kinds are
 available for inspection but are not treated as dependency lineage.
 
@@ -307,12 +338,12 @@ before paging. Assertion caches are reused only when their physical source belon
 `/api/source-groups` serves the logical registry; `/api/sources` retains physical retrieval records.
 
 Knowledge levels are derived read projections, not new semantic identities or authority states.
-Objectives remain top-level; requirements with explicit platform scope are implementations.
-Other requirements stay in goals/guidance; absent scope is not evidence of universal applicability.
+`StrategicGoal` and platform-independent requirements remain top-level; `PlatformRequirement`
+represents implementations. Absent scope is not evidence of universal applicability.
 Source, text and level filters constrain the same version before paging. Original payloads stay intact.
 Graphs place goals/guidance above implementations and keep source evidence separate. Benchmark links
 resolve current, exact framework/revision/control identifiers into native control nodes, not arbitrary
-clauses. Published `MAPS_TO` carries its original mapping quote; subcontrols stay implementation details.
+clauses. Published `mapsTo` carries its original mapping quote; subcontrols stay implementation details.
 These links establish neither equivalence, clause coverage, compliance nor company-goal alignment.
 Missing or ambiguous mappings are not drawn; review proposals are opt-in and dashed.
 

@@ -15,7 +15,6 @@ from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     Candidate,
     Capabilities,
-    ConceptKind,
     ContentLabel,
     ContentLabeling,
     Extraction,
@@ -53,7 +52,6 @@ def scoped_input():
     extraction = Extraction(
         candidates=[
             Candidate(
-                kind=ConceptKind.OBJECTIVE,
                 semantic_type=SemanticType.STRATEGIC_GOAL,
                 statement=text,
                 excerpt=text,
@@ -149,6 +147,13 @@ async def test_domain_and_irrelevant_labels_do_not_trigger_extraction():
                     )
                 ]
             ),
+            ContentLabeling(
+                labels=[
+                    ContentLabel(
+                        semantic_type=SemanticType.ORGANIZATIONAL_SCOPE, excerpt=segment.text
+                    )
+                ]
+            ),
         ):
             result = await adapter.extract_scoped(segment, labels)
             assert result.extraction == Extraction()
@@ -179,12 +184,14 @@ def test_fabricated_scope_and_kind_layer_disagreement_are_rejected():
     )
     with pytest.raises(GroundingError, match="match"):
         validate_scoped_extraction(wrong_layer, segment, labels)
-    with pytest.raises(ValidationError, match="agree"):
-        Candidate(
-            kind=ConceptKind.OBJECTIVE,
-            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
-            statement=segment.text,
-            excerpt=segment.text,
+    with pytest.raises(ValidationError, match="Extra inputs"):
+        Candidate.model_validate(
+            {
+                "kind": "objective",
+                "semantic_type": "TechnicalRequirement",
+                "statement": segment.text,
+                "excerpt": segment.text,
+            }
         )
 
 
@@ -229,7 +236,7 @@ def test_scoped_extraction_rejects_lost_qualifiers_and_invented_mandates(
             Extraction(
                 candidates=[
                     Candidate(
-                        kind=ConceptKind.REQUIREMENT,
+                        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                         statement=statement,
                         excerpt=source,
                         modality=modality,

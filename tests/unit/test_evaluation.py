@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from ekb.adapters.inference import RulesInference
-from ekb.domain.models import Candidate, ConceptKind, Extraction, Modality
+from ekb.domain.models import Candidate, Extraction, Modality, SemanticType
 from ekb.evaluation import Case, evaluate, score
 from ekb.evaluation.benchmarks import evaluate_benchmarks
 
@@ -18,7 +18,7 @@ def test_false_mandates_and_lost_negation_are_penalized():
                 "text": "Operators should not disable alarms.",
                 "expected": [
                     {
-                        "kind": "requirement",
+                        "semantic_type": "TechnicalRequirement",
                         "excerpt": "Operators should not disable alarms.",
                         "modality": "recommended",
                     }
@@ -29,7 +29,7 @@ def test_false_mandates_and_lost_negation_are_penalized():
     prediction = Extraction(
         candidates=[
             Candidate(
-                kind=ConceptKind.REQUIREMENT,
+                semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                 statement="Disable alarms.",
                 excerpt=cases[0].text,
                 modality=Modality.MANDATED,
@@ -37,11 +37,36 @@ def test_false_mandates_and_lost_negation_are_penalized():
         ]
     )
     metrics = score(cases, [prediction])
-    assert metrics["requirement"]["tp"] == 0
-    assert metrics["requirement"]["fp"] == 1
-    assert metrics["requirement"]["fn"] == 1
+    assert metrics["TechnicalRequirement"]["tp"] == 0
+    assert metrics["TechnicalRequirement"]["fp"] == 1
+    assert metrics["TechnicalRequirement"]["fn"] == 1
     assert metrics["false_mandatory_requirements"] == 1
     assert metrics["weighted_error"] == 7
+
+
+def test_unclassified_gold_does_not_invent_or_measure_a_known_ontology_label():
+    text = "Operators should retain audit logs."
+    case = Case.model_validate(
+        {
+            "id": "unknown-layer",
+            "source": "synthetic",
+            "text": text,
+            "expected": [{"excerpt": text, "modality": "recommended"}],
+        }
+    )
+    prediction = Extraction(
+        candidates=[
+            Candidate(
+                semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                statement=text,
+                excerpt=text,
+                modality=Modality.RECOMMENDED,
+            )
+        ]
+    )
+    metrics = score([case], [prediction])
+    assert metrics["unclassified"]["tp"] == 1
+    assert metrics["TechnicalRequirement"]["precision"] is None
 
 
 async def test_offline_evaluation_is_reproducible_and_reports_known_limits(tmp_path):
@@ -54,7 +79,7 @@ async def test_offline_evaluation_is_reproducible_and_reports_known_limits(tmp_p
     assert report["metrics"]["evidence_grounding"] == 1
     assert report["metrics"]["false_mandatory_requirements"] == 0
     assert report["metrics"]["known_scope_accuracy"] == 0
-    assert report["metrics"]["objective"]["recall"] < 1
+    assert report["metrics"]["StrategicGoal"]["recall"] < 1
     assert report["metrics"]["duplicate_precision"] == 1
 
 

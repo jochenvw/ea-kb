@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from ekb.domain.models import AuthorityEvent, ConceptKind, ConceptVersion, Scope, now
+from ekb.domain.models import REQUIREMENT_TYPES, AuthorityEvent, ConceptVersion, Scope, now
 from ekb.domain.publication import project_authority
 from ekb.domain.resolution import (
     Resolution,
@@ -86,8 +86,7 @@ class KnowledgeResolver:
             superseded = {
                 f.concept_ids[1]
                 for d in decisions
-                if (f := findings[d.finding_id]).relationship
-                and f.relationship.value == "SUPERSEDES"
+                if (f := findings[d.finding_id]).action == "version"
                 and len(f.concept_ids) == 2
                 and applicable(f.scope, query_scope, when)
             }
@@ -196,7 +195,7 @@ class KnowledgeResolver:
                     cid
                     for d in decisions
                     if (f := findings[d.finding_id]).relationship
-                    in {"DERIVES_FROM", "MAPS_TO", "SUPPORTS", "DEPENDS_ON"}
+                    in {"refines", "mapsTo", "supports", "dependsOn"}
                     and f.concept_ids[0] in frontier
                     and applicable(f.scope, query_scope, when)
                     for cid in f.concept_ids[1:]
@@ -249,7 +248,7 @@ class KnowledgeResolver:
             concepts = await uow.knowledge.search(query, min(max(limit, 1), 200))
         results, seen = [], set()
         for concept in concepts:
-            if not any(v.candidate.kind == ConceptKind.REQUIREMENT for v in concept.versions):
+            if not any(v.candidate.semantic_type in REQUIREMENT_TYPES for v in concept.versions):
                 continue
             result = await self.resolve_concept(concept.id, scope, profile, as_of)
             key = result.resolved_id or concept.id

@@ -43,7 +43,7 @@ type LineageOutcome = Literal[
 
 
 class MappingBinding(Model):
-    kind: Literal["MAPS_TO"] = "MAPS_TO"
+    kind: Literal["mapsTo"] = "mapsTo"
     status: Literal["published"] = "published"
     reference: FrameworkReference
     native_controls: tuple[NativeControlBinding, ...] = ()
@@ -104,7 +104,7 @@ class ControlComparison(Model):
     embedding_similarity: float | None = None
     verification: Verification | None = None
     lineage: LineageOutcome
-    relationship_kind: Literal["OVERLAPS_WITH", "SUPERSEDES", "CONFLICTS_WITH"] | None = None
+    comparison_kind: Literal["overlap", "succession", "conflict"] | None = None
     review_status: Literal["proposed"] = "proposed"
     confidence: float = Field(default=0.5, ge=0, le=1)
     changed_fields: tuple[str, ...] = ()

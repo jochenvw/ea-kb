@@ -8,6 +8,11 @@ Publisher-specific names belong in actual source attribution and corpus metadata
 
 ## Work minimally
 
+- Application version is registered in `pyproject.toml` (currently `0.1.0`). While its major version
+  is below 1, backwards-incompatible changes and deleting/recreating EKB-owned data, databases or
+  tables are permitted. Prefer `uv run ekb init --recreate` over compatibility migrations in this
+  development stage. Preserve unrelated resources and source inputs; normal startup must not reset data.
+
 - Read the nearest folder README, affected implementation and tests before editing. Follow existing
   patterns; implement the current request, not adjacent backlog or speculative future capabilities.
 - Choose the smallest complete solution. Prefer the standard library and installed dependencies.
@@ -68,6 +73,12 @@ Publisher-specific names belong in actual source attribution and corpus metadata
 
 ## Preserve boundaries and extension contracts
 
+- Treat `ontology\ontology\ekb.ttl` as the ubiquitous language for domain code, database semantic
+  fields, prompts and UI. Use its exact class/property identifiers and definitions; do not add
+  parallel objective/requirement kinds or non-ontology semantic relations. Keep unknown types null.
+  Provenance, lifecycle, evidence, governance and presentation grouping remain separate metadata.
+  Update the domain/database/browser vocabulary checks and read-only catalog when vocabulary changes.
+
 - Keep the modular monolith: `domain` owns schemas and rules; `ports` owns small `Protocol`
   interfaces; `pipeline` and `services` coordinate use cases; `adapters` own infrastructure.
 - Domain and port modules must not import concrete adapters, ORM, web, UI, cloud or model SDKs.
@@ -105,7 +116,8 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   or automatically promote a draft, preview, published document or newest revision.
 - Preserve explicit unit-of-work commits, rollback on failure, atomic segment persistence and
   ownership fencing. Make retries idempotent; do not claim exactly-once external model billing.
-- Use Alembic for schema changes. Keep database and artifact-store changes consistent; switching
+- From major version 1 onward, use Alembic for schema changes. Before v1, rebuild development state.
+  Keep database and artifact-store changes consistent; switching
   storage settings does not migrate historical originals.
 - Never commit credentials, downloaded corpus files or runtime data. Keep telemetry free of source
   text, authorization headers and sensitive exception details; payload capture remains opt-in.
@@ -133,7 +145,8 @@ Publisher-specific names belong in actual source attribution and corpus metadata
   uv run basedpyright
   ```
 
-- Run `uv run alembic check` for persistence changes and `uv lock --check` for packaging changes.
+- Before v1, verify recreated schemas and PostgreSQL contracts for persistence changes; from v1 use
+  `uv run alembic check` as well. Run `uv lock --check` for packaging changes.
   Documentation-only edits need no application test run unless they change executable examples.
 - If an npm-based tool cannot access its upstream, use its documented registry configuration with
   `https://packagefeedproxy.microsoft.io/npm/`. Keep package safety restrictions enabled.

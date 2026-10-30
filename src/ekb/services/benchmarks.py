@@ -3,14 +3,14 @@ from __future__ import annotations
 from ekb.domain.benchmarks import NormalizedBenchmarkDocument
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     Extraction,
     InferenceResult,
     Scope,
+    SemanticType,
     fingerprint,
 )
 
-BENCHMARK_EXTRACTOR_VERSION = fingerprint(implementation="benchmark-requirements-v1")
+BENCHMARK_EXTRACTOR_VERSION = fingerprint(implementation="benchmark-platform-requirements-v2")
 
 
 def benchmark_extraction(
@@ -38,7 +38,7 @@ def benchmark_extraction(
                 continue
             candidates.append(
                 Candidate(
-                    kind=ConceptKind.REQUIREMENT,
+                    semantic_type=SemanticType.PLATFORM_REQUIREMENT,
                     statement=statement,
                     excerpt=excerpt,
                     scope=Scope(platform="Azure"),

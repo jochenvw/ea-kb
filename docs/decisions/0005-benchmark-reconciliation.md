@@ -10,7 +10,7 @@ domain/scoped embeddings. Embeddings never establish equivalence. A separately c
 model can verify meaning; its schema and evidence must validate against both exact source passages.
 Offline structural results are labeled as such. Unknown numeric version baselines stay unknown.
 
-Published MAPS_TO records preserve source-specific identifiers, revisions, coverage and passages.
+Published `mapsTo` records preserve source-specific identifiers, revisions, coverage and passages.
 Native resolution uses exact configured framework/revision and publisher OSCAL label aliases,
 including actual enhancement labels rather than guessed machine-ID transformations. Native clause
 identities are reference anchors, not assertions of per-clause coverage or compliance.

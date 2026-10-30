@@ -12,11 +12,11 @@ from pydantic import Field
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
     Candidate,
-    ConceptKind,
     Extraction,
     Modality,
     Model,
     Segment,
+    SemanticType,
     content_hash,
     now,
     stable_id,
@@ -25,7 +25,7 @@ from ekb.ports import InferencePort
 
 
 class Expected(Model):
-    kind: ConceptKind
+    semantic_type: SemanticType | None = None
     excerpt: str
     modality: Modality = Modality.UNSPECIFIED
     scope: dict[str, Any] = Field(default_factory=dict)
@@ -54,7 +54,7 @@ def qualifier_preserved(candidate: Candidate, expected: Expected) -> bool:
 
 
 def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
-    totals = {kind: {"tp": 0, "fp": 0, "fn": 0} for kind in ConceptKind}
+    totals = {kind: {"tp": 0, "fp": 0, "fn": 0} for kind in (*SemanticType, None)}
     modality_correct = modality_total = scope_correct = scope_total = 0
     known_scope_correct = known_scope_total = grounded = extracted = false_mandates = 0
     duplicate_candidates: list[tuple[str, str | None]] = []
@@ -71,16 +71,20 @@ def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
                 (index, expected)
                 for index, expected in enumerate(case.expected)
                 if index not in used
-                and candidate.kind == expected.kind
+                and (
+                    expected.semantic_type is None
+                    or candidate.semantic_type == expected.semantic_type
+                )
                 and expected.excerpt in candidate.excerpt
                 and qualifier_preserved(candidate, expected)
             ]
             match = matches[0] if matches else None
-            totals[candidate.kind]["tp" if match else "fp"] += 1
+            category = match[1].semantic_type if match else candidate.semantic_type
+            totals[category]["tp" if match else "fp"] += 1
             if match:
                 index, expected = match
                 used.add(index)
-                if candidate.kind == ConceptKind.REQUIREMENT:
+                if candidate.semantic_type != SemanticType.STRATEGIC_GOAL:
                     modality_total += 1
                     modality_correct += candidate.modality == expected.modality
                 actual_scope = candidate.scope.model_dump(mode="json", exclude_none=True)
@@ -98,7 +102,7 @@ def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
                 false_mandates += 1
             duplicate_key = json.dumps(
                 [
-                    candidate.kind,
+                    candidate.semantic_type,
                     re.sub(r"\s+", " ", candidate.statement).strip().casefold(),
                     candidate.modality,
                     candidate.scope.model_dump(mode="json"),
@@ -110,7 +114,7 @@ def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
             )
         for index, expected in enumerate(case.expected):
             if index not in used:
-                totals[expected.kind]["fn"] += 1
+                totals[expected.semantic_type]["fn"] += 1
     duplicates_tp = duplicates_fp = 0
     for index, (key, group) in enumerate(duplicate_candidates):
         for other_key, other_group in duplicate_candidates[index + 1 :]:
@@ -127,7 +131,7 @@ def score(cases: list[Case], predictions: list[Extraction]) -> dict[str, Any]:
     )
     result: dict[str, Any] = {}
     for kind, counts in totals.items():
-        result[kind.value] = {
+        result[kind.value if kind else "unclassified"] = {
             **counts,
             "precision": ratio(counts["tp"], counts["tp"] + counts["fp"]),
             "recall": ratio(counts["tp"], counts["tp"] + counts["fn"]),
@@ -195,6 +199,7 @@ async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dic
             "Small manually labeled corpus; not a compliance benchmark.",
             "Evidence-aligned matching and qualifier checks do not prove semantic entailment.",
             "Unknown scope is distinct from known scope; inspect known_scope_accuracy separately.",
+            "Unclassified gold measures extraction only; use skill evals for ontology classes.",
             "No small-versus-strong model comparison is claimed without actual model runs.",
         ],
     }
@@ -202,10 +207,10 @@ async def evaluate(dataset: Path, output: Path, inference: InferencePort) -> dic
     await asyncio.to_thread(output.write_text, json.dumps(report, indent=2), encoding="utf-8")
     summary = (
         f"EKB evaluation: {report['provider']} ({len(cases)} cases)\n"
-        f"Objective precision/recall: {metrics['objective']['precision']} / "
-        f"{metrics['objective']['recall']}\n"
-        f"Requirement precision/recall: {metrics['requirement']['precision']} / "
-        f"{metrics['requirement']['recall']}\n"
+        f"Strategic goal precision/recall: {metrics['StrategicGoal']['precision']} / "
+        f"{metrics['StrategicGoal']['recall']}\n"
+        f"Unclassified precision/recall: {metrics['unclassified']['precision']} / "
+        f"{metrics['unclassified']['recall']}\n"
         f"Modality accuracy: {metrics['modality_accuracy']}\n"
         f"Scope accuracy / known scope: {metrics['scope_accuracy']} / "
         f"{metrics['known_scope_accuracy']}\n"

@@ -2,7 +2,8 @@
 
 The existing ingestion and benchmark services now run through replaceable `indexing -> enrichment
 -> issues` stages. Candidates become authoritative only through accepted, scoped, evidenced
-reconciliation. Objective and Requirement remain the only semantic primitives.
+reconciliation. Semantic classes and relations use the authoritative OWL vocabulary; see
+`docs\decisions\0008-ontology-ubiquitous-language.md`.
 
 ## Implementation and migration
 
@@ -21,7 +22,8 @@ reconciliation. Objective and Requirement remain the only semantic primitives.
 Additive Alembic revision **`bc02fd5aa60d`** creates `pipeline_executions`, `pipeline_leases`,
 `enrichment_findings`, `reconciliation_decisions`, `concept_aliases`, `knowledge_issues` and
 `issue_events`. It reuses existing `authority_events`; no duplicate graph or ingestion schema.
-Run `uv run ekb init` to migrate. Relevant folder guides document local entry points.
+That revision is archived during pre-v1 development: `uv run ekb init` creates the current ORM schema,
+and `--recreate` rebuilds disposable state after breaking changes. See decision `0009`.
 
 Execution records retain versions, fingerprints, configuration, attempts, timestamps, statistics
 and output contracts. Source ingestion remains incremental. Check caches survive restart; a changed
@@ -193,10 +195,12 @@ uv run pytest -q
 uv run ruff check src tests migrations scripts
 uv run ruff format --check src tests migrations scripts
 uv run basedpyright
-uv run alembic check
 uv lock --check
 uv run ekb eval workflow
 ```
+
+The reported Alembic check is historical; before v1, current schema verification uses disposable
+PostgreSQL contracts and explicit rebuilds instead. Migration checks resume from v1.
 
 ## Telemetry and limits
 

@@ -40,6 +40,7 @@ import {
 } from "@/lib/api";
 import type { Concept, Provenance, SourceGroup, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
+import { OntologyBadge } from "@/ontology";
 
 export function Knowledge() {
   const [level, setLevel] = useState(
@@ -181,7 +182,7 @@ export function Knowledge() {
                 <TableHead className="statement-column">Assertion</TableHead>
                 <TableHead>Architecture level</TableHead>
                 <TableHead>Source / evidence document</TableHead>
-                <TableHead>Kind</TableHead>
+                <TableHead>Ontology concept</TableHead>
                 <TableHead>Publisher maturity</TableHead>
                 <TableHead>Evidence</TableHead>
                 <TableHead>
@@ -268,9 +269,7 @@ export function Knowledge() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
-                        {label(version?.candidate.kind ?? "unknown")}
-                      </Badge>
+                      <OntologyBadge name={version?.candidate.semantic_type} />
                     </TableCell>
                     <TableCell>
                       <Status
@@ -430,9 +429,7 @@ export function ConceptPage({
                     ? ` · ${version.candidate.scope.platform}`
                     : ""}
                 </Badge>
-                <Badge variant="secondary">
-                  {label(version.candidate.kind)}
-                </Badge>
+                <OntologyBadge name={version.candidate.semantic_type} />
                 <Badge variant="secondary">
                   {label(version.candidate.modality)}
                 </Badge>

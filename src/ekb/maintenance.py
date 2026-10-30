@@ -41,12 +41,16 @@ def reset_paths(settings: Settings, protected: tuple[Path, ...] = ()) -> tuple[P
 
 
 async def reset_workspace(
-    settings: Settings, database: Postgres, protected: tuple[Path, ...] = ()
+    settings: Settings,
+    database: Postgres,
+    protected: tuple[Path, ...] = (),
+    *,
+    recreate: bool = False,
 ) -> None:
     paths = reset_paths(settings, protected)
     moved: list[tuple[Path, Path]] = []
     try:
-        async with database.reset():
+        async with database.reset(recreate=recreate):
             for path in paths:
                 if await asyncio.to_thread(path.exists):
                     quarantine = path.with_name(f"{path.name}.reset-{uuid4().hex}")

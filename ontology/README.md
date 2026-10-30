@@ -37,6 +37,10 @@ business-semantic relationship types.
 
 ## Intentionally separate from this ontology
 
+This vocabulary is the application's ubiquitous language. `/ontology` is a read-only browser over
+the canonical Turtle, also exposed at `/api/ontology`; definitions are not duplicated in UI code.
+Domain/database/browser parity is enforced by `tests\unit\test_ontology.py`. See decision `0008`.
+
 - Source documents and passage-level evidence
 - Authority, publication maturity and governance approval
 - Canonical identities, duplicate aliases, SemVer and supersession

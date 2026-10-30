@@ -328,7 +328,7 @@ class Inspection:
                     (version.assertion.text if version.assertion else None)
                     or version.candidate.statement
                 ),
-                kind=version.candidate.kind,
+                kind=version.candidate.semantic_type or "unclassified",
                 href=f"/concepts/{version.concept_id}",
                 level=knowledge_level(version.candidate),
             )

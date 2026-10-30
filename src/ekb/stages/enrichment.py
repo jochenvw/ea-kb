@@ -73,7 +73,10 @@ def pairs(
             ranked = []
             for j in matches:
                 other, previous = entries[j]
-                if concept.id == other.id or version.candidate.kind != previous.candidate.kind:
+                if (
+                    concept.id == other.id
+                    or version.candidate.semantic_type != previous.candidate.semantic_type
+                ):
                     continue
                 if count >= context.options.max_candidates:
                     return
@@ -330,10 +333,16 @@ class BenchmarkChecks:
                     context,
                     "version_comparison",
                     "1",
-                    action="version",
+                    action="version"
+                    if change.comparison_kind == "succession"
+                    else "relationship"
+                    if change.comparison_kind == "conflict"
+                    else "keep_distinct",
                     concept_ids=(b, a),
                     passages=(old.control.evidence, new.control.evidence),
-                    relationship=change.relationship_kind,
+                    relationship=RelationshipKind.TENSION_WITH
+                    if change.comparison_kind == "conflict"
+                    else None,
                     confidence=change.confidence,
                     proposed_change=change.proposed_change,
                     scope=new.scope,

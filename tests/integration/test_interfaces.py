@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from textual.widgets import DataTable, Input, Static, TabbedContent
 
 from ekb.config import Settings
-from ekb.domain.models import AuthorityEvent, ConceptKind, Scope
+from ekb.domain.models import AuthorityEvent, Scope, SemanticType
 from ekb.interfaces.api import create_app
 from ekb.interfaces.mcp import create_server
 from ekb.interfaces.tui import KnowledgeApp
@@ -140,7 +140,7 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                         "candidate": original.candidate.model_copy(
                             update={
                                 "statement": "A later interpretation without this source.",
-                                "kind": ConceptKind.REQUIREMENT,
+                                "semantic_type": SemanticType.PLATFORM_REQUIREMENT,
                                 "scope": Scope(platform="Azure"),
                             }
                         ),

@@ -236,7 +236,7 @@ async def implementation_context(
                 GraphEdge(
                     source=parent,
                     target=node_id,
-                    kind="MAPS_TO",
+                    kind="mapsTo",
                     status="published",
                     href=href,
                     evidence=reference.evidence,

@@ -4,6 +4,7 @@
 - `parsers` turns original documents into stable, located text segments.
 - `inference` implements offline rules and configured model transports.
 - `artifacts` preserves content-addressed originals; `persistence` owns database repositories.
+- `ontology.py` reads packaged/source Turtle through RDFLib and rejects domain vocabulary drift.
 
 Implement contracts in `src\ekb\ports\__init__.py`; wire providers in `src\ekb\runtime.py`.
 Entry-point registration does not automatically activate a connector or grant network access.

@@ -16,6 +16,8 @@ from sqlalchemy import text
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
+from ekb import __version__
+from ekb.adapters.ontology import load_ontology
 from ekb.config import Settings
 from ekb.domain.models import (
     ConceptDetail,
@@ -25,6 +27,7 @@ from ekb.domain.models import (
     ScanReport,
     SourceRecord,
 )
+from ekb.domain.ontology import OntologyCatalog
 from ekb.domain.reconciliation import (
     BenchmarkLineage,
     ComparisonReport,
@@ -61,7 +64,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             if provided_runtime is None:
                 await active.__aexit__()
 
-    app = FastAPI(title="Enterprise Knowledge Base", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Enterprise Knowledge Base", version=__version__, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
     templates = Jinja2Templates(directory=WEB / "static" / "ui")
 
@@ -90,6 +93,10 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     register_governance(app, active, templates)
     register_inspection(app, active)
+
+    @app.get("/api/ontology", response_model=OntologyCatalog)
+    async def ontology() -> OntologyCatalog:
+        return await asyncio.to_thread(load_ontology)
 
     @app.get("/health")
     async def health(request: Request) -> dict[str, str]:
@@ -203,6 +210,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/reconciliation", response_class=HTMLResponse)
     @app.get("/data", response_class=HTMLResponse)
     @app.get("/logs", response_class=HTMLResponse)
+    @app.get("/ontology", response_class=HTMLResponse)
     async def workspace(request: Request):
         return templates.TemplateResponse(request=request, name="index.html")
 

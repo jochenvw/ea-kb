@@ -6,6 +6,8 @@
 - `0004-structured-benchmark-ingestion.md`: model-free records, exact bindings and replay boundaries.
 - `0006-browser-presentation.md`: actual shadcn, information hierarchy, local assets and browser checks.
 - `0007-bounded-ingestion-skills.md`: deterministic inventory, separate semantic skills and precision-gated frugality.
+- `0008-ontology-ubiquitous-language.md`: authoritative vocabulary, read-only viewer and language checks.
+- `0009-pre-v1-development-state.md`: version registration, disposable development state and schema rebuilds.
 
 Read these before changing persistence invariants, execution boundaries or major dependencies.
 Record a new significant decision briefly; keep detailed implementation description in

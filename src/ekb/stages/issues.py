@@ -124,7 +124,7 @@ async def conflicting_requirements(context: CheckContext) -> CheckResult:
                 )
             )
     for f in unresolved(context):
-        if f.relationship and f.relationship.value == "TENSION_WITH":
+        if f.relationship and f.relationship.value == "tensionWith":
             results.append(
                 issue(
                     context,
@@ -194,7 +194,7 @@ async def version_ambiguity(context: CheckContext) -> CheckResult:
     results = []
     successors: dict = defaultdict(list)
     for f in unresolved(context):
-        if f.action == "version" and f.relationship and f.relationship.value == "SUPERSEDES":
+        if f.action == "version" and len(f.concept_ids) == 2:
             successors[f.concept_ids[-1]].append(f)
     for cid, findings in successors.items():
         if len({f.concept_ids[0] for f in findings}) > 1:
@@ -269,7 +269,7 @@ async def provenance_gaps(context: CheckContext) -> CheckResult:
                 )
             )
     for f in unresolved(context):
-        if f.relationship and f.relationship.value == "MAPS_TO" and f.uncertainty:
+        if f.relationship and f.relationship.value == "mapsTo" and f.uncertainty:
             results.append(
                 issue(
                     context,

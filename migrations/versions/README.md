@@ -6,5 +6,6 @@
 - `bc02fd5aa60d` adds durable pipeline/check runs, findings, decisions, aliases and issue history.
 
 Alembic revision/predecessor identifiers define order; filenames alone do not.
-Add a new revision for subsequent changes rather than rewriting an already-applied migration.
+During pre-v1 development these revisions are archived; rebuild from ORM metadata instead.
+From v1, establish a release baseline and add revisions rather than rewriting applied migrations.
 See `migrations\README.md` for commands and the PostgreSQL adapter for current models.

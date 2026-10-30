@@ -10,7 +10,6 @@ from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     AuthorityEvent,
     Candidate,
-    ConceptKind,
     ConceptVersion,
     Extraction,
     InferenceResult,
@@ -20,6 +19,7 @@ from ekb.domain.models import (
     RelationshipKind,
     Scope,
     Segment,
+    SemanticType,
     SemanticVersion,
     SourceItem,
     SourceRecord,
@@ -73,7 +73,7 @@ async def test_levels_preserve_goals_and_filter_platform_requirements_before_pag
     segment = await seed(database)
     candidates = [
         Candidate(
-            kind=kind,
+            semantic_type=kind,
             scope=Scope(platform=platform),
             statement="Users must authenticate.",
             excerpt="Users must authenticate.",
@@ -81,11 +81,11 @@ async def test_levels_preserve_goals_and_filter_platform_requirements_before_pag
         )
         for index, (kind, platform) in enumerate(
             (
-                (ConceptKind.REQUIREMENT, "Azure"),
-                (ConceptKind.REQUIREMENT, None),
-                (ConceptKind.REQUIREMENT, " "),
-                (ConceptKind.REQUIREMENT, "\t\n"),
-                (ConceptKind.OBJECTIVE, "Azure"),
+                (SemanticType.PLATFORM_REQUIREMENT, "Azure"),
+                (SemanticType.TECHNICAL_REQUIREMENT, None),
+                (None, " "),
+                (None, "\t\n"),
+                (SemanticType.STRATEGIC_GOAL, "Azure"),
             )
         )
     ]
@@ -115,7 +115,7 @@ async def test_levels_preserve_goals_and_filter_platform_requirements_before_pag
 async def test_repository_evidence_contract_and_idempotency(database):
     segment = await seed(database)
     candidate = Candidate(
-        kind=ConceptKind.REQUIREMENT,
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
         statement="Users must authenticate.",
         excerpt="Users must authenticate.",
     )
@@ -149,10 +149,12 @@ async def test_repository_evidence_contract_and_idempotency(database):
 async def test_recursive_lineage_handles_cycles_and_reverse_edges(database):
     segment = await seed(database)
     first = Candidate(
-        kind=ConceptKind.REQUIREMENT, statement="Authentication", excerpt="Users must authenticate."
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+        statement="Authentication",
+        excerpt="Users must authenticate.",
     )
     second = Candidate(
-        kind=ConceptKind.REQUIREMENT,
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
         statement="Identity management",
         excerpt="identity management.",
     )
@@ -162,7 +164,7 @@ async def test_recursive_lineage_handles_cycles_and_reverse_edges(database):
             from_index=0, to_index=1, kind=RelationshipKind.DEPENDS_ON, excerpt=evidence
         ),
         ProposedRelationship(
-            from_index=1, to_index=0, kind=RelationshipKind.DERIVES_FROM, excerpt=evidence
+            from_index=1, to_index=0, kind=RelationshipKind.REFINES, excerpt=evidence
         ),
     ]
     async with database() as uow:
@@ -204,7 +206,7 @@ async def test_assertions_are_replayable_projections_not_edits_to_originals(data
                 extraction=Extraction(
                     candidates=[
                         Candidate(
-                            kind=ConceptKind.REQUIREMENT,
+                            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                             statement="Users must authenticate.",
                             excerpt="Users must authenticate.",
                         )
@@ -283,7 +285,7 @@ async def test_explicit_version_and_authority_history(database):
                 extraction=Extraction(
                     candidates=[
                         Candidate(
-                            kind=ConceptKind.REQUIREMENT,
+                            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                             statement="Authenticate",
                             excerpt="authenticate.",
                         )
@@ -338,7 +340,7 @@ async def test_concurrent_prerelease_branches_preserve_unknown_and_final_history
                 extraction=Extraction(
                     candidates=[
                         Candidate(
-                            kind=ConceptKind.REQUIREMENT,
+                            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
                             statement="Authenticate",
                             excerpt="authenticate.",
                         )

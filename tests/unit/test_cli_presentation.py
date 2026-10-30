@@ -31,6 +31,25 @@ def test_fresh_requires_confirmation_before_runtime_or_database_access(tmp_path,
         assert result.exit_code == 2 and "requires" in result.output
 
 
+def test_reset_requires_confirmation_without_starting_runtime_or_reindexing(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Declining reset must not open persistence or start ingestion")
+
+    monkeypatch.setattr("ekb.interfaces.cli.Runtime", forbidden)
+    declined = CliRunner().invoke(app, ["reset"], input="n\n")
+    assert declined.exit_code != 0 and "Aborted" in declined.output
+
+
+def test_destructive_schema_recreation_is_not_allowed_at_or_after_v1(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("A released application must not recreate its database")
+
+    monkeypatch.setattr("ekb.interfaces.cli.__version__", "1.0.0")
+    monkeypatch.setattr("ekb.interfaces.cli.Runtime", forbidden)
+    result = CliRunner().invoke(app, ["init", "--recreate"])
+    assert result.exit_code == 2 and "before application v1" in result.output
+
+
 def test_profile_argument_selects_yaml_without_mutating_process_environment(tmp_path, monkeypatch):
     selected, other = tmp_path / "selected.yaml", tmp_path / "other.yaml"
     selected.write_text("scan_concurrency: 7\n", encoding="utf-8")

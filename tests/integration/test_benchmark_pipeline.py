@@ -20,8 +20,8 @@ from ekb.adapters.persistence.postgres.models import (
 )
 from ekb.adapters.sources.benchmarks import LEARN, MicrosoftLearnBenchmarkConnector, _asset
 from ekb.domain.models import (
-    ConceptKind,
     PublicationStatus,
+    SemanticType,
     SourceItem,
     SourceRecord,
     SourceRevision,
@@ -113,23 +113,23 @@ async def test_native_mapping_resolution_requires_exact_catalog_revision_and_pub
         assert graph
         references = [node for node in graph.nodes if node.kind == "framework_control"]
         assert len(references) == 1 and "SC-7(5)" in references[0].label
-        mappings = [edge for edge in graph.edges if edge.kind == "MAPS_TO"]
+        mappings = [edge for edge in graph.edges if edge.kind == "mapsTo"]
         assert len(mappings) == 1 and mappings[0].status == "published"
         assert mappings[0].evidence == record.document.controls[0].mappings[0].evidence
         assert next(node for node in graph.nodes if node.id == parent).level == "implementation"
         native = await uow.inspection.graph(expected["5"][0])
         assert native and any(
-            edge.source == parent and edge.kind == "MAPS_TO" for edge in native.edges
+            edge.source == parent and edge.kind == "mapsTo" for edge in native.edges
         )
         assert any(edge.kind == "part_of_control" for edge in native.edges)
         legacy = await uow.inspection.graph(expected["4"][0])
-        assert legacy and not any(edge.kind == "MAPS_TO" for edge in legacy.edges)
+        assert legacy and not any(edge.kind == "mapsTo" for edge in legacy.edges)
         detail = await uow.inspection.graph(child)
         assert detail and any(
             edge.source == child and edge.target == parent and edge.kind == "implementation_detail"
             for edge in detail.edges
         )
-        assert not any(edge.source == child and edge.kind == "MAPS_TO" for edge in detail.edges)
+        assert not any(edge.source == child and edge.kind == "mapsTo" for edge in detail.edges)
         source = await uow.sources.get(targets[0].source_id)
         assert source
         replacement = SourceRevision(
@@ -143,7 +143,7 @@ async def test_native_mapping_resolution_requires_exact_catalog_revision_and_pub
         await uow.commit()
     async with database() as uow:
         stale = await uow.inspection.graph(parent)
-        assert stale and not any(edge.kind == "MAPS_TO" for edge in stale.edges)
+        assert stale and not any(edge.kind == "mapsTo" for edge in stale.edges)
 
 
 async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_calls(
@@ -235,7 +235,7 @@ async def test_cached_benchmarks_persist_exact_records_without_parsing_or_model_
                 await uow.benchmarks.save(forged)
             detail = await uow.knowledge.get(record.concept_ids["NS-6"])
             assert detail and detail.versions[0].semantic_version is None
-            assert detail.versions[0].candidate.kind == ConceptKind.REQUIREMENT
+            assert detail.versions[0].candidate.semantic_type == SemanticType.PLATFORM_REQUIREMENT
             assert all(
                 state.canonical_status == "not_canonical" for state in detail.authority_states
             )

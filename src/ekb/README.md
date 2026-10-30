@@ -1,6 +1,7 @@
 # EKB application package
 
 - `runtime.py` constructs providers, shared services and resource lifetimes.
+- `__init__.py` reads the application version registered in `pyproject.toml` via package metadata.
 - `maintenance.py` validates owned reset paths and quarantines caches during guarded fresh starts.
 - `domain` and `ports` define values, invariants and interchangeable contracts.
 - `pipeline` adapts ingestion; `orchestration` orders durable, replaceable `stages`.

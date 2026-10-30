@@ -85,7 +85,7 @@ async def export_training(
             extraction = Extraction(
                 candidates=[
                     Candidate(
-                        kind=e.kind,
+                        semantic_type=e.semantic_type,
                         statement=e.excerpt,
                         excerpt=e.excerpt,
                         modality=e.modality,

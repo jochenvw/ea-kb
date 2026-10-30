@@ -51,7 +51,7 @@ code-derived scaling risks, not measured production incidents.
 
 | Area | Why sensitive | Churn signal | Safe change strategy |
 |---|---|---|---|
-| PostgreSQL adapter | Largest handwritten Python module; repositories, leases, recursive lineage | Initially committed together | Preserve contracts and migrations |
+| PostgreSQL adapter | Largest handwritten Python module; repositories, leases, recursive lineage | Initially committed together | Preserve contracts; pre-v1 rebuilds follow decision 0009 |
 | Pipeline/artifacts | Ownership, cancellation, replay and atomic publication interact | Initial implementation; concurrency regressions exist | Exercise concurrent claims, cancellation and writes |
 | README/packaging | Workflow/tool integration changes | Two modifying commits each in the initial four-commit history | Keep commands aligned with tools |
 

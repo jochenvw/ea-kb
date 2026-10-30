@@ -6,5 +6,6 @@ Tests cover hierarchy, evidence escaping, structured versions, scope/authority s
 guards, server cursors, error recovery, responsive navigation and themes. No review or scan is submitted.
 Reference/work regressions cover source-bound versions, graph recentering/proposal styles,
 backlog versus ledger, foreign-key navigation, terminal pages and searchable log tails.
+Ontology regressions cover exact definitions, linked scopes, search, escaping, deep links and themes.
 Python integration tests cover the actual FastAPI routes, authentication and persisted services.
 Real-corpus visual smoke checks use the built application served by `ekb web`.
