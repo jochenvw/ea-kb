@@ -24,6 +24,7 @@ from ekb.domain.models import (
     ContentLabel,
     ContentLabeling,
     Extraction,
+    GoalLevel,
     InferenceResult,
     LabelingResult,
     Modality,
@@ -71,6 +72,26 @@ SCOPED_PROMPT_VERSION = "scoped-extraction-v1:" + fingerprint(prompt=SCOPED_INST
 def _rules_extraction(segment: Segment) -> Extraction:
     candidates = []
     structured = bool(segment.location.get("structured_control"))
+    vision = re.search(
+        r"\b(?:our|the organization['’]s)\s+vision\s+is\s+to\b"
+        r"[\s\S]{0,4000}?(?:[.!?](?=\s|$)|$)",
+        segment.text,
+        re.I | re.S,
+    )
+    if vision:
+        excerpt = vision.group()
+        statement = re.sub(r"\s*\[[A-Z]\]", "", excerpt)
+        statement = re.sub(r"\s+", " ", statement).strip()
+        candidates.append(
+            Candidate(
+                semantic_type=SemanticType.STRATEGIC_GOAL,
+                goal_level=GoalLevel.ENTERPRISE,
+                statement=statement,
+                excerpt=excerpt,
+                confidence=0.75,
+                uncertainty="Explicit organization vision identified by an offline rule.",
+            )
+        )
     for raw in re.split(r"(?<=[.!?])\s+(?=[A-Z])|\n+", segment.text):
         text = raw.strip().removeprefix("#").strip()
         if not text or len(text) > 4000:
@@ -111,12 +132,12 @@ class RulesInference:
     """Conservative offline baseline, explicitly not a language model."""
 
     capabilities = Capabilities(model_id="offline-rules-v1")
-    prompt_version = "rules-v2"
+    prompt_version = "rules-v3"
     label_fingerprint = fingerprint(
         skill="rules-labeling-v2", schema=ContentLabeling.model_json_schema()
     )
     extraction_fingerprint = fingerprint(
-        skill="rules-scoped-extraction-v2", schema=Extraction.model_json_schema()
+        skill="rules-scoped-extraction-v3", schema=Extraction.model_json_schema()
     )
 
     async def label(self, segment: Segment) -> LabelingResult:
@@ -340,7 +361,13 @@ class OpenAIInference:
             if schema is ContentLabeling
             else self.capabilities.model_id
         )
-        input_tokens, output_tokens, failures = 0, 0, 0
+        input_tokens, output_tokens, failures, model_calls = 0, 0, 0, 0
+
+        async def complete() -> tuple[str, int, int]:
+            nonlocal model_calls
+            model_calls += 1
+            return await self._complete(messages, schema)
+
         for attempt in range(self.settings.model_retries + 1):
             if (
                 sum(len(message["content"].encode()) for message in messages)
@@ -359,7 +386,7 @@ class OpenAIInference:
                     "validation.attempt": attempt,
                 },
             ) as span:
-                text, tokens_in, tokens_out = await retry(lambda: self._complete(messages, schema))
+                text, tokens_in, tokens_out = await retry(complete)
                 input_tokens += tokens_in
                 output_tokens += tokens_out
                 span.set_attribute("model.input_tokens", tokens_in)
@@ -413,6 +440,7 @@ class OpenAIInference:
                     Usage(
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
+                        model_calls=model_calls,
                         latency_ms=(time.monotonic() - started) * 1000,
                         cost=cost,
                         validation_failures=failures,

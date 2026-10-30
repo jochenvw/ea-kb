@@ -14,6 +14,7 @@ from ekb.domain.models import content_hash
 from ekb.evaluation.dataset import Split, load_dataset
 from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
+from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_latest
 from ekb.evaluation.skills import SkillSelection, evaluate_skills
 from ekb.evaluation.suite import run_suite
 from ekb.runtime import Runtime
@@ -182,3 +183,122 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             return {"passed": True, "sources": len(labels.sources), "verified_quotes": checked}
 
         execute(operation)
+
+    @evaluations.command("goals")
+    def goals(
+        source: Annotated[
+            Path, typer.Option(help="Source PDF; its hash must match the reference dataset.")
+        ] = Path("data")
+        / "test-corpus"
+        / "public"
+        / "corporate_strategy"
+        / "shell-annual-2025.pdf",
+        dataset: Annotated[Path, typer.Option()] = Path("evals")
+        / "goals"
+        / "shell-annual-2025.json",
+        output: Annotated[Path, typer.Option(help="Evaluation history and extraction cache.")] = (
+            Path("data") / "goal-evaluations"
+        ),
+        strategy: Annotated[
+            str, typer.Option(help="whole-document, section-aware, or hierarchical.")
+        ] = "section-aware",
+        compare_strategies: Annotated[
+            bool, typer.Option(help="Run all three strategies for a direct comparison.")
+        ] = False,
+        live: Annotated[
+            bool, typer.Option(help="Explicitly allow configured provider/model calls.")
+        ] = False,
+        model_profile: Annotated[
+            Path,
+            typer.Option(help="Settings YAML; live model calls may incur cost."),
+        ] = Path("config") / "local.yaml",
+        max_model_calls: Annotated[int, typer.Option(min=1, max=100000)] = 10000,
+    ) -> None:
+        """Evaluate enterprise strategic-goal extraction against source-audited references."""
+
+        async def operation():
+            settings = Settings(config_file=model_profile)
+            if settings.inference != "rules" and not live:
+                raise ValueError("Pass --live to enable configured provider/model calls")
+            strategies = (
+                ("whole_document", "section_aware", "hierarchical")
+                if compare_strategies
+                else completed_strategies(strategy)
+            )
+            configuration = {
+                "profile": str(model_profile),
+                "inference_provider": settings.inference,
+                "labeling_model_id": settings.labeling_model_id or settings.model_id,
+                "temperature": settings.model_temperature,
+                "max_output_tokens": settings.model_max_output_tokens,
+                "max_token_parameter": settings.model_max_token_parameter,
+                "model_retries": settings.model_retries,
+                "structured_output": settings.model_structured_output,
+            }
+            calls_per_segment = (
+                2 if settings.inference == "rules" else 6 * (settings.model_retries + 1)
+            )
+            async with Runtime(settings) as runtime:
+                report = await evaluate_goals(
+                    source,
+                    dataset,
+                    output,
+                    runtime.parser,
+                    runtime.inference,
+                    strategies=strategies,
+                    configuration=configuration,
+                    max_model_calls=max_model_calls,
+                    max_calls_per_segment=calls_per_segment,
+                )
+            return {
+                "status": report["status"],
+                "run_id": report["run_id"],
+                "model": report["model"],
+                "strategies": {
+                    name: {
+                        "metrics": result["metrics"],
+                        "model_calls": result["model_calls"],
+                        "current_run_model_calls": result["current_run_model_calls"],
+                        "model_call_count_complete": result["model_call_count_complete"],
+                        "model_call_budget_consumed": result["model_call_budget_consumed"],
+                        "unaccounted_model_call_reserve": result["unaccounted_model_call_reserve"],
+                        "current_run_cost": result["current_run_cost"],
+                        "elapsed_ms": result["elapsed_ms"],
+                    }
+                    for name, result in report["strategies"].items()
+                },
+                "json_report": report["json_report"],
+                "markdown_report": report["markdown_report"],
+            }
+
+        try:
+            emit(asyncio.run(operation()))
+        except (ValueError, OSError) as error:
+            raise typer.BadParameter(str(error)) from None
+
+    @evaluations.command("report")
+    def goal_report(
+        latest: Annotated[bool, typer.Option(help="Show the latest strategic-goal report.")] = True,
+        output: Annotated[Path, typer.Option(help="Evaluation history directory.")] = (
+            Path("data") / "goal-evaluations"
+        ),
+    ) -> None:
+        """Display the most recent strategic-goal evaluation report."""
+
+        if not latest:
+            raise typer.BadParameter("Only --latest is supported")
+
+        async def operation():
+            report, markdown_path = await report_latest(output)
+            markdown = await asyncio.to_thread(markdown_path.read_text, encoding="utf-8")
+            return {
+                "run_id": report["run_id"],
+                "status": report["status"],
+                "json_report": str(markdown_path.with_suffix(".json")),
+                "markdown": markdown,
+            }
+
+        try:
+            emit(asyncio.run(operation()))
+        except (ValueError, OSError) as error:
+            raise typer.BadParameter(str(error)) from None

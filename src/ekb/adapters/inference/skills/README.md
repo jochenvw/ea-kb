@@ -5,5 +5,7 @@
 - Prompts are runtime assets; their content hashes independently invalidate skill replay.
 - Both skills use typed domain inputs/outputs through `IngestionSkills`, with no tools or loops.
 - Unknown layers stay unknown; architecture-domain labels do not become requirement candidates.
+- Strategic-goal extraction distinguishes enterprise outcomes, unit goals, subordinate targets and non-goals;
+  `goal_level` is internal metadata, not an OWL class.
 - Test/evaluate each skill independently before selecting a cheaper model or editing a prompt.
 - See `docs\evaluation.md` for split isolation, precision gates and live qualification limits.

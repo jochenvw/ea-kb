@@ -52,6 +52,12 @@ class Modality(StrEnum):
     UNSPECIFIED = "unspecified"
 
 
+class GoalLevel(StrEnum):
+    ENTERPRISE = "enterprise"
+    BUSINESS_UNIT = "business_unit"
+    SUBORDINATE_TARGET = "subordinate_target"
+
+
 class RelationshipKind(StrEnum):
     REFINES = "refines"
     SUPPORTS = "supports"
@@ -309,6 +315,7 @@ class Candidate(Model):
     excerpt: str = Field(min_length=1)
     modality: Modality = Modality.UNSPECIFIED
     scope: Scope = Field(default_factory=Scope)
+    goal_level: GoalLevel | None = None
     confidence: float = Field(default=0.5, ge=0, le=1)
     source_key: str | None = None
     uncertainty: str | None = None
@@ -321,6 +328,8 @@ class Candidate(Model):
             and self.modality != Modality.UNSPECIFIED
         ):
             raise ValueError("Strategic goals do not have requirement modality")
+        if self.goal_level is not None and self.semantic_type != SemanticType.STRATEGIC_GOAL:
+            raise ValueError("Goal level is internal metadata for StrategicGoal candidates only")
         if self.semantic_type in {
             SemanticType.ARCHITECTURE_DOMAIN,
             SemanticType.ORGANIZATIONAL_SCOPE,
@@ -363,6 +372,7 @@ class Extraction(Model):
 class Usage(Model):
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
+    model_calls: int = Field(default=0, ge=0)
     latency_ms: float = Field(default=0, ge=0)
     cost: float | None = Field(default=None, ge=0)
     validation_failures: int = Field(default=0, ge=0)
@@ -372,6 +382,7 @@ def total_usage(usages: list[Usage]) -> Usage:
     return Usage(
         input_tokens=sum(u.input_tokens for u in usages),
         output_tokens=sum(u.output_tokens for u in usages),
+        model_calls=sum(u.model_calls for u in usages),
         latency_ms=sum(u.latency_ms for u in usages),
         cost=sum(u.cost for u in usages if u.cost is not None)
         if usages and all(u.cost is not None for u in usages)

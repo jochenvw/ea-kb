@@ -6,6 +6,8 @@
 `dataset.py` materializes split-isolated teacher cases; `frugal.py` qualifies quality and efficiency.
 `distillation.py` exports train-only labels; `suite.py` combines code tests and offline/live evals.
 `skills.py` independently scores ontology/scope labeling and gold-routed extraction on isolated cases.
+`goals.py` verifies source-page evidence and evaluates goal detection, abstraction, scope,
+duplicates, provenance, provisional hierarchy and efficiency.
 
 - Labels live in `tests\golden\dataset.json`; keep real attributed excerpts distinct from synthetic cases.
 - Score grounding, ontology class/modality/scope and duplicates; invented mandates receive extra penalties.
@@ -13,6 +15,7 @@
 - Unclassified gold cases measure extraction, not class quality; use the independently labeled skill evals.
 
 Run `uv run ekb eval run --baseline --output data\evaluation-rules.json` from the repository root.
+Run `uv run ekb eval goals --compare-strategies` for the source-audited strategic-goal diagnostic.
 The offline baseline is not a paid-model benchmark; see `tests\unit\test_evaluation.py`.
 Run `uv run ekb eval benchmarks`; `--configured` explicitly opts into the configured small model.
 Run `uv run ekb eval workflow` after actual corpus sync/indexing; see `docs\phase3.md`.

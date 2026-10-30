@@ -94,6 +94,44 @@ gold routing labels as inputs, not expected candidates, so a labeling error cann
 behavior. Normal ingestion and the existing teacher evaluation exercise the combined model-backed
 path. Prompt/model selection uses validation; reserve test for the final comparison.
 
+### Enterprise strategic-goal evaluation
+
+```powershell
+uv run ekb eval goals --compare-strategies
+uv run ekb eval goals --strategy hierarchical --model-profile config\foundry.yaml --live
+uv run ekb eval report --latest
+```
+
+`evals\goals\shell-annual-2025.json` stores provisional, source-grounded reference annotations,
+including five goal interpretations, subordinate targets and non-goal examples. The evaluator
+checks the source hash, PDF page count and all 20 evidence anchors against their cited pages before
+scoring. Whole-document, section-aware and hierarchical strategies share parse/extraction caches;
+the report scores detection, ontology type, abstraction, scope, duplicates, provenance and
+provisional hierarchy hypotheses, and records tokens, latency, request counts and available cost.
+Semantic fidelity remains explicitly marked for human review. Model comparisons require separately
+configured profiles and `--live`; an unavailable or unconfigured provider is not a successful run.
+
+The measured offline Rules baseline and one general-rule iteration were:
+
+| Strategy | Pages | Primary TP / FP / FN | Precision / recall / F1 | Input / output tokens |
+|---|---:|---:|---:|---:|
+| Whole-document | 474 | 1 / 191 / 2 | .005 / .333 / .010 | 0 / 0 |
+| Section-aware | 13 | 1 / 7 / 2 | .125 / .333 / .182 | 0 / 0 |
+| Hierarchical (offline exact deduplication) | 13 | 1 / 7 / 2 | .125 / .333 / .182 | 0 / 0 |
+
+Before the explicit-vision rule, the section-aware offline baseline returned 0 of 3 primary
+references, 7 false positives and 3 false negatives. The iteration recovered the explicitly stated
+enterprise vision; it still misses two primary goals, and alternatives such as Goal Zero remain
+unresolved. Whole-document extraction produced 192 strategic-goal candidates and remains too noisy.
+Hierarchical offline mode performs exact deterministic deduplication only; it is not evidence that
+model synthesis improves quality. The new prompt guidance was not evaluated by RulesInference,
+which ignores model prompts. No small/strong model comparison or live cost/latency result is claimed:
+the default profile is offline rules, and paid model calls were not run.
+
+Structured JSON and Markdown artifacts are written under the selected `--output` directory. These
+results are provisional diagnostics, not production qualification; independent human review remains
+necessary.
+
 `evals\skills-v1.json` contains 16 provisional cases: three attributed excerpts reused verbatim
 from the existing teacher corpus, retaining its family/split/hash/attribution, and 13 neutral
 synthetic cases. Cases cover mixed organizational scope, six semantic types, unknown layer,

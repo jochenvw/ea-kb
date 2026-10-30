@@ -11,6 +11,7 @@ Canonical OWL definitions are appended by task; definition/schema changes invali
   A separate labeling deployment is optional; unknown layers remain explicit.
 - Rules are an explicitly limited offline baseline, not an automatic model-failure fallback.
 - Model output must pass schema/exact-evidence validation; retries and context limits are bounded.
+- Usage counts actual completion requests, including transient retries, for evaluation accounting.
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
 - Neither an embedding match nor a model answer merges concepts or promotes authority.

@@ -1,0 +1,396 @@
+{
+  "version": "shell-strategic-goals-v1",
+  "review_status": "provisional_reference_annotations",
+  "annotation_note": "The initial goal candidates were supplied by the user and checked against the report. These annotations have not received independent human review and are not verified ground truth.",
+  "source": {
+    "id": "shell-annual-2025",
+    "name": "Shell Annual Report and Accounts 2025",
+    "filename": "shell-annual-2025.pdf",
+    "url": "https://www.shell.com/investors/results-and-reporting/annual-report/_jcr_content/root/main/section_2113846431/link_list/links/item0.stream/1774544186011/5727c329a58b5eb7a54442c0a03f562a5aef1159/shell-annual-report-2025-interactive.pdf",
+    "sha256": "eab508829aacb9c2d78a9d0ee8e9e1f6266b474bdd726c4f23ddf6fc3e6c1f40",
+    "pdf_pages": 474,
+    "printed_page_offset_note": "Physical PDF page numbers do not have one constant offset from printed page numbers; use the per-evidence values.",
+    "attribution": "Shell plc, Annual Report and Accounts 2025. Official source; report copyright remains with Shell plc."
+  },
+  "section_aware_pdf_pages": [5, 6, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 105],
+  "annotations": [
+    {
+      "id": "SG-01",
+      "expected_type": "StrategicGoal",
+      "abstraction": "enterprise_goal",
+      "primary_or_alternative": "primary",
+      "normalized_statement": "Become the world's leading integrated energy company.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "Our vision is to become",
+          "printed_page": 6,
+          "pdf_page": 9,
+          "section": "This is Shell",
+          "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "achieve our vision [E] to be the world's leading integrated energy company",
+          "printed_page": 5,
+          "pdf_page": 8,
+          "section": "Chief Executive Officer's review",
+          "strength": "corroborating",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "The report explicitly names this as Shell's vision. It is an intended enterprise outcome, not a binding or time-bound target.",
+      "related_target_ids": [],
+      "ambiguity": "Vision is deliberately retained as a strategic-goal interpretation while being distinguished from a formal commitment."
+    },
+    {
+      "id": "SG-02",
+      "expected_type": "StrategicGoal",
+      "abstraction": "enterprise_goal",
+      "primary_or_alternative": "primary",
+      "normalized_statement": "Deliver resilient long-term value and financial returns for shareholders.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "delivering resilient returns and rewarding our shareholders",
+          "printed_page": 9,
+          "pdf_page": 12,
+          "section": "Our strategy",
+          "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "deliver resilient returns through the cycle",
+          "printed_page": 11,
+          "pdf_page": 14,
+          "section": "Financial discipline and strategic focus",
+          "strength": "corroborating",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "Financial value and resilient shareholder returns recur as an enterprise outcome; individual financial targets are subordinate measures, not additional group goals.",
+      "related_target_ids": ["NEG-03"],
+      "ambiguity": "The report expresses value creation through several targets and mechanisms. Do not equate any single KPI or cost target with the goal."
+    },
+    {
+      "id": "SG-03",
+      "expected_type": "StrategicGoal",
+      "abstraction": "enterprise_goal",
+      "primary_or_alternative": "primary",
+      "normalized_statement": "Reduce emissions while advancing the energy transition.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "a target to become a net-zero emissions energy business by 2050",
+          "printed_page": 15,
+          "pdf_page": 17,
+          "section": "Progress against our longer-term targets — Less emissions",
+          "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "more value with less emissions",
+          "printed_page": 9,
+          "pdf_page": 12,
+          "section": "Our strategy",
+          "strength": "corroborating",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "The report states a group net-zero ambition and emissions targets in its strategy progress section.",
+      "related_target_ids": ["NEG-04"],
+      "ambiguity": "The umbrella strategy phrase overlaps with value creation. Keep this outcome distinct only when its emissions intent is represented without duplicating the umbrella slogan."
+    },
+    {
+      "id": "SG-04",
+      "expected_type": "StrategicGoal",
+      "abstraction": "enterprise_goal",
+      "primary_or_alternative": "acceptable_alternative",
+      "normalized_statement": "Build a more competitive and operationally efficient enterprise.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "a more competitive business as we focus on performance, discipline and simplification",
+          "printed_page": 6,
+          "pdf_page": 9,
+          "section": "This is Shell — Our performance culture",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "The report states this organizational outcome directly, but also presents performance, discipline and simplification as ways to deliver value.",
+      "related_target_ids": [],
+      "ambiguity": "May be an enabling strategy for SG-02 rather than a separate ultimate enterprise goal. Report primary-only and primary-plus-alternative scores."
+    },
+    {
+      "id": "SG-05",
+      "expected_type": "StrategicGoal",
+      "abstraction": "enterprise_goal",
+      "primary_or_alternative": "acceptable_alternative",
+      "normalized_statement": "Operate safely and responsibly, doing no harm to people and preventing operational leaks.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "Goal Zero ambition: to do no harm to people and to have no leaks across operations",
+          "printed_page": 7,
+          "pdf_page": 10,
+          "section": "This is Shell — Strong foundations",
+          "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "our Goal Zero ambition to do no harm to people and to have no leaks across our operations",
+          "printed_page": 103,
+          "pdf_page": 105,
+          "section": "Our foundations",
+          "strength": "corroborating",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "The report calls Goal Zero an ambition and says it lies at the heart of Shell's plans and activities.",
+      "related_target_ids": [],
+      "ambiguity": "Could be treated as an overriding foundational commitment rather than one item in a compact strategic-goal set."
+    },
+    {
+      "id": "NEG-01",
+      "expected_type": "StrategicGoal",
+      "abstraction": "business_unit_goal",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Grow the integrated gas and LNG business; this is business-specific, not a separate enterprise-wide outcome.",
+      "scope": {"organization": "Shell", "business_unit": "Integrated Gas"},
+      "evidence": [
+        {
+          "excerpt": "Grow our integrated gas and LNG business",
+          "printed_page": 9,
+          "pdf_page": 12,
+          "section": "Our strategy — Integrated Gas",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "It is a stated strategy for a business area. Preserve its StrategicGoal type and unit scope; do not promote it into the enterprise-level output set.",
+      "related_target_ids": [],
+      "ambiguity": "An organizational unit's own strategy can qualify as StrategicGoal under the ontology, even though this evaluation targets enterprise-level goals."
+    },
+    {
+      "id": "NEG-02",
+      "expected_type": "StrategicGoal",
+      "abstraction": "subordinate_target",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Grow LNG sales by 4–5% annually through 2030.",
+      "scope": {"organization": "Shell", "business_unit": "Integrated Gas"},
+      "evidence": [
+        {
+          "excerpt": "Grow LNG sales 4--5% (CAGR) per year through to 2030",
+          "printed_page": 9,
+          "pdf_page": 12,
+          "section": "Our strategy — Integrated Gas",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "This measurable business-specific target supports broader strategy and should not become an independent enterprise goal.",
+      "related_target_ids": [],
+      "ambiguity": "It is an intended outcome and could be a StrategicGoal at a narrower scope; the error being tested is abstraction and scope promotion."
+    },
+    {
+      "id": "NEG-03",
+      "expected_type": "StrategicGoal",
+      "abstraction": "subordinate_target",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Achieve cumulative structural cost reductions of $5–7 billion by the end of 2028.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "a cumulative $5–7 billion by the end of 2028",
+          "printed_page": 11,
+          "pdf_page": 14,
+          "section": "Updates to our financial targets",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "A quantified financial target supports broader value creation; it is not a separate ultimate enterprise outcome.",
+      "related_target_ids": [],
+      "ambiguity": "A financial target can itself be meaningful strategy, but its subordinate status should remain explicit."
+    },
+    {
+      "id": "NEG-04",
+      "expected_type": "StrategicGoal",
+      "abstraction": "subordinate_target",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Keep operated oil and gas asset methane emissions intensity below 0.2%.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "methane emissions intensity below 0.2%",
+          "printed_page": 15,
+          "pdf_page": 17,
+          "section": "Progress against our longer-term targets — Less emissions",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "This is a specific emissions measure supporting the broader emissions outcome.",
+      "related_target_ids": [],
+      "ambiguity": "The target is an important commitment but is not a distinct enterprise-level strategic goal."
+    },
+    {
+      "id": "NEG-05",
+      "expected_type": null,
+      "abstraction": "historical_fact",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "LNG Canada shipped its first cargo in June 2025.",
+      "scope": {"organization": "Shell", "business_unit": "Integrated Gas"},
+      "evidence": [
+        {
+          "excerpt": "June 2025 saw the first cargo from the new LNG Canada facility",
+          "printed_page": 2,
+          "pdf_page": 5,
+          "section": "Chair's message",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "This reports a completed milestone, not a future outcome.",
+      "related_target_ids": [],
+      "ambiguity": "The milestone may evidence progress toward a broader business goal; it does not create one."
+    },
+    {
+      "id": "NEG-06",
+      "expected_type": null,
+      "abstraction": "capability",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Shell has world-class trading and supply capabilities.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "world-class trading and supply capabilities",
+          "printed_page": 10,
+          "pdf_page": 13,
+          "section": "Executing our strategy",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "A capability can enable strategy but is not itself an outcome pursued.",
+      "related_target_ids": [],
+      "ambiguity": "Do not turn competitive advantages or strengths into goals without an explicit pursued outcome."
+    },
+    {
+      "id": "NEG-07",
+      "expected_type": null,
+      "abstraction": "descriptive_fact",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Shell operates across more than 70 countries.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "across more than 70 countries",
+          "printed_page": 6,
+          "pdf_page": 9,
+          "section": "This is Shell",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "A description of current scale is not a strategic goal.",
+      "related_target_ids": [],
+      "ambiguity": "A descriptive fact may support contextual interpretation but must not be rewritten as a target."
+    },
+    {
+      "id": "NEG-08",
+      "expected_type": "StrategicRequirement",
+      "abstraction": "requirement",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "People acting on behalf of Shell must behave according to its Code of Conduct.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "The Shell Code of Conduct explains how employees, contractors",
+          "printed_page": 7,
+          "pdf_page": 10,
+          "section": "This is Shell — Strong foundations",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "This is a governance rule/obligation, not an outcome to pursue.",
+      "related_target_ids": [],
+      "ambiguity": "The complete obligation continues beyond this short evidence anchor; provenance is checked against the full source page."
+    },
+    {
+      "id": "NEG-09",
+      "expected_type": null,
+      "abstraction": "external_context",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "Shell expects energy demand to grow in 2026 while transition signals remain uncertain.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "In 2026, we expect energy demand to keep growing, the pace of the transition to remain uncertain",
+          "printed_page": 3,
+          "pdf_page": 6,
+          "section": "Chair's message — Our confidence",
+          "strength": "direct",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "A market outlook and uncertainty statement is context, not a goal.",
+      "related_target_ids": [],
+      "ambiguity": "Forward-looking language is not sufficient evidence of a deliberately pursued outcome."
+    },
+    {
+      "id": "NEG-10",
+      "expected_type": null,
+      "abstraction": "strategy_summary",
+      "primary_or_alternative": "negative_example",
+      "normalized_statement": "More value with less emissions is the report's umbrella strategy summary, not an additional goal duplicating its components.",
+      "scope": {"organization": "Shell"},
+      "evidence": [
+        {
+          "excerpt": "Our strategy is to deliver more value with less emissions",
+          "printed_page": 9,
+          "pdf_page": 12,
+          "section": "Our strategy",
+          "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "deliver more value with less emissions in a changing energy system",
+          "printed_page": 2,
+          "pdf_page": 6,
+          "section": "Chair's message",
+          "strength": "corroborating",
+          "explicitness": "explicit"
+        }
+      ],
+      "rationale": "Do not emit repeated umbrella wording as a separate goal when it collapses value creation and emissions into one slogan.",
+      "related_target_ids": ["SG-02", "SG-03"],
+      "ambiguity": "Could reasonably be treated as one integrated overarching goal; retain this alternative in the annotations and report merge/split outcomes."
+    }
+  ],
+  "hierarchy_hypotheses": [
+    {
+      "from_annotation": "NEG-02",
+      "to_annotation": "SG-01",
+      "property": "supports",
+      "strength": "synthesized",
+      "note": "Potential contribution to integrated-energy leadership; not asserted as an explicit causal relation."
+    },
+    {
+      "from_annotation": "NEG-02",
+      "to_annotation": "SG-02",
+      "property": "supports",
+      "strength": "synthesized",
+      "note": "Potential contribution to broader value creation; not asserted as an explicit causal relation."
+    },
+    {
+      "from_annotation": "NEG-04",
+      "to_annotation": "SG-03",
+      "property": "refines",
+      "strength": "synthesized",
+      "note": "The methane measure is a specific target within the broader emissions outcome; this is a provisional hierarchy annotation."
+    }
+  ]
+}
