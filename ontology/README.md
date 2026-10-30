@@ -1,4 +1,4 @@
-# Enterprise Knowledge Base — formal ontology v0.1.0-draft.2
+# Enterprise Knowledge Base — formal ontology v0.1.0-draft.3
 
 A deliberately small OWL 2 / RDF vocabulary, serialized in Turtle.
 

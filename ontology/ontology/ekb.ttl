@@ -7,96 +7,96 @@
 <https://example.org/ekb/ontology> a owl:Ontology ;
     rdfs:label "Enterprise Knowledge Base — minimal enterprise architecture ontology"@en ;
     rdfs:comment "Six semantic classes across four architecture layers, with separate organizational scope. Source evidence, governance authority, versions and reconciliation are managed by the knowledge system, not forced into this business ontology."@en ;
-    owl:versionInfo "0.1.0-draft.2" .
+    owl:versionInfo "0.1.0-draft.3" .
 
 # Layer 1 — company
 
 ekb:StrategicGoal a owl:Class ;
     rdfs:label "Strategic goal"@en ;
-    rdfs:comment "An outcome the enterprise deliberately seeks to achieve."@en .
+    rdfs:comment "An outcome the enterprise or one of its organizational units deliberately pursues."@en .
 
 ekb:StrategicRequirement a owl:Class ;
     rdfs:label "Strategic requirement"@en ;
-    rdfs:comment "A fundamental enterprise-level obligation or guardrail, whether externally imposed or internally adopted."@en .
+    rdfs:comment "A fundamental obligation or constraint that the enterprise or one of its organizational units must satisfy or has formally committed to uphold."@en .
 
 ekb:OrganizationalScope a owl:Class ;
     rdfs:label "Organizational scope"@en ;
-    rdfs:comment "An organizational unit or boundary to which a goal or requirement may apply."@en .
+    rdfs:comment "An organizational entity or area, such as an enterprise, division, business unit, or department, within which goals and requirements may apply."@en .
 
 ekb:subScopeOf a owl:ObjectProperty, owl:TransitiveProperty ;
     rdfs:label "sub-scope of"@en ;
     rdfs:domain ekb:OrganizationalScope ;
     rdfs:range ekb:OrganizationalScope ;
-    rdfs:comment "Relates a narrower organizational scope to a broader scope; transitive from narrower to broader."@en .
+    rdfs:comment "Indicates that an organizational scope is contained within another organizational scope, without automatically implying inherited regulatory applicability."@en .
 
 ekb:appliesToScope a owl:ObjectProperty ;
     rdfs:label "applies to scope"@en ;
     rdfs:range ekb:OrganizationalScope ;
-    rdfs:comment "Identifies the organizational scope explicitly associated with a goal or requirement. Does not itself imply inheritance to sub-scopes."@en .
+    rdfs:comment "Identifies the organizational scope to which a goal, requirement, or other knowledge concept applies."@en .
 
 # Layer 2 — conceptual (platform-independent)
 
 ekb:ArchitectureDomain a owl:Class ;
     rdfs:label "Architecture domain"@en ;
-    rdfs:comment "An area of architectural concern used for classification, such as network security or identity. A domain is not itself a requirement."@en .
+    rdfs:comment "A technology-independent area of architectural concern, such as network security, identity management, or data protection."@en .
 
 ekb:ConceptualRequirement a owl:Class ;
     rdfs:label "Conceptual requirement"@en ;
-    rdfs:comment "A technology-independent desired condition or constraint describing what must or should be true."@en .
+    rdfs:comment "A desired condition or constraint expressed independently of specific technologies, platforms, or implementation mechanisms."@en .
 
 # Layer 3 — logical (platform-independent, more precise)
 
 ekb:TechnicalRequirement a owl:Class ;
     rdfs:label "Technical requirement"@en ;
-    rdfs:comment "A concrete, vendor-neutral technical condition or practice, such as encryption in transit or network micro-segmentation."@en .
+    rdfs:comment "A specific, technically actionable condition or constraint that remains independent of any particular vendor, product, or platform."@en .
 
 # Layer 4 — platform-specific, not necessarily solution-specific
 
 ekb:PlatformRequirement a owl:Class ;
     rdfs:label "Platform requirement"@en ;
-    rdfs:comment "A technical condition or implementation recommendation scoped to a named platform, such as Azure or AWS, without implying adoption by an enterprise."@en .
+    rdfs:comment "A technical condition, constraint, or recommendation applicable to a particular technology platform, such as Microsoft Azure or AWS."@en .
 
 # Directed business-semantic relationships: subject → object.
 
 ekb:refines a owl:ObjectProperty ;
     rdfs:label "refines"@en ;
-    rdfs:comment "The subject is a more specific interpretation or requirement than the object. Direction: specific → broader."@en .
+    rdfs:comment "Relates a more specific concept or requirement to a broader one whose meaning it elaborates or makes more precise."@en .
 
 ekb:supports a owl:ObjectProperty ;
     rdfs:label "supports"@en ;
-    rdfs:comment "The subject contributes toward the objective or outcome represented by the object; it does not guarantee its achievement."@en .
+    rdfs:comment "Indicates that satisfying or achieving one concept contributes to achieving another, typically a goal or desired outcome."@en .
 
 ekb:constrains a owl:ObjectProperty ;
     rdfs:label "constrains"@en ;
-    rdfs:comment "The subject places an obligation, limitation or boundary on the object."@en .
+    rdfs:comment "Indicates that one concept establishes boundaries, limitations, or obligations affecting another."@en .
 
 ekb:mapsTo a owl:ObjectProperty ;
     rdfs:label "maps to"@en ;
-    rdfs:comment "The subject has a documented or proposed correspondence to the object. This does not imply equivalence, derivation or full compliance."@en .
+    rdfs:comment "Indicates a documented correspondence between concepts from different frameworks, standards, or models, without necessarily implying equivalence."@en .
 
 ekb:dependsOn a owl:ObjectProperty ;
     rdfs:label "depends on"@en ;
-    rdfs:comment "Satisfaction or realization of the subject depends on the object."@en .
+    rdfs:comment "Indicates that satisfying or achieving one concept requires another concept or condition to be satisfied."@en .
 
 ekb:tensionWith a owl:ObjectProperty, owl:SymmetricProperty ;
     rdfs:label "in tension with"@en ;
-    rdfs:comment "The two items may require a trade-off within overlapping scopes; not necessarily an incompatibility."@en .
+    rdfs:comment "Indicates that two goals or requirements may compete for resources or involve trade-offs, without necessarily being mutually exclusive."@en .
 
 ekb:conflictsWith a owl:ObjectProperty, owl:SymmetricProperty ;
     rdfs:label "conflicts with"@en ;
-    rdfs:comment "The two items cannot both be fully satisfied in the stated overlapping scope and effective period. A link is a claim requiring evidence, not an OWL logical inconsistency."@en .
+    rdfs:comment "Indicates that two requirements or conditions cannot both be satisfied within the same applicable scope and circumstances."@en .
 
 # Classification fields, separate from the seven business-semantic links.
 
 ekb:inDomain a owl:ObjectProperty ;
     rdfs:label "in domain"@en ;
     rdfs:range ekb:ArchitectureDomain ;
-    rdfs:comment "Classifies a concept under an architecture domain. Does not imply hierarchy or refinement."@en .
+    rdfs:comment "Associates a knowledge concept with the architecture domain to which it belongs."@en .
 
 ekb:platformName a owl:DatatypeProperty ;
     rdfs:label "platform name"@en ;
     rdfs:range xsd:string ;
-    rdfs:comment "The platform to which platform-specific guidance applies."@en .
+    rdfs:comment "Identifies the technology platform to which a platform-specific requirement applies."@en .
 
 # Intentional modeling choice: requirement classes are peers, not subclasses.
 # Conceptual and logical requirements must remain platform independent;

@@ -35,7 +35,7 @@ of EKB tables and owned local caches; source inputs are preserved. See [operatio
 
 ## Documentation
 
-- [Application ontology](ontology/README.md): v0.1.0-draft.2 OWL/RDF vocabulary, SHACL shapes and example.
+- [Application ontology](ontology/README.md): v0.1.0-draft.3 OWL/RDF vocabulary, SHACL shapes and example.
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
 - [Architecture](docs/architecture.md) and [plugin contracts](docs/plugins.md).
 - [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).
