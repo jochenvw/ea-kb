@@ -2,6 +2,7 @@
 
 `__init__.py` defines small typed `Protocol` interfaces for sources, artifacts, parsing, inference,
 repositories and explicit units of work.
+`UnitOfWorkFactory.scan_guard` scopes renewable scan ownership and fences writes through child tasks.
 `SourceMissingError` distinguishes absent sources from temporary retrieval/access failures.
 `IngestionSkills` separates ontology/scope labeling from scoped extraction with independent replay IDs.
 Optional `RequestControlledSkills` scopes a `ModelRequestLimiter` around evaluation requests;
@@ -22,6 +23,7 @@ when incomplete, and `None` when unknown; it is independent of whether prices ar
 Its workflow repository stores typed embedding and judgment replay entries, keyed by provider and
 exact ordered input. Implementations must reject invalid entries and permit their replacement.
 Failed cache lookups abort rather than silently making provider calls; hits do not repeat usage.
+Workflow lease acquisition and strict existing-owner renewal are separate operations.
 Future stores must preserve these semantics through `tests\contract\test_resolution.py`.
 
 These contracts use domain values; do not import concrete adapters or provider/transport SDKs.

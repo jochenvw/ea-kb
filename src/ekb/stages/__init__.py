@@ -84,7 +84,7 @@ class CheckedStage:
                     count("pipeline.check.executions", check_id=check.spec.id, status="done")
                     count("pipeline.findings", len(result.findings), check_id=check.spec.id)
                     async with self.database() as uow:
-                        if not await uow.workflow.lease("knowledge-pipeline", context.owner):
+                        if not await uow.workflow.renew("knowledge-pipeline", context.owner):
                             raise RuntimeError("Pipeline execution lost its lease")
                         for finding in result.findings:
                             await uow.resolution.save_finding(finding)

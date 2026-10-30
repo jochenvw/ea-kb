@@ -30,6 +30,7 @@ from ekb.ports import (
     ArtifactStore,
     DocumentParser,
     IngestionSkills,
+    ScanLeaseLostError,
     SourceConnector,
     SourceMissingError,
     UnitOfWorkFactory,
@@ -151,6 +152,8 @@ class IngestionPipeline:
                                     )
                                     increment(missing=1)
                             await uow.commit()
+            except ScanLeaseLostError:
+                raise
             except Exception as error:
                 failure("discovery", error)
 
@@ -189,6 +192,8 @@ class IngestionPipeline:
                         outcome, concepts = await self._ingest(item, revision, content)
                         increment(**{outcome: 1}, concepts=concepts)
                         self.progress(item, outcome)
+                except ScanLeaseLostError:
+                    raise
                 except Exception as error:
                     failure(str(item.id), error)
                     self.progress(item, "failed")
@@ -219,44 +224,49 @@ class IngestionPipeline:
                     outcome, concepts = await self._ingest(item, revision, None)
                     increment(**{outcome: 1}, concepts=concepts)
                     self.progress(item, outcome)
+                except ScanLeaseLostError:
+                    raise
                 except Exception as error:
                     failure(str(item.id), error)
                     self.progress(item, "failed")
                 await save_report()
 
-        await save_report()
-        spool = (
-            tempfile.TemporaryFile(mode="w+t", encoding="utf-8") if staged else nullcontext(None)
-        )
-        with (
-            spool as inventory,
-            tracer.start_as_current_span("scan", attributes={"scan.id": str(report.id)}),
-        ):
-            try:
-                if phase:
-                    phase("discovery", report)
-                async with asyncio.TaskGroup() as group:
-                    group.create_task(producer())
-                    for _ in range(self.concurrency):
-                        group.create_task(worker())
-                if inventory is not None:
+        async with nullcontext() if dry_run else self.uow.scan_guard(report.id):
+            await save_report()
+            spool = (
+                tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
+                if staged
+                else nullcontext(None)
+            )
+            with (
+                spool as inventory,
+                tracer.start_as_current_span("scan", attributes={"scan.id": str(report.id)}),
+            ):
+                try:
                     if phase:
-                        phase("discovered", report)
+                        phase("discovery", report)
                     async with asyncio.TaskGroup() as group:
-                        group.create_task(prepared_producer())
+                        group.create_task(producer())
                         for _ in range(self.concurrency):
-                            group.create_task(prepared_worker())
-                report = report.model_copy(
-                    update={"status": "completed" if report.failed == 0 else "partial"}
-                )
-            except asyncio.CancelledError:
-                report = report.model_copy(update={"status": "cancelled"})
-                raise
-            finally:
-                report = report.model_copy(update={"finished_at": now()})
-                await asyncio.shield(save_report())
-                if phase:
-                    phase("completed", report)
+                            group.create_task(worker())
+                    if inventory is not None:
+                        if phase:
+                            phase("discovered", report)
+                        async with asyncio.TaskGroup() as group:
+                            group.create_task(prepared_producer())
+                            for _ in range(self.concurrency):
+                                group.create_task(prepared_worker())
+                    report = report.model_copy(
+                        update={"status": "completed" if report.failed == 0 else "partial"}
+                    )
+                except asyncio.CancelledError:
+                    report = report.model_copy(update={"status": "cancelled"})
+                    raise
+                finally:
+                    report = report.model_copy(update={"finished_at": now()})
+                    await asyncio.shield(save_report())
+                    if phase:
+                        phase("completed", report)
         return report
 
     async def _prepare(
@@ -362,6 +372,9 @@ class IngestionPipeline:
                 assert fetched.content is not None
                 content = fetched.content
                 digest = content_hash(content)
+                # Check scan ownership before storage I/O without holding a transaction over it.
+                async with self.uow() as uow:
+                    await uow.commit()
                 key = await self.artifacts.put(content)
                 revision = SourceRevision(
                     id=stable_id(item.id, digest),

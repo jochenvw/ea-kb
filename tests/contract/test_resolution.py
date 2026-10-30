@@ -1,3 +1,4 @@
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -201,3 +202,28 @@ async def test_semantic_replay_repository_commit_validation_and_replacement(
         await uow.commit()
     async with database() as uow:
         assert (await uow.workflow.semantic_cache([embedding_key]))[embedding_key] == replacement
+
+
+async def test_workflow_renewal_never_reacquires_expired_replaced_or_missing_lease(
+    database: UnitOfWorkFactory,
+):
+    name = "contract-renewal"
+    owner, replacement = uuid4(), uuid4()
+    async with database() as uow:
+        assert await uow.workflow.lease(name, owner, seconds=5)
+        assert await uow.workflow.renew(name, owner, seconds=2)
+        await uow.commit()
+    await asyncio.sleep(2.1)
+    async with database() as uow:
+        assert not await uow.workflow.renew(name, owner)
+        await uow.commit()
+    async with database() as uow:
+        assert await uow.workflow.lease(name, replacement)
+        await uow.commit()
+    async with database() as uow:
+        assert not await uow.workflow.renew(name, owner)
+        assert await uow.workflow.renew(name, replacement)
+        await uow.workflow.release(name, replacement)
+        await uow.commit()
+    async with database() as uow:
+        assert not await uow.workflow.renew(name, replacement)

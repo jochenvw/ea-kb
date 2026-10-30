@@ -6,7 +6,7 @@
 - `test_workflow.py` covers orchestration, concurrency/resume, reversible alias reviews, scoped
   authority and replay across check changes, including corrupted/unavailable PostgreSQL caches.
 - `test_ontology_schema.py` verifies schema recreation, unrelated-table safety and ontology SQL constraints.
-- `test_scan_cli.py` verifies real CLI progress, interruption/crash recovery, status and reset guards.
+- `test_scan_cli.py` verifies CLI interruption/crash recovery, scan-lease fencing and guarded reset.
 - Inputs are synthetic/temporary; PostgreSQL is real but isolated in per-test schemas.
 
 Set `EKB_TEST_DATABASE_URL` using `docs\usage.md`, then run `uv run pytest -q tests\integration`.

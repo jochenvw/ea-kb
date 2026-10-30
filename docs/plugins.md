@@ -105,6 +105,17 @@ repositories. Processing task inspection returns bounded pages in UUID order wit
 A future Neo4j implementation must pass the same contract tests and preserve
 transaction/checkpoint/evidence semantics; the relational design does not require Neo4j.
 
+`UnitOfWorkFactory.scan_guard(scan_id)` acquires independent, renewable durable ownership before a
+non-dry-run scan writes its report or discovers sources. The guard follows spawned scan tasks and
+fences every unit-of-work commit in the same short transaction; loss cancels work, and an expired
+or replaced owner cannot renew or commit. Reset must serialize with guarded commits, refuse live
+guards and protect legacy running reports without an ownership record. PostgreSQL reserves the
+`ingestion-scan:` pipeline-lease namespace and retains expired markers for unfinished reports.
+Adapters must not hold transactions across retrieval, parsing, inference or artifact I/O.
+Workflow `lease` acquires a new run's ownership; `renew` only extends the same still-live owner and
+must never insert or reacquire an expired/replaced lease. Heartbeats, check commits and finalization
+use `renew`, so an old pipeline cannot recreate execution records after a reset.
+
 `ArtifactStore` uses SHA-256 keys, idempotent writes and verified reads. The Azure adapter uses
 asynchronous clients and `DefaultAzureCredential`; provision the private container beforehand and
 grant the identity only needed blob permissions. No Azure resource provisioning happens on scan.

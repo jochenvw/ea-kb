@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from typing import Protocol, Self, runtime_checkable
 from uuid import UUID
 
@@ -41,6 +41,10 @@ from ekb.ports.workflow import IssueRepository, ResolutionRepository, WorkflowRe
 
 class SourceMissingError(FileNotFoundError):
     """The source is absent, not merely inaccessible."""
+
+
+class ScanLeaseLostError(RuntimeError):
+    """A scan no longer owns its durable write guard."""
 
 
 class SourceConnector(Protocol):
@@ -212,3 +216,4 @@ class UnitOfWork(Protocol):
 
 class UnitOfWorkFactory(Protocol):
     def __call__(self) -> UnitOfWork: ...
+    def scan_guard(self, scan_id: UUID) -> AbstractAsyncContextManager[None]: ...

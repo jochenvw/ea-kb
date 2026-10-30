@@ -3,6 +3,7 @@
 `indexing.py` adapts the existing ingestion engine without merging or granting authority.
 `enrichment.py` registers deterministic and optional semantic checks; `issues.py` registers detectors.
 `__init__.py` runs independently cached checks and persists their typed outputs, not their algorithms.
+Check-result commits renew the existing pipeline owner and reject expired or replaced ownership.
 `semantic.py` unions lexical candidates with bounded-pool embedding neighbors when configured;
 zero lexical overlap does not prevent semantic discovery. Provider/input-keyed vectors and grounded
 judgments replay across changed check versions; changed providers or semantic inputs miss the cache.

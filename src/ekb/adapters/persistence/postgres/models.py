@@ -21,6 +21,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from ekb.domain.assertions import checked_assertion
 from ekb.domain.models import Assertion, ConceptVersion, RelationshipKind, SemanticType, now
 
+SCAN_LEASE_PREFIX = "ingestion-scan:"
+
 
 class Base(DeclarativeBase):
     pass

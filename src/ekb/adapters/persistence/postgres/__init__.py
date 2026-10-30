@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import and_, case, func, or_, select, text, update
+from sqlalchemy import (
+    String,
+    and_,
+    case,
+    cast,
+    delete,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -21,6 +36,7 @@ from sqlalchemy.ext.asyncio import (
 from ekb.adapters.persistence.postgres.inspection import Inspection
 from ekb.adapters.persistence.postgres.issues import Issues
 from ekb.adapters.persistence.postgres.models import (
+    SCAN_LEASE_PREFIX,
     AuthorityRow,
     Base,
     ConceptRow,
@@ -67,7 +83,11 @@ from ekb.domain.models import (
     total_usage,
 )
 from ekb.domain.publication import project_authority
-from ekb.observability import tracer
+from ekb.observability import log, tracer
+from ekb.ports import ScanLeaseLostError
+
+SCAN_LEASE_SECONDS = 120
+SCAN_HEARTBEAT_SECONDS = 20
 
 
 async def upsert(session: AsyncSession, table: Any, values: dict[str, Any]) -> None:
@@ -840,9 +860,35 @@ class Processing:
         )
 
 
+async def lock_scan_owner(session: AsyncSession, guard: tuple[str, UUID]) -> None:
+    name, owner = guard
+    locked = await session.scalar(
+        select(WorkflowLeaseRow.name)
+        .where(WorkflowLeaseRow.name == name, WorkflowLeaseRow.owner == owner)
+        .with_for_update()
+    )
+    # Check the server clock after acquiring the row lock, not before waiting for it.
+    valid = (
+        await session.scalar(
+            select(WorkflowLeaseRow.name).where(
+                WorkflowLeaseRow.name == name,
+                WorkflowLeaseRow.owner == owner,
+                WorkflowLeaseRow.expires_at > func.clock_timestamp(),
+            )
+        )
+        if locked
+        else None
+    )
+    if not valid:
+        raise ScanLeaseLostError("Scan lease lost")
+
+
 class PostgresUnitOfWork:
-    def __init__(self, factory: async_sessionmaker[AsyncSession]):
+    def __init__(
+        self, factory: async_sessionmaker[AsyncSession], scan_owner: tuple[str, UUID] | None = None
+    ):
         self.session = factory()
+        self.scan_owner = scan_owner
         self.sources = Sources(self.session)
         self.knowledge = Knowledge(self.session)
         self.lineage = Lineage(self.session)
@@ -861,6 +907,8 @@ class PostgresUnitOfWork:
 
     async def commit(self) -> None:
         with tracer.start_as_current_span("persistence.transaction"):
+            if self.scan_owner is not None:
+                await lock_scan_owner(self.session, self.scan_owner)
             await self.session.commit()
 
 
@@ -871,9 +919,87 @@ class Postgres:
             url, pool_pre_ping=True, connect_args=connect_args
         )
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
+        self._scan_owner: ContextVar[tuple[str, UUID] | None] = ContextVar(
+            "ekb_scan_owner", default=None
+        )
 
     def __call__(self) -> PostgresUnitOfWork:
-        return PostgresUnitOfWork(self.sessions)
+        return PostgresUnitOfWork(self.sessions, self._scan_owner.get())
+
+    async def _renew_scan_lease(self, guard: tuple[str, UUID]) -> None:
+        name, owner = guard
+        async with self.sessions.begin() as session:
+            await lock_scan_owner(session, guard)
+            renewed = await session.scalar(
+                update(WorkflowLeaseRow)
+                .where(
+                    WorkflowLeaseRow.name == name,
+                    WorkflowLeaseRow.owner == owner,
+                    WorkflowLeaseRow.expires_at > func.clock_timestamp(),
+                )
+                .values(expires_at=func.clock_timestamp() + timedelta(seconds=SCAN_LEASE_SECONDS))
+                .returning(WorkflowLeaseRow.name)
+            )
+            if not renewed:
+                raise ScanLeaseLostError("Scan lease lost")
+
+    async def _scan_heartbeat(self, guard: tuple[str, UUID]) -> None:
+        while True:
+            await asyncio.sleep(SCAN_HEARTBEAT_SECONDS)
+            await self._renew_scan_lease(guard)
+
+    async def _release_scan_lease(self, scan_id: UUID, guard: tuple[str, UUID]) -> None:
+        name, owner = guard
+        async with self.sessions.begin() as session:
+            lease = await session.scalar(
+                select(WorkflowLeaseRow.name)
+                .where(WorkflowLeaseRow.name == name, WorkflowLeaseRow.owner == owner)
+                .with_for_update()
+            )
+            if not lease:
+                return
+            report = await session.get(RunRow, scan_id)
+            if report is None or report.payload.get("status") in {
+                "completed",
+                "partial",
+                "cancelled",
+            }:
+                await session.execute(
+                    delete(WorkflowLeaseRow).where(
+                        WorkflowLeaseRow.name == name, WorkflowLeaseRow.owner == owner
+                    )
+                )
+
+    @asynccontextmanager
+    async def scan_guard(self, scan_id: UUID) -> AsyncIterator[None]:
+        guard = (f"{SCAN_LEASE_PREFIX}{scan_id}", uuid4())
+        async with self.sessions.begin() as session:
+            await session.execute(
+                insert(WorkflowLeaseRow).values(
+                    name=guard[0],
+                    owner=guard[1],
+                    expires_at=func.clock_timestamp() + timedelta(seconds=SCAN_LEASE_SECONDS),
+                )
+            )
+        token = self._scan_owner.set(guard)
+        try:
+            try:
+                async with asyncio.TaskGroup() as group:
+                    heartbeat = group.create_task(self._scan_heartbeat(guard))
+                    try:
+                        yield
+                    finally:
+                        heartbeat.cancel()
+            except BaseExceptionGroup as group:
+                if len(group.exceptions) == 1:
+                    raise group.exceptions[0] from None
+                raise
+        finally:
+            self._scan_owner.reset(token)
+            try:
+                await self._release_scan_lease(scan_id, guard)
+            except Exception as error:
+                log.warning("scan_lease_cleanup_failed", error_type=type(error).__name__)
 
     async def initialize(self) -> None:
         async with self.engine.begin() as connection:
@@ -900,14 +1026,14 @@ class Postgres:
                 "benchmark_embeddings",
                 "benchmark_match_cache",
             ):
-                exists = await connection.scalar(
+                table_exists = await connection.scalar(
                     text(
                         "SELECT to_regclass(format('%I.%I', "
                         "CAST(:schema AS text), CAST(:name AS text))) IS NOT NULL"
                     ),
                     {"schema": schema, "name": name},
                 )
-                if exists:
+                if table_exists:
                     obsolete_tables.append(
                         f"{preparer.quote_schema(schema)}.{preparer.quote(name)}"
                     )
@@ -916,11 +1042,24 @@ class Postgres:
                 + obsolete_tables
             )
             await connection.execute(text(f"LOCK TABLE {names} IN ACCESS EXCLUSIVE MODE NOWAIT"))
+            scan_lease = WorkflowLeaseRow.name.startswith(SCAN_LEASE_PREFIX)
             active_lease = await connection.scalar(
-                select(WorkflowLeaseRow.name).where(WorkflowLeaseRow.expires_at > now()).limit(1)
+                select(WorkflowLeaseRow.name)
+                .where(
+                    or_(
+                        and_(scan_lease, WorkflowLeaseRow.expires_at > func.clock_timestamp()),
+                        and_(~scan_lease, WorkflowLeaseRow.expires_at > now()),
+                    )
+                )
+                .limit(1)
+            )
+            managed_scan = exists().where(
+                WorkflowLeaseRow.name == literal(SCAN_LEASE_PREFIX) + cast(RunRow.id, String)
             )
             active_scan = await connection.scalar(
-                select(RunRow.id).where(RunRow.payload["status"].astext == "running").limit(1)
+                select(RunRow.id)
+                .where(RunRow.payload["status"].astext == "running", ~managed_scan)
+                .limit(1)
             )
             active_task = await connection.scalar(
                 select(TaskRow.id)

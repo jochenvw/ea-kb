@@ -2,6 +2,7 @@
 
 `orchestrator.py` orders registered stages, validates compatible upstream artifacts and owns
 renewable execution leases, cancellation and resume. It contains no knowledge algorithms.
+Heartbeat/finalization renew only an existing live owner, never reacquiring after loss or reset.
 `registry.py` validates explicit stage/check plugins; registering a plugin does not enable models.
 Execution state and check caches use the unit-of-work ports and PostgreSQL adapter.
 Optional progress observes committed executions; stage summaries retain workspace deltas/check reuse.

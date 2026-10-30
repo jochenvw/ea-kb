@@ -53,7 +53,7 @@ class PipelineOrchestrator:
         while True:
             await asyncio.sleep(20)
             async with self.database() as uow:
-                if not await uow.workflow.lease("knowledge-pipeline", owner):
+                if not await uow.workflow.renew("knowledge-pipeline", owner):
                     raise RuntimeError("Pipeline lease was lost")
                 await uow.commit()
 
@@ -129,7 +129,7 @@ class PipelineOrchestrator:
 
             async def finish() -> None:
                 async with self.database() as uow:
-                    if not await uow.workflow.lease("knowledge-pipeline", owner):
+                    if not await uow.workflow.renew("knowledge-pipeline", owner):
                         return
                     await uow.workflow.save_execution(run)
                     await uow.workflow.release("knowledge-pipeline", owner)

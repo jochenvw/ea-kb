@@ -2,7 +2,7 @@
 
 `test_repositories.py` verifies explicit commits, grounding, idempotence, historical versions,
 authority events, recursive lineage, ownership/lease semantics and durable unknown-cost usage.
-`test_resolution.py` covers evidence-backed immutable decisions, strict authority and stale-run fencing.
+`test_resolution.py` covers immutable decisions, strict authority and stale-run/lease-renewal fencing.
 It also verifies typed semantic replay entries, explicit commit/rollback and replacement.
 
 Tests use the UUID-schema fixture from `tests\conftest.py`; set `EKB_TEST_DATABASE_URL` first.

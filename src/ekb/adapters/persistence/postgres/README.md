@@ -10,6 +10,8 @@
 - `concept_versions.assertion` is a replaceable phrasing cache; original version payloads stay immutable.
 - `Postgres` creates units of work; uncommitted changes roll back on exit.
 - `reset` locks and clears only EKB tables transactionally; active scans/leases block fresh starts.
+- Scan guards reuse `pipeline_leases`; server-clock renewal and each guarded commit fence stale owners.
+- Expired guarded reports permit reset; unguarded legacy running reports remain conservatively blocking.
 - Knowledge counts query persisted totals without loading the complete knowledge snapshot.
 - `inspection.py` joins source-bound extractions, bounded graphs/backlog and linked table previews.
 - Processing claims use owner IDs and renewable leases; segment commits must fence stale workers.

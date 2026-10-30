@@ -52,6 +52,7 @@ or identifier alone, and unsupported relationships are not invented.
 `PipelineOrchestrator` composes `indexing -> enrichment -> issues`; indexing invokes this same
 ingestion engine. Versioned stage/check contracts and input/configuration fingerprints control
 incrementality. A renewable 120-second lease fences concurrent runs; heartbeat failure cancels work.
+Renewal and finalization require the same unexpired owner and cannot recreate a removed lease.
 Successful upstream artifacts are checked for matching contracts, source revision and producer
 configuration before partial runs. Independent checks persist their own execution/cache records.
 See `phase3.md` for plugin registration and the actual-corpus vertical slice.
@@ -172,9 +173,10 @@ disabled by default. Configuration/deployment does not establish provider qualit
 2. The pipeline reads the previous source/revision/task. Matching available-source metadata and a
    completed processing fingerprint skip work; otherwise retrieval uses local reads or conditional
    HTTP. Changed bytes are hashed and stored before a source revision is committed.
-3. An atomic database claim selects one owner for a revision/fingerprint. A completed or actively
-   leased task is skipped. Existing parse checkpoints are reused; otherwise the parser produces
-   stable segments with page, heading, table, slide or structured-control locations.
+3. An atomic database claim selects one owner for a revision/fingerprint. A completed task is skipped;
+   a still-leased task is skipped by standalone scans but makes an orchestrated run incomplete.
+   Existing parse checkpoints are reused; otherwise the parser produces stable segments with page,
+   heading, table, slide or structured-control locations.
 4. Each usable segment reuses or executes its labeling skill, commits that checkpoint, then reuses
    or executes extraction within the labeled spans/scopes. Results must satisfy schema, exact
    grounding, ontology classification consistency and qualifier/scope checks. Domain-only and irrelevant
@@ -251,6 +253,10 @@ The PostgreSQL adapter owns ORM tables. Units of work commit explicitly; otherwi
 Source/revision persistence, parse results and individual extraction checkpoints use separate short
 transactions. A segment's concepts, relationships, exact evidence, usage and checkpoint commit
 atomically. Leases fence obsolete workers and expire after five minutes; heartbeats renew them.
+Each non-dry-run scan independently holds a 120-second renewable guard from before its first report
+through finalization. Its unit-of-work commits verify ownership under a database row lock. Reset
+serializes with those commits and can disregard an expired guarded scan, but not an unguarded legacy
+`running` report whose liveness is unknown. See `docs\plugins.md` for replacement-store semantics.
 
 Source deletion/inaccessibility changes inventory status without deleting evidence. A failed
 directory discovery does not mark its entire previous inventory missing. Restarting a scan resumes

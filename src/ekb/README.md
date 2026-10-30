@@ -2,7 +2,7 @@
 
 - `runtime.py` constructs providers, shared services and resource lifetimes.
 - `__init__.py` reads the application version registered in `pyproject.toml` via package metadata.
-- `maintenance.py` validates owned reset paths and quarantines caches during guarded fresh starts.
+- `maintenance.py` runs guarded database resets without deleting originals or source inputs.
 - `domain` and `ports` define values, invariants and interchangeable contracts.
 - `pipeline` adapts ingestion; `orchestration` orders durable, replaceable `stages`.
 - `services` shares inspection, reconciliation, strict resolution and issue review.

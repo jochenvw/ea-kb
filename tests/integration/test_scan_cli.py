@@ -1,32 +1,39 @@
 import asyncio
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
 import uvicorn
 import yaml
 from docx import Document
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 from typer.testing import CliRunner
 
-from ekb.adapters.artifacts import FilesystemArtifactStore
+from ekb.adapters.artifacts import FilesystemArtifactStore, filesystem_path
 from ekb.adapters.inference import RulesInference
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
-from ekb.adapters.persistence.postgres.models import TaskRow, WorkflowLeaseRow
+from ekb.adapters.persistence.postgres.models import SCAN_LEASE_PREFIX, TaskRow, WorkflowLeaseRow
 from ekb.adapters.sources import FilesystemConnector
-from ekb.domain.models import now
+from ekb.domain.models import ScanReport, now
 from ekb.interfaces.api import create_app
 from ekb.interfaces.cli import app
 from ekb.maintenance import reset_workspace
+from ekb.orchestration import PipelineOrchestrator, StageRegistry
 from ekb.pipeline import IngestionPipeline
+from ekb.ports import ScanLeaseLostError
+from ekb.ports.workflow import CheckResult
+from ekb.stages.indexing import IndexingStage
 
 pytestmark = pytest.mark.integration
 
@@ -37,6 +44,26 @@ LEGACY_TABLES = (
     "benchmark_embeddings",
     "benchmark_match_cache",
 )
+
+
+@pytest.fixture
+def owned_runtime_dir(tmp_path):
+    directory = filesystem_path(tmp_path / "runtime")
+    yield directory
+    # In-process CLI telemetry remains open; clean only the test-owned generated cache trees.
+    caches = (
+        (directory / "artifacts", directory),
+        (directory / "test-corpus" / "public" / "microsoft_security_benchmark", directory),
+        (filesystem_path(tmp_path / "artifacts"), filesystem_path(tmp_path)),
+    )
+    for cache, root in caches:
+        for path in (cache, *cache.parents):
+            if path.is_symlink() or path.is_junction():
+                raise ValueError("Refusing to clean a linked test cache directory")
+            if path == root:
+                break
+        if cache.exists():
+            shutil.rmtree(cache)
 
 
 def build(database, tmp_path):
@@ -51,7 +78,7 @@ def build(database, tmp_path):
     return pipeline, source
 
 
-async def recovery_cli(database, tmp_path):
+async def recovery_cli(database, tmp_path, runtime_dir):
     async with database.engine.connect() as connection:
         schema = await connection.scalar(text("SELECT current_schema()"))
     url = make_url(os.environ["EKB_TEST_DATABASE_URL"]).set(
@@ -64,7 +91,7 @@ async def recovery_cli(database, tmp_path):
     profile.write_text(
         yaml.safe_dump(
             {
-                "data_dir": str(tmp_path / "runtime"),
+                "data_dir": str(runtime_dir),
                 "pipeline": {"stages": {"indexing": {"directory": str(source)}}},
             }
         ),
@@ -75,7 +102,7 @@ async def recovery_cli(database, tmp_path):
         {
             "EKB_DATABASE_URL": url.render_as_string(hide_password=False),
             "EKB_CONFIG_FILE": str(profile),
-            "EKB_DATA_DIR": str(tmp_path / "runtime"),
+            "EKB_DATA_DIR": str(runtime_dir),
             "EKB_SOURCE_DIRECTORY": str(source),
             "EKB_INFERENCE": "rules",
             "EKB_ARTIFACT_BACKEND": "filesystem",
@@ -129,7 +156,7 @@ async def wait_for_blocked_claim(database, process, output_file):
 
 
 async def test_cli_human_json_replay_and_fresh_use_disposable_state(
-    database, tmp_path, monkeypatch
+    database, tmp_path, monkeypatch, owned_runtime_dir
 ):
     async with database.engine.connect() as connection:
         schema = await connection.scalar(text("SELECT current_schema()"))
@@ -147,14 +174,14 @@ async def test_cli_human_json_replay_and_fresh_use_disposable_state(
     profile.write_text(
         yaml.safe_dump(
             {
-                "data_dir": str(tmp_path / "runtime"),
+                "data_dir": str(owned_runtime_dir),
                 "pipeline": {"stages": {"indexing": {"directory": str(source)}}},
             }
         ),
         encoding="utf-8",
     )
     monkeypatch.setenv("EKB_CONFIG_FILE", str(profile))
-    monkeypatch.setenv("EKB_DATA_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("EKB_DATA_DIR", str(owned_runtime_dir))
     arguments = ["pipeline", "run", "--config", str(profile)]
     first = await asyncio.to_thread(CliRunner().invoke, app, arguments)
     assert first.exit_code == 0, first.output
@@ -243,7 +270,7 @@ async def test_cli_human_json_replay_and_fresh_use_disposable_state(
 
 
 async def test_real_cli_status_fencing_web_shutdown_replay_and_resume(
-    database, tmp_path, monkeypatch
+    database, tmp_path, monkeypatch, owned_runtime_dir
 ):
     async with database.engine.connect() as connection:
         schema = await connection.scalar(text("SELECT current_schema()"))
@@ -257,7 +284,7 @@ async def test_real_cli_status_fencing_web_shutdown_replay_and_resume(
     profile.write_text(
         yaml.safe_dump(
             {
-                "data_dir": str(tmp_path / "runtime"),
+                "data_dir": str(owned_runtime_dir),
                 "pipeline": {"stages": {"indexing": {"directory": str(source)}}},
             }
         ),
@@ -266,7 +293,7 @@ async def test_real_cli_status_fencing_web_shutdown_replay_and_resume(
     for key, value in {
         "EKB_DATABASE_URL": url.render_as_string(hide_password=False),
         "EKB_CONFIG_FILE": str(profile),
-        "EKB_DATA_DIR": str(tmp_path / "runtime"),
+        "EKB_DATA_DIR": str(owned_runtime_dir),
         "EKB_SOURCE_DIRECTORY": str(source),
         "EKB_INFERENCE": "rules",
         "EKB_ARTIFACT_BACKEND": "filesystem",
@@ -416,7 +443,9 @@ async def test_real_cli_status_fencing_web_shutdown_replay_and_resume(
     assert usage.returncode == 0 and json.loads(usage.stdout)["configured_cost"] is None
 
 
-async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(database, tmp_path):
+async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(
+    database, tmp_path, owned_runtime_dir
+):
     pipeline, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")
     await pipeline.scan([FilesystemConnector(source)])
@@ -426,7 +455,7 @@ async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(da
         revision = await uow.sources.revision(retained.revision_id)
         assert revision
         artifact_key = revision.artifact_key
-    data = tmp_path / "data"
+    data = owned_runtime_dir
     paths = (
         data / "artifacts",
         data / "test-corpus" / "public" / "retained-source",
@@ -455,7 +484,7 @@ async def test_fresh_preserves_unrelated_tables_inputs_reports_and_migrations(da
 
 
 async def test_cli_recreate_retains_originals_and_unrelated_resources(
-    database, tmp_path, monkeypatch
+    database, tmp_path, monkeypatch, owned_runtime_dir
 ):
     async with database.engine.connect() as connection:
         schema = await connection.scalar(text("SELECT current_schema()"))
@@ -463,7 +492,7 @@ async def test_cli_recreate_retains_originals_and_unrelated_resources(
     monkeypatch.setenv(
         "EKB_DATABASE_URL", database.engine.url.render_as_string(hide_password=False)
     )
-    data = tmp_path / "runtime"
+    data = owned_runtime_dir
     monkeypatch.setenv("EKB_DATA_DIR", str(data))
     monkeypatch.setenv("EKB_INFERENCE", "rules")
     for name in ("EKB_RECONCILIATION_MODEL_ID", "EKB_EMBEDDING_MODEL_ID"):
@@ -511,8 +540,6 @@ async def test_cli_recreate_retains_originals_and_unrelated_resources(
 async def test_reset_rolls_back_when_unrelated_table_depends_on_legacy_table(
     database, tmp_path, recreate, blocked_table
 ):
-    from sqlalchemy.exc import DBAPIError
-
     pipeline, source = build(database, tmp_path)
     (source / "policy.txt").write_text("Users must authenticate.")
     await pipeline.scan([FilesystemConnector(source)])
@@ -576,9 +603,15 @@ async def test_fresh_refuses_a_standalone_scan_before_any_task_is_claimed(databa
     try:
         await asyncio.wait_for(started.wait(), 10)
         async with database() as uow:
-            assert (await uow.processing.scans())[0].status == "running"
+            scan_report = (await uow.processing.scans())[0]
+            assert scan_report.status == "running"
             assert not await uow.processing.tasks()
-            assert not await uow.session.scalar(select(WorkflowLeaseRow.name).limit(1))
+            lease = await uow.session.scalar(select(WorkflowLeaseRow))
+            assert lease is not None
+            assert lease.name == f"{SCAN_LEASE_PREFIX}{scan_report.id}"
+            assert lease.expires_at > await uow.session.scalar(select(func.clock_timestamp()))
+            guard = lease.name, lease.owner
+        await database._renew_scan_lease(guard)
         with pytest.raises(ValueError, match="active"):
             async with database.reset():
                 pass
@@ -586,12 +619,417 @@ async def test_fresh_refuses_a_standalone_scan_before_any_task_is_claimed(databa
         release.set()
         report = await asyncio.wait_for(scan, 30)
     assert report.status == "completed"
+    async with database() as uow:
+        assert not await uow.session.scalar(select(WorkflowLeaseRow.name).limit(1))
+
+
+def has_scan_lease_loss(error):
+    if isinstance(error, ScanLeaseLostError):
+        return True
+    if isinstance(error, BaseExceptionGroup):
+        return any(has_scan_lease_loss(child) for child in error.exceptions)
+    return False
+
+
+async def test_new_scan_waits_for_reset_to_finish(database, tmp_path):
+    pipeline, source = build(database, tmp_path)
+    started = asyncio.Event()
+
+    class ObservedConnector(FilesystemConnector):
+        async def discover(self):
+            started.set()
+            async for item in super().discover():
+                yield item
+
+    scan = None
+    try:
+        async with database.reset():
+            scan = asyncio.create_task(pipeline.scan([ObservedConnector(source)]))
+            async with database.engine.connect() as observer:
+                waiting = False
+                for _ in range(100):
+                    waiting = await observer.scalar(
+                        text(
+                            "SELECT EXISTS (SELECT 1 FROM pg_locks "
+                            "WHERE relation = to_regclass('pipeline_leases') AND NOT granted)"
+                        )
+                    )
+                    if waiting:
+                        break
+                    await asyncio.sleep(0.05)
+                assert waiting and not started.is_set()
+        assert (await asyncio.wait_for(scan, 30)).status == "completed"
+        assert started.is_set()
+    finally:
+        if scan is not None and not scan.done():
+            scan.cancel()
+            await asyncio.gather(scan, return_exceptions=True)
+
+
+@pytest.mark.parametrize("pause_at", ["fetch", "artifact"])
+async def test_stale_scan_cannot_commit_after_reset_during_external_io(
+    database, tmp_path, owned_runtime_dir, pause_at
+):
+    pipeline, source = build(database, tmp_path)
+    (source / "policy.txt").write_text("Users must authenticate.", encoding="utf-8")
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class PausedConnector(FilesystemConnector):
+        async def fetch(self, item, previous):
+            result = await super().fetch(item, previous)
+            if pause_at == "fetch":
+                started.set()
+                await release.wait()
+            return result
+
+    class PausedArtifacts(FilesystemArtifactStore):
+        async def put(self, content):
+            if pause_at == "artifact":
+                started.set()
+                await release.wait()
+            return await super().put(content)
+
+    pipeline.artifacts = PausedArtifacts(owned_runtime_dir / "artifacts")
+    scan = asyncio.create_task(pipeline.scan([PausedConnector(source)]))
+    try:
+        await asyncio.wait_for(started.wait(), 10)
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name.startswith(SCAN_LEASE_PREFIX))
+                .values(expires_at=func.clock_timestamp() - timedelta(seconds=1))
+            )
+        await reset_workspace(database)
+        release.set()
+        result = (await asyncio.wait_for(asyncio.gather(scan, return_exceptions=True), 30))[0]
+        assert isinstance(result, BaseException) and has_scan_lease_loss(result)
+        async with database() as uow:
+            assert not await uow.processing.scans()
+            assert (await uow.knowledge.counts()).sources == 0
+        assert (owned_runtime_dir / "artifacts").exists() is (pause_at == "artifact")
+        recovered = await pipeline.scan([PausedConnector(source)])
+        assert recovered.status == "completed" and recovered.processed == 1
+        assert (source / "policy.txt").read_text(encoding="utf-8") == "Users must authenticate."
+    finally:
+        release.set()
+        await asyncio.gather(scan, return_exceptions=True)
+
+
+async def test_concurrent_scan_guards_are_isolated_and_live_scan_blocks_reset(database, tmp_path):
+    pipeline, source = build(database, tmp_path)
+    started = [asyncio.Event(), asyncio.Event()]
+    release = [asyncio.Event(), asyncio.Event()]
+    scan_ids = [None, None]
+
+    class PausedConnector(FilesystemConnector):
+        def __init__(self, index):
+            super().__init__(source)
+            self.index = index
+
+        async def discover(self):
+            started[self.index].set()
+            await release[self.index].wait()
+            async for item in super().discover():
+                yield item
+
+    def phase(index):
+        def record(name, report):
+            if name == "discovery":
+                scan_ids[index] = report.id
+
+        return record
+
+    scans = [
+        asyncio.create_task(pipeline.scan([PausedConnector(index)], phase=phase(index)))
+        for index in range(2)
+    ]
+    try:
+        await asyncio.wait_for(asyncio.gather(*(event.wait() for event in started)), 10)
+        assert all(scan_ids)
+        async with database.engine.begin() as connection:
+            leases = (
+                await connection.execute(
+                    select(WorkflowLeaseRow.name, WorkflowLeaseRow.owner).where(
+                        WorkflowLeaseRow.name.in_(
+                            [f"{SCAN_LEASE_PREFIX}{scan_id}" for scan_id in scan_ids]
+                        )
+                    )
+                )
+            ).all()
+            assert len(leases) == 2 and leases[0].owner != leases[1].owner
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name == f"{SCAN_LEASE_PREFIX}{scan_ids[0]}")
+                .values(expires_at=func.clock_timestamp() - timedelta(seconds=1))
+            )
+        with pytest.raises(ValueError, match="active"):
+            async with database.reset():
+                pass
+
+        release[0].set()
+        stale = (await asyncio.gather(scans[0], return_exceptions=True))[0]
+        assert isinstance(stale, BaseException) and has_scan_lease_loss(stale)
+        async with database() as uow:
+            assert not await uow.processing.tasks()
+            reports = await uow.processing.scans()
+            assert (
+                next(report for report in reports if report.id == scan_ids[0]).status == "running"
+            )
+        with pytest.raises(ValueError, match="active"):
+            async with database.reset():
+                pass
+        release[1].set()
+        assert (await asyncio.wait_for(scans[1], 30)).status == "completed"
+        async with database.reset():
+            pass
+    finally:
+        for event in release:
+            event.set()
+        await asyncio.gather(*scans, return_exceptions=True)
+
+
+async def test_stale_pipeline_cannot_recreate_execution_after_reset(database, tmp_path):
+    pipeline, source = build(database, tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class PausedConnector(FilesystemConnector):
+        async def discover(self):
+            started.set()
+            await release.wait()
+            async for item in super().discover():
+                yield item
+
+    async def index(_):
+        await pipeline.scan([PausedConnector(source)])
+        return CheckResult()
+
+    registry = StageRegistry()
+    registry.register(IndexingStage(database, index))
+    run = asyncio.create_task(PipelineOrchestrator(database, registry).run())
+    try:
+        await asyncio.wait_for(started.wait(), 10)
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                update(WorkflowLeaseRow).values(
+                    expires_at=func.clock_timestamp() - timedelta(seconds=1)
+                )
+            )
+        async with database.reset():
+            pass
+        release.set()
+        result = (await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 30))[0]
+        assert isinstance(result, BaseException)
+        async with database() as uow:
+            assert not await uow.workflow.executions(limit=1)
+            assert not await uow.processing.scans()
+    finally:
+        release.set()
+        await asyncio.gather(run, return_exceptions=True)
+
+
+async def test_scan_heartbeat_cancels_work_when_ownership_expires(database, tmp_path, monkeypatch):
+    monkeypatch.setattr("ekb.adapters.persistence.postgres.SCAN_HEARTBEAT_SECONDS", 0.05)
+    pipeline, source = build(database, tmp_path)
+    started, cancelled = asyncio.Event(), asyncio.Event()
+
+    class PausedConnector(FilesystemConnector):
+        async def discover(self):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+            async for item in super().discover():
+                yield item
+
+    scan = asyncio.create_task(pipeline.scan([PausedConnector(source)]))
+    try:
+        await asyncio.wait_for(started.wait(), 10)
+        async with database.engine.connect() as connection:
+            original = await connection.scalar(select(WorkflowLeaseRow.expires_at))
+            renewed = original
+            for _ in range(100):
+                renewed = await connection.scalar(select(WorkflowLeaseRow.expires_at))
+                if renewed > original:
+                    break
+                await asyncio.sleep(0.05)
+            assert renewed > original
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name.startswith(SCAN_LEASE_PREFIX))
+                .values(expires_at=func.clock_timestamp() - timedelta(seconds=1))
+            )
+        result = (await asyncio.wait_for(asyncio.gather(scan, return_exceptions=True), 10))[0]
+        assert isinstance(result, BaseException) and has_scan_lease_loss(result)
+        assert cancelled.is_set()
+        async with database.reset():
+            pass
+    finally:
+        if not scan.done():
+            scan.cancel()
+        await asyncio.gather(scan, return_exceptions=True)
+
+
+async def test_replaced_scan_owner_fences_old_worker_and_keeps_new_lease(database, tmp_path):
+    pipeline, source = build(database, tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class PausedConnector(FilesystemConnector):
+        async def discover(self):
+            started.set()
+            await release.wait()
+            async for item in super().discover():
+                yield item
+
+    scan = asyncio.create_task(pipeline.scan([PausedConnector(source)]))
+    try:
+        await asyncio.wait_for(started.wait(), 10)
+        new_owner = uuid4()
+        async with database.engine.begin() as connection:
+            lease = (await connection.execute(select(WorkflowLeaseRow))).first()
+            name, old_owner = lease.name, lease.owner
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name == name)
+                .values(owner=new_owner)
+            )
+        release.set()
+        result = (await asyncio.gather(scan, return_exceptions=True))[0]
+        assert isinstance(result, BaseException) and has_scan_lease_loss(result)
+        with pytest.raises(ScanLeaseLostError):
+            await database._renew_scan_lease((name, old_owner))
+        async with database.engine.begin() as connection:
+            assert (
+                await connection.scalar(
+                    select(WorkflowLeaseRow.owner).where(WorkflowLeaseRow.name == name)
+                )
+                == new_owner
+            )
+        with pytest.raises(ValueError, match="active"):
+            async with database.reset():
+                pass
+        async with database.engine.begin() as connection:
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name == name)
+                .values(expires_at=func.clock_timestamp() - timedelta(seconds=1))
+            )
+        async with database.reset():
+            pass
+    finally:
+        release.set()
+        await asyncio.gather(scan, return_exceptions=True)
+
+
+async def test_scan_fence_rechecks_expiry_after_lock_wait_and_rejects_late_writes(
+    database, tmp_path, owned_runtime_dir
+):
+    scan_id = uuid4()
+    report = ScanReport(id=scan_id)
+    async with database.scan_guard(scan_id):
+        async with database() as uow:
+            await uow.processing.save_scan(report)
+            await uow.commit()
+        name = f"{SCAN_LEASE_PREFIX}{scan_id}"
+        async with database.engine.begin() as connection:
+            owner = await connection.scalar(
+                select(WorkflowLeaseRow.owner).where(WorkflowLeaseRow.name == name)
+            )
+            await connection.execute(
+                update(WorkflowLeaseRow)
+                .where(WorkflowLeaseRow.name == name)
+                .values(expires_at=func.clock_timestamp() + timedelta(seconds=1))
+            )
+        assert owner is not None
+        async with database.engine.connect() as blocker:
+            transaction = await blocker.begin()
+            pending = None
+            try:
+                blocker_pid = await blocker.scalar(text("SELECT pg_backend_pid()"))
+                await blocker.execute(
+                    text("SELECT name FROM pipeline_leases WHERE name = :name FOR UPDATE"),
+                    {"name": name},
+                )
+                pending = asyncio.create_task(database._renew_scan_lease((name, owner)))
+                async with database.engine.connect() as observer:
+                    waiting = False
+                    for _ in range(100):
+                        waiting = await observer.scalar(
+                            text(
+                                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity "
+                                "WHERE :pid = ANY(pg_blocking_pids(pid)))"
+                            ),
+                            {"pid": blocker_pid},
+                        )
+                        if waiting:
+                            break
+                        await asyncio.sleep(0.05)
+                    assert waiting, "Renewal did not wait for the lease row"
+                    expired = False
+                    for _ in range(100):
+                        expired = await observer.scalar(
+                            select(WorkflowLeaseRow.expires_at <= func.clock_timestamp()).where(
+                                WorkflowLeaseRow.name == name
+                            )
+                        )
+                        if expired:
+                            break
+                        await asyncio.sleep(0.05)
+                    assert expired
+                await transaction.commit()
+                with pytest.raises(ScanLeaseLostError):
+                    await pending
+            finally:
+                if transaction.is_active:
+                    await transaction.rollback()
+                if pending is not None and not pending.done():
+                    pending.cancel()
+                    await asyncio.gather(pending, return_exceptions=True)
+
+        async with database() as stale:
+            await stale.processing.save_scan(report.model_copy(update={"discovered": 1}))
+            with pytest.raises(DBAPIError):
+                async with database.reset():
+                    pass
+            with pytest.raises(ScanLeaseLostError):
+                await stale.commit()
+        async with database.reset():
+            pass
+        async with database() as stale:
+            await stale.processing.save_scan(report)
+            with pytest.raises(ScanLeaseLostError):
+                await stale.commit()
+        with pytest.raises(ScanLeaseLostError):
+            await database._renew_scan_lease((name, owner))
+    async with database() as uow:
+        assert not await uow.processing.scans()
+        with pytest.raises(ValueError, match="reserved"):
+            await uow.workflow.lease(name, owner)
+        with pytest.raises(ValueError, match="reserved"):
+            await uow.workflow.renew(name, owner)
+        with pytest.raises(ValueError, match="reserved"):
+            await uow.workflow.release(name, owner)
+    pipeline, source = build(database, tmp_path)
+    pipeline.artifacts = FilesystemArtifactStore(owned_runtime_dir / "artifacts")
+    (source / "policy.txt").write_text("Users must authenticate.", encoding="utf-8")
+    assert (await pipeline.scan([FilesystemConnector(source)])).processed == 1
+
+
+async def test_legacy_running_scan_without_guard_remains_protected(database):
+    report = ScanReport(id=uuid4())
+    async with database() as uow:
+        await uow.processing.save_scan(report)
+        await uow.commit()
+    with pytest.raises(ValueError, match="active"):
+        async with database.reset():
+            pass
 
 
 async def test_real_cli_cooperative_interrupt_is_diagnosable_and_resumes_same_run(
-    database, tmp_path
+    database, tmp_path, owned_runtime_dir
 ):
-    env, cli = await recovery_cli(database, tmp_path)
+    env, cli = await recovery_cli(database, tmp_path, owned_runtime_dir)
     output_file = tmp_path / "interrupted.log"
     trigger = tmp_path / "interrupt.trigger"
     env["EKB_TEST_INTERRUPT_FILE"] = str(trigger)
@@ -679,10 +1117,10 @@ app()
         assert counts.sources == counts.revisions == counts.concepts == 1
 
 
-async def test_crashed_cli_resume_waits_for_task_lease_and_stale_scan_blocks_reset(
-    database, tmp_path
+async def test_crashed_cli_resume_waits_for_task_lease_and_stale_scan_allows_reset(
+    database, tmp_path, owned_runtime_dir
 ):
-    env, cli = await recovery_cli(database, tmp_path)
+    env, cli = await recovery_cli(database, tmp_path, owned_runtime_dir)
     executable = Path(sys.executable).parent / ("ekb.exe" if os.name == "nt" else "ekb")
     output_file = tmp_path / "crashed.log"
     process = None
@@ -772,16 +1210,28 @@ async def test_crashed_cli_resume_waits_for_task_lease_and_stale_scan_blocks_res
         assert next(report for report in reports if report.id == scan_id).status == "running"
         with pytest.raises(RuntimeError, match="Processing lease lost"):
             await uow.processing.heartbeat(task_id, old_owner)
-    async with database.engine.connect() as connection:
-        assert not await connection.scalar(
-            select(WorkflowLeaseRow.name).where(WorkflowLeaseRow.expires_at > now()).limit(1)
+    with pytest.raises(ValueError, match="active"):
+        async with database.reset():
+            pass
+    async with database.engine.begin() as connection:
+        await connection.execute(
+            update(WorkflowLeaseRow)
+            .where(WorkflowLeaseRow.name == f"{SCAN_LEASE_PREFIX}{scan_id}")
+            .values(expires_at=func.clock_timestamp() - timedelta(seconds=1))
         )
         assert not await connection.scalar(
             select(TaskRow.id)
             .where(TaskRow.status == "running", TaskRow.lease_until > now())
             .limit(1)
         )
-    # Unowned historical scan reports cannot safely be distinguished from live standalone scans.
-    with pytest.raises(ValueError, match="active"):
-        async with database.reset():
-            pass
+        await connection.execute(text("CREATE TABLE unrelated (value text)"))
+        await connection.execute(text("INSERT INTO unrelated VALUES ('retained')"))
+    source = tmp_path / "source"
+    await reset_workspace(database)
+    async with database() as uow:
+        assert not await uow.processing.scans()
+        assert not await uow.processing.tasks()
+        assert (await uow.knowledge.counts()).concepts == 0
+    async with database.engine.connect() as connection:
+        assert await connection.scalar(text("SELECT value FROM unrelated")) == "retained"
+    assert (source / "policy.txt").read_text(encoding="utf-8") == "Users must authenticate."

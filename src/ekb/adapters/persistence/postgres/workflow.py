@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ekb.adapters.persistence.postgres.models import (
+    SCAN_LEASE_PREFIX,
     AuthorityRow,
     ConceptRow,
     DecisionRow,
@@ -138,6 +139,8 @@ class Workflow:
         )
 
     async def lease(self, name: str, owner: UUID, seconds: int = 120) -> bool:
+        if name.startswith(SCAN_LEASE_PREFIX):
+            raise ValueError("The ingestion scan lease namespace is reserved")
         current = now()
         statement = insert(WorkflowLeaseRow).values(
             name=name, owner=owner, expires_at=current + timedelta(seconds=seconds)
@@ -151,9 +154,25 @@ class Workflow:
         )
         return result.scalar_one_or_none() is not None
 
+    async def renew(self, name: str, owner: UUID, seconds: int = 120) -> bool:
+        if name.startswith(SCAN_LEASE_PREFIX):
+            raise ValueError("The ingestion scan lease namespace is reserved")
+        lease = await self.session.scalar(
+            select(WorkflowLeaseRow)
+            .where(WorkflowLeaseRow.name == name, WorkflowLeaseRow.owner == owner)
+            .with_for_update()
+        )
+        current = now()
+        if lease is None or lease.expires_at <= current:
+            return False
+        lease.expires_at = current + timedelta(seconds=seconds)
+        return True
+
     async def release(self, name: str, owner: UUID) -> None:
         from sqlalchemy import delete
 
+        if name.startswith(SCAN_LEASE_PREFIX):
+            raise ValueError("The ingestion scan lease namespace is reserved")
         await self.session.execute(
             delete(WorkflowLeaseRow).where(
                 WorkflowLeaseRow.name == name, WorkflowLeaseRow.owner == owner
