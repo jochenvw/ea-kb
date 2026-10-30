@@ -66,6 +66,7 @@ export interface Version {
   semantic_version: SemanticVersion | null;
   candidate: {
     semantic_type: SemanticType | null;
+    goal_level: "enterprise" | "business_unit" | "subordinate_target" | null;
     statement: string;
     modality: string;
     confidence: number;

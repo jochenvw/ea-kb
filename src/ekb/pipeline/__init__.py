@@ -7,11 +7,16 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from uuid import UUID, uuid4
 
+from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
+    Candidate,
     Extraction,
+    GoalLevel,
     InferenceResult,
     ProcessingTask,
     ScanReport,
+    Segment,
+    SemanticType,
     SourceItem,
     SourceRecord,
     SourceRevision,
@@ -29,6 +34,7 @@ from ekb.observability import log, tracer
 from ekb.ports import (
     ArtifactStore,
     DocumentParser,
+    GoalSynthesisPort,
     IngestionSkills,
     ScanLeaseLostError,
     SourceConnector,
@@ -39,6 +45,78 @@ from ekb.ports import (
 
 class ProcessingIncompleteError(RuntimeError):
     pass
+
+
+def _defer_enterprise_goals(extraction: Extraction) -> tuple[Extraction, list[Candidate]]:
+    retained = []
+    deferred = []
+    index_map = {}
+    for index, candidate in enumerate(extraction.candidates):
+        if candidate.semantic_type is SemanticType.STRATEGIC_GOAL and candidate.goal_level in {
+            GoalLevel.ENTERPRISE,
+            None,
+        }:
+            deferred.append(candidate)
+        else:
+            index_map[index] = len(retained)
+            retained.append(candidate)
+    relationships = [
+        relationship.model_copy(
+            update={
+                "from_index": index_map[relationship.from_index],
+                "to_index": index_map[relationship.to_index],
+            }
+        )
+        for relationship in extraction.relationships
+        if relationship.from_index in index_map
+        and relationship.to_index in index_map
+        and index_map[relationship.from_index] != index_map[relationship.to_index]
+    ]
+    return Extraction(candidates=retained, relationships=relationships), deferred
+
+
+def _goal_synthesis_chunks(
+    records: list[tuple[Segment, Candidate]], max_chars: int = 16_000
+) -> list[list[tuple[Segment, Candidate]]]:
+    chunks: list[list[tuple[Segment, Candidate]]] = []
+    current: list[tuple[Segment, Candidate]] = []
+    size = 0
+    for segment, candidate in records:
+        text = (
+            f"Candidate: {candidate.statement}\n"
+            f"Level: {candidate.goal_level.value if candidate.goal_level else 'unclassified'}\n"
+            f"Source key: segment:{segment.id}\n"
+            f"Section: {segment.heading or 'Unknown section'}\n"
+            f"Evidence: {candidate.excerpt}"
+        )
+        if len(text) > max_chars:
+            raise ProcessingIncompleteError(
+                "One strategic-goal candidate exceeds the bounded synthesis input"
+            )
+        additional = len(text) + (2 if current else 0)
+        if current and size + additional > max_chars:
+            chunks.append(current)
+            current = []
+            size = 0
+            additional = len(text)
+        current.append((segment, candidate))
+        size += additional
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _goal_synthesis_text(records: list[tuple[Segment, Candidate]]) -> str:
+    return "\n\n".join(
+        (
+            f"Candidate: {candidate.statement}\n"
+            f"Level: {candidate.goal_level.value if candidate.goal_level else 'unclassified'}\n"
+            f"Source key: segment:{segment.id}\n"
+            f"Section: {segment.heading or 'Unknown section'}\n"
+            f"Evidence: {candidate.excerpt}"
+        )
+        for segment, candidate in records
+    )
 
 
 class IngestionPipeline:
@@ -69,10 +147,103 @@ class IngestionPipeline:
             prompt=inference.prompt_version,
             labeling=inference.label_fingerprint,
             extraction=inference.extraction_fingerprint,
+            synthesis=(
+                inference.goal_synthesis_fingerprint
+                if isinstance(inference, GoalSynthesisPort)
+                else None
+            ),
             config=inference_config,
         )
         self.progress = progress or (lambda item, status: None)
         self.require_complete = require_complete
+
+    async def _synthesize_enterprise_goals(
+        self,
+        item: SourceItem,
+        revision: SourceRevision,
+        records: list[tuple[Segment, Candidate]],
+        task_id: UUID,
+        owner: UUID,
+    ) -> tuple[list[tuple[Segment, Candidate]], Usage, str, str]:
+        if not isinstance(self.inference, GoalSynthesisPort):
+            return records, Usage(cost=0), self.inference.capabilities.model_id, "not_applicable"
+        current = records
+        usages: list[Usage] = []
+        model_id = self.inference.capabilities.model_id
+        prompt_version = self.inference.goal_synthesis_fingerprint
+        for round_index in range(8):
+            chunks = _goal_synthesis_chunks(current)
+            reconciled: list[tuple[Segment, Candidate]] = []
+            for chunk_index, chunk in enumerate(chunks):
+                text = _goal_synthesis_text(chunk)
+                synthesis_segment = Segment(
+                    id=stable_id(
+                        "goal-synthesis",
+                        revision.id,
+                        round_index,
+                        chunk_index,
+                        content_hash(text.encode("utf-8")),
+                    ),
+                    revision_id=revision.id,
+                    ordinal=len(chunk),
+                    text=text,
+                    heading="Source-grounded strategic-goal synthesis",
+                    location={"goal_synthesis": True},
+                )
+                async with self.model_gate:
+                    self.progress(item, f"reconciling enterprise goals ({len(current)} candidates)")
+                    result = await self.inference.synthesize_goals(synthesis_segment)
+                validate_evidence(result.extraction, synthesis_segment)
+                usages.append(result.usage)
+                model_id = result.model_id
+                prompt_version = result.prompt_version
+                async with self.uow() as uow:
+                    await uow.processing.heartbeat(task_id, owner)
+                    await uow.processing.accumulate_usage(task_id, owner, result.usage)
+                    await uow.commit()
+                by_segment = {f"segment:{segment.id}": segment for segment, _ in chunk}
+                for candidate in result.extraction.candidates:
+                    segment = by_segment.get(candidate.source_key or "")
+                    if segment is None or candidate.excerpt not in segment.text:
+                        raise ProcessingIncompleteError(
+                            "Goal synthesis returned evidence outside its original segment"
+                        )
+                    original = next(
+                        (
+                            source_candidate
+                            for source_segment, source_candidate in chunk
+                            if source_segment.id == segment.id
+                            and candidate.excerpt in source_candidate.excerpt
+                        ),
+                        None,
+                    )
+                    reconciled.append(
+                        (
+                            segment,
+                            candidate.model_copy(
+                                update={
+                                    "source_key": (
+                                        original.source_key
+                                        if original is not None
+                                        else segment.location.get("part_id")
+                                    )
+                                }
+                            ),
+                        )
+                    )
+            if len(chunks) == 1:
+                return (
+                    reconciled,
+                    total_usage(usages),
+                    model_id,
+                    prompt_version,
+                )
+            if len(reconciled) >= len(current):
+                raise ProcessingIncompleteError(
+                    "Goal synthesis did not reduce its bounded candidate batches"
+                )
+            current = reconciled
+        raise ProcessingIncompleteError("Goal synthesis exceeded the bounded reconciliation depth")
 
     def _processing_fingerprint(self, content: str, item: SourceItem) -> str:
         return fingerprint(
@@ -497,6 +668,7 @@ class IngestionPipeline:
             )
             await uow.commit()
         usages: list[Usage] = []
+        deferred_goals: list[tuple[Segment, Candidate]] = []
         for segment in segments:
             if segment.quality in {"image_only", "ocr_no_text", "document_metadata"}:
                 log.info("segment_skipped", segment_id=str(segment.id), reason=segment.quality)
@@ -562,12 +734,44 @@ class IngestionPipeline:
                 log.info("segment_replayed", segment_id=str(segment.id))
                 called_model = False
             validate_scoped_extraction(result.extraction, segment, labeling.labeling)
+            persisted_result = result
+            if isinstance(self.inference, GoalSynthesisPort):
+                retained, goals = _defer_enterprise_goals(result.extraction)
+                deferred_goals.extend((segment, candidate) for candidate in goals)
+                persisted_result = result.model_copy(update={"extraction": retained})
             async with self.uow() as uow:
                 await uow.processing.heartbeat(task_id, owner)
-                ids = await uow.knowledge.persist(segment, result)
+                ids = await uow.knowledge.persist(segment, persisted_result)
                 await uow.processing.cache(segment.id, cache_fp, result)
                 if called_model:
                     await uow.processing.accumulate_usage(task_id, owner, result.usage)
                 await uow.commit()
             count += len(set(ids))
+        if deferred_goals:
+            (
+                synthesized,
+                synthesis_usage,
+                model_id,
+                prompt_version,
+            ) = await self._synthesize_enterprise_goals(
+                item, revision, deferred_goals, task_id, owner
+            )
+            usages.append(synthesis_usage)
+            groups: dict[UUID, tuple[Segment, list[Candidate]]] = {}
+            for segment, candidate in synthesized:
+                if segment.id not in groups:
+                    groups[segment.id] = (segment, [])
+                groups[segment.id][1].append(candidate)
+            for index, (segment, candidates) in enumerate(groups.values()):
+                persisted = InferenceResult(
+                    extraction=Extraction(candidates=candidates),
+                    usage=synthesis_usage if index == 0 else Usage(cost=0),
+                    model_id=model_id,
+                    prompt_version=prompt_version,
+                )
+                async with self.uow() as uow:
+                    await uow.processing.heartbeat(task_id, owner)
+                    ids = await uow.knowledge.persist(segment, persisted)
+                    await uow.commit()
+                count += len(set(ids))
         return count, total_usage(usages)

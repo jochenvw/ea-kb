@@ -19,7 +19,7 @@ from pydantic import BaseModel, ValidationError
 from ekb.adapters.ontology import load_ontology
 from ekb.adapters.retry import DEFAULT_RETRY_ATTEMPTS, retry
 from ekb.config import Settings
-from ekb.domain.grounding import GroundingError
+from ekb.domain.grounding import GroundingError, validate_evidence
 from ekb.domain.models import (
     Candidate,
     Capabilities,
@@ -67,8 +67,12 @@ SCOPED_INSTRUCTIONS = (
     + "\n"
     + "\n".join(f"{term.name}: {term.definition}" for term in _VOCABULARY.terms)
 )
+GOAL_SYNTHESIS_INSTRUCTIONS = (_SKILLS / "goal_synthesis.md").read_text(encoding="utf-8")
 LABEL_PROMPT_VERSION = "ontology-labeling-v1:" + fingerprint(prompt=LABEL_INSTRUCTIONS)
 SCOPED_PROMPT_VERSION = "scoped-extraction-v1:" + fingerprint(prompt=SCOPED_INSTRUCTIONS)
+GOAL_SYNTHESIS_PROMPT_VERSION = "enterprise-goal-synthesis-v1:" + fingerprint(
+    prompt=GOAL_SYNTHESIS_INSTRUCTIONS
+)
 
 type _Completion = tuple[str, int | None, int | None, str | None, int | None]
 
@@ -115,13 +119,6 @@ def _rules_extraction(segment: Segment) -> Extraction:
             modality = Modality.RECOMMENDED
         elif structured:
             kind = None
-        elif re.search(
-            r"\b(aim to|aims to|objective|our goal|we target|we will reduce|"
-            r"we will improve|we will increase|we seek to)\b",
-            text,
-            re.I,
-        ):
-            kind = SemanticType.STRATEGIC_GOAL
         else:
             continue
         candidates.append(
@@ -143,12 +140,12 @@ class RulesInference:
 
     capabilities = Capabilities(model_id="offline-rules-v1")
     max_requests_per_skill = 1
-    prompt_version = "rules-v4"
+    prompt_version = "rules-v5"
     label_fingerprint = fingerprint(
-        skill="rules-labeling-v3", schema=ContentLabeling.model_json_schema()
+        skill="rules-labeling-v4", schema=ContentLabeling.model_json_schema()
     )
     extraction_fingerprint = fingerprint(
-        skill="rules-scoped-extraction-v4", schema=Extraction.model_json_schema()
+        skill="rules-scoped-extraction-v5", schema=Extraction.model_json_schema()
     )
 
     async def label(self, segment: Segment) -> LabelingResult:
@@ -400,6 +397,48 @@ class OpenAIInference:
             provider_model_identity_complete=identity_complete,
         )
 
+    goal_synthesis_fingerprint = fingerprint(
+        skill=GOAL_SYNTHESIS_PROMPT_VERSION,
+        schema=Extraction.model_json_schema(),
+    )
+
+    async def synthesize_goals(self, segment: Segment) -> InferenceResult:
+        def validate_synthesis(extraction: Extraction) -> None:
+            validate_evidence(extraction, segment)
+            if extraction.relationships:
+                raise GroundingError("Goal synthesis must not propose relationships")
+            if len(extraction.candidates) > 10:
+                raise GroundingError("Goal synthesis exceeded the compact ten-candidate bound")
+            for candidate in extraction.candidates:
+                if (
+                    candidate.semantic_type is not SemanticType.STRATEGIC_GOAL
+                    or candidate.goal_level is not GoalLevel.ENTERPRISE
+                ):
+                    raise GroundingError(
+                        "Goal synthesis returned a non-enterprise strategic-goal candidate"
+                    )
+                if (
+                    candidate.source_key is None
+                    or f"Source key: {candidate.source_key}" not in segment.text
+                ):
+                    raise GroundingError("Goal synthesis did not preserve a candidate source key")
+
+        extraction, usage, provider_model_ids, identity_complete = await self._run_skill(
+            segment,
+            self._messages(segment, GOAL_SYNTHESIS_INSTRUCTIONS, Extraction),
+            Extraction,
+            validate_synthesis,
+            GOAL_SYNTHESIS_PROMPT_VERSION,
+        )
+        return InferenceResult(
+            extraction=extraction,
+            usage=usage,
+            model_id=self.capabilities.model_id,
+            prompt_version=GOAL_SYNTHESIS_PROMPT_VERSION,
+            provider_model_ids=provider_model_ids,
+            provider_model_identity_complete=identity_complete,
+        )
+
     async def _run_skill[T: BaseModel](
         self,
         segment: Segment,
@@ -497,13 +536,19 @@ class OpenAIInference:
                         raise ValueError(
                             f"Model extraction rejected after {failures} validation attempts"
                         ) from None
+                    grounding_guidance = (
+                        f" Validation failure: {error}."
+                        if isinstance(error, GroundingError)
+                        else ""
+                    )
                     messages.append(
                         {
                             "role": "user",
                             "content": (
                                 "Previous output failed schema or exact evidence validation. "
-                                "Return corrected JSON. Copy evidence verbatim; "
-                                "preserve qualifiers."
+                                "Return corrected JSON. Copy the smallest sufficient evidence "
+                                "span verbatim; preserve every qualifier and number inside that "
+                                f"span.{grounding_guidance}"
                             ),
                         }
                     )

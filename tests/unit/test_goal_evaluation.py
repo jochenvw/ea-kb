@@ -28,6 +28,7 @@ from ekb.evaluation.goals import (
     GoalMetricContext,
     GoalPrediction,
     GoalSource,
+    _annotation_matches,
     abstraction_metric,
     detection_metric,
     duplicate_metric,
@@ -196,6 +197,28 @@ def test_detection_abstraction_and_duplicate_metrics_reject_promoted_targets():
     assert duplicate_metric(context)["over_split_count"] == 2
 
 
+def test_annotation_matching_accepts_a_minimal_exact_subspan_of_reference_evidence():
+    source = GoalSource(
+        id="test",
+        name="Synthetic",
+        filename="synthetic.pdf",
+        url="https://example.invalid/synthetic.pdf",
+        sha256="0" * 64,
+        pdf_pages=1,
+        printed_page_offset_note="No offset.",
+        attribution="Synthetic test data.",
+    )
+    dataset = _dataset(source)
+    candidate = Candidate(
+        statement="Become resilient.",
+        excerpt="become a resilient enterprise",
+        semantic_type=SemanticType.STRATEGIC_GOAL,
+        goal_level=GoalLevel.ENTERPRISE,
+    )
+
+    assert _annotation_matches(candidate, dataset) == ("SG-01",)
+
+
 class _FakeInference:
     capabilities = Capabilities(model_id="test-goal-model")
     prompt_version = "test-prompt-v1"
@@ -221,6 +244,16 @@ class _FakeInference:
                     excerpt=_ENTERPRISE_EVIDENCE,
                     semantic_type=SemanticType.STRATEGIC_GOAL,
                     goal_level=GoalLevel.ENTERPRISE,
+                    scope=Scope(organization="Acme"),
+                )
+            )
+        if _TARGET_EVIDENCE in segment.text:
+            candidates.append(
+                Candidate(
+                    statement="Grow regional sales by 5% annually.",
+                    excerpt=_TARGET_EVIDENCE,
+                    semantic_type=SemanticType.STRATEGIC_GOAL,
+                    goal_level=GoalLevel.SUBORDINATE_TARGET,
                     scope=Scope(organization="Acme"),
                 )
             )
@@ -316,6 +349,17 @@ async def test_offline_rules_do_not_invent_a_goal_from_security_context():
         revision_id=stable_id("security-context-revision"),
         ordinal=0,
         text="Shell uses Azure. NIST CSF is a framework for cybersecurity.",
+    )
+    result = await RulesInference().extract(segment)
+    assert not result.extraction.candidates
+
+
+async def test_offline_rules_do_not_promote_generic_aim_language_to_enterprise_goals():
+    segment = Segment(
+        id=stable_id("generic-aim"),
+        revision_id=stable_id("generic-aim-revision"),
+        ordinal=0,
+        text="We aim to reduce costs by 5% next year.",
     )
     result = await RulesInference().extract(segment)
     assert not result.extraction.candidates

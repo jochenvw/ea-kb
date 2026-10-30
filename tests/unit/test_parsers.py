@@ -205,6 +205,57 @@ async def test_oscal_native_aliases_survive_titled_parts_without_guessing_enhanc
     assert segments[0].location["part_id"] == "sc-7.5_smt"
 
 
+async def test_oscal_parameter_inserts_use_catalog_labels_instead_of_template_markup():
+    content = json.dumps(
+        {
+            "catalog": {
+                "params": [{"id": "ac-2_odp", "label": "account types"}],
+                "controls": [
+                    {
+                        "id": "ac-2",
+                        "parts": [
+                            {
+                                "id": "ac-2_smt",
+                                "prose": (
+                                    "Define and document the allowed {{ insert: param, ac-2_odp }}."
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    ).encode()
+    segments = await parse(content, "oscal", control_ids=["ac-2"])
+    assert segments[0].text == (
+        "Define and document the allowed [organization-defined account types]."
+    )
+    assert "{{" not in segments[0].text
+
+
+async def test_oscal_unknown_parameter_insert_is_explicitly_marked_in_location():
+    content = json.dumps(
+        {
+            "catalog": {
+                "controls": [
+                    {
+                        "id": "si-11",
+                        "parts": [
+                            {
+                                "id": "si-11_smt",
+                                "prose": "Reveal errors to {{ insert: param, missing_odp }}.",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+    ).encode()
+    segments = await parse(content, "oscal", control_ids=["si-11"])
+    assert segments[0].text == "Reveal errors to [unresolved OSCAL parameter: missing_odp]."
+    assert segments[0].location["unresolved_oscal_parameters"] == ["missing_odp"]
+
+
 def test_long_sections_split_without_losing_evidence_characters():
     text = "Users must not disable alarms. " * 100
     pieces = split_text(text, 300)

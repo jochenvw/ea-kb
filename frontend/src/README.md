@@ -11,6 +11,7 @@ Ingestion execution and monitoring are CLI-only; no browser scan control or dash
 `ontology-diagram.tsx` lazily renders Mermaid from that catalog; only declared domains/ranges get arrows.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
 `knowledge.tsx` keeps evidence first; visual validation, scoped authority and history have separate tabs.
+Strategic goals show their enterprise, business-unit or supporting-target level in lists and details.
 Evidence, authority and proposal defaults follow the selected version, not an unrelated latest version.
 Goals/guidance and platform implementations have separate filters and graph lanes; mappings show evidence.
 Use real API records, abort stale reads, disclose query limits and preserve unknown values.

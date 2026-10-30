@@ -84,6 +84,13 @@ class IngestionSkills(InferencePort, Protocol):
     ) -> InferenceResult: ...
 
 
+@runtime_checkable
+class GoalSynthesisPort(Protocol):
+    goal_synthesis_fingerprint: str
+
+    async def synthesize_goals(self, segment: Segment) -> InferenceResult: ...
+
+
 class ModelRequestLimiter(Protocol):
     async def reserve(self, deployment: str, requests: int) -> None: ...
 

@@ -362,6 +362,8 @@ unconnected. Search filters the catalog, not the diagram. Rendering is local and
 **Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified
 as `PlatformRequirement`, including unclassified native guidance. Select **Platform implementation**
 for explicitly platform-scoped `PlatformRequirement` records, or **All levels** to compare.
+Strategic-goal rows separately label enterprise goals, business-unit goals and supporting targets;
+these extraction levels do not create additional ontology classes.
 Level, text and source filters select the same version; CLI/API also accept `--level implementation`
 and `level=implementation`. Unknown scope remains unknown, not universal applicability.
 
@@ -546,7 +548,10 @@ folder guides to stay current, with a pytest guard covering new folders as well.
 Domain and port modules are strictly type-checked and do not import provider/infrastructure SDKs.
 
 The offline baseline misses implicit strategic goals, does not extract scope, and can misclassify CSF
-outcomes. PDF column/heading reconstruction remains heuristic; diagrams are retained as references,
-not semantically interpreted. Canonical promotion, automatic version classification, semantic merges,
-exception management, SharePoint, ArchiMate, Bizzdesign and Neo4j adapters are not implemented.
-The MVP prioritizes correct provenance and recoverable incremental processing.
+outcomes; generic aim and target wording is deliberately not promoted to a goal. Live ingestion
+reconciles enterprise-goal hypotheses into a compact source-level set while retaining business-unit
+goals and subordinate targets separately. PDF column/heading reconstruction remains heuristic;
+diagrams are retained as references, not semantically interpreted. Canonical promotion, automatic
+version classification, semantic merges, exception management, SharePoint, ArchiMate, Bizzdesign and
+Neo4j adapters are not implemented. The MVP prioritizes correct provenance and recoverable
+incremental processing.

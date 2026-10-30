@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from html import escape
 from pathlib import Path
 
@@ -12,6 +13,18 @@ from ekb.adapters.inference import RulesInference
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres.models import OccurrenceRow, RevisionRow, SegmentRow
 from ekb.adapters.sources import FilesystemConnector
+from ekb.domain.models import (
+    Candidate,
+    Capabilities,
+    ContentLabel,
+    ContentLabeling,
+    Extraction,
+    GoalLevel,
+    InferenceResult,
+    LabelingResult,
+    SemanticType,
+    Usage,
+)
 from ekb.pipeline import IngestionPipeline
 
 pytestmark = pytest.mark.integration
@@ -37,6 +50,68 @@ class CountingInference(RulesInference):
         return await super().extract(segment)
 
 
+class SynthesizingInference(RulesInference):
+    capabilities = Capabilities(model_id="synthetic-live-model")
+    goal_synthesis_fingerprint = "synthetic-goal-synthesis-v1"
+
+    async def label(self, segment):
+        labels = [
+            ContentLabel(
+                excerpt=text,
+                semantic_type=SemanticType.STRATEGIC_GOAL,
+            )
+            for text in (
+                "We aim to become a resilient enterprise.",
+                "We aim to build trusted relationships.",
+            )
+        ]
+        return LabelingResult(
+            labeling=ContentLabeling(labels=labels),
+            usage=Usage(model_calls=1),
+            model_id=self.capabilities.model_id,
+            prompt_version="synthetic-labeling-v1",
+        )
+
+    async def extract_scoped(self, segment, labeling):
+        return InferenceResult(
+            extraction=Extraction(
+                candidates=[
+                    Candidate(
+                        statement=label.excerpt,
+                        excerpt=label.excerpt,
+                        semantic_type=SemanticType.STRATEGIC_GOAL,
+                        goal_level=GoalLevel.ENTERPRISE,
+                    )
+                    for label in labeling.labels
+                ]
+            ),
+            usage=Usage(model_calls=1),
+            model_id=self.capabilities.model_id,
+            prompt_version="synthetic-extraction-v1",
+        )
+
+    async def synthesize_goals(self, segment):
+        source_key = re.search(r"Source key: (segment:[0-9a-f-]+)", segment.text)
+        evidence = "We aim to become a resilient enterprise."
+        assert source_key and evidence in segment.text
+        return InferenceResult(
+            extraction=Extraction(
+                candidates=[
+                    Candidate(
+                        statement="Become a resilient enterprise.",
+                        excerpt=evidence,
+                        semantic_type=SemanticType.STRATEGIC_GOAL,
+                        goal_level=GoalLevel.ENTERPRISE,
+                        source_key=source_key.group(1),
+                    )
+                ]
+            ),
+            usage=Usage(model_calls=1),
+            model_id=self.capabilities.model_id,
+            prompt_version=self.goal_synthesis_fingerprint,
+        )
+
+
 def build(database, tmp_path):
     source = tmp_path / "source"
     source.mkdir(exist_ok=True)
@@ -47,11 +122,36 @@ def build(database, tmp_path):
     return pipeline, parser, inference, source
 
 
+async def test_live_ingestion_persists_only_reconciled_enterprise_goals(database, tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "strategy.md").write_text(
+        "# Strategy\n"
+        "We aim to become a resilient enterprise. "
+        "We aim to build trusted relationships."
+    )
+    pipeline = IngestionPipeline(
+        database,
+        FilesystemArtifactStore(tmp_path / "artifacts"),
+        StructuredParser(),
+        SynthesizingInference(),
+    )
+
+    report = await pipeline.scan([FilesystemConnector(source)])
+
+    assert report.processed == 1 and report.failed == 0 and report.concepts == 1
+    async with database() as uow:
+        concepts = await uow.knowledge.search()
+    assert [item.versions[0].candidate.statement for item in concepts] == [
+        "Become a resilient enterprise."
+    ]
+
+
 async def test_incremental_revisions_grounding_and_deletion(database, tmp_path):
     pipeline, parser, inference, source = build(database, tmp_path)
     path = source / "policy.md"
     path.write_text(
-        "# Security\nOperators must retain logs.\n\n# Strategy\nWe aim to reduce costs."
+        "# Security\nOperators must retain logs.\n\n# Strategy\nOur vision is to reduce costs."
     )
     first = await pipeline.scan([FilesystemConnector(source)])
     assert first.processed == 1 and first.concepts == 2 and first.failed == 0
@@ -59,7 +159,8 @@ async def test_incremental_revisions_grounding_and_deletion(database, tmp_path):
     second = await pipeline.scan([FilesystemConnector(source)])
     assert second.skipped == 1 and parser.calls == 1 and inference.calls == calls
     path.write_text(
-        "# Security\nOperators must retain logs.\n\n# Strategy\nWe aim to improve availability."
+        "# Security\nOperators must retain logs.\n\n"
+        "# Strategy\nOur vision is to improve availability."
     )
     third = await pipeline.scan([FilesystemConnector(source)])
     assert third.processed == 1 and third.failed == 0

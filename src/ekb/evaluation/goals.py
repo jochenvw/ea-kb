@@ -38,7 +38,7 @@ from ekb.domain.models import (
     total_usage,
 )
 from ekb.observability import tracer
-from ekb.ports import IngestionSkills
+from ekb.ports import GoalSynthesisPort, IngestionSkills
 
 type GoalAbstraction = Literal[
     "enterprise_goal",
@@ -179,7 +179,14 @@ def _annotation_matches(candidate: Candidate, dataset: GoalDataset) -> tuple[str
         return ()
     matches = []
     for annotation in dataset.annotations:
-        if any(_norm(evidence.excerpt) in excerpt for evidence in annotation.evidence):
+        if any(
+            (
+                (anchor := _norm(evidence.excerpt))
+                and min(len(anchor), len(excerpt)) >= 20
+                and (anchor in excerpt or excerpt in anchor)
+            )
+            for evidence in annotation.evidence
+        ):
             matches.append(annotation.id)
     return tuple(matches)
 
@@ -645,6 +652,32 @@ async def _extract_segment(
     return _SegmentResult(segment, result, False, result.usage, _model_calls(result, inference))
 
 
+async def _synthesize_segment(
+    segment: Segment,
+    inference: IngestionSkills,
+    synthesizer: GoalSynthesisPort,
+    cache_dir: Path,
+    configuration: str,
+) -> _SegmentResult:
+    key = fingerprint(
+        segment=segment.id,
+        content=content_hash(segment.text.encode("utf-8")),
+        model=inference.capabilities.model_id,
+        synthesis=synthesizer.goal_synthesis_fingerprint,
+        configuration=configuration,
+    )
+    cache_path = cache_dir / f"goal-synthesis-{key}.json"
+    if await asyncio.to_thread(cache_path.is_file):
+        payload = json.loads(await asyncio.to_thread(cache_path.read_text, encoding="utf-8"))
+        result = InferenceResult.model_validate(payload)
+        return _SegmentResult(segment, result, True, Usage(), _model_calls(result, inference))
+    result = await synthesizer.synthesize_goals(segment)
+    validate_evidence(result.extraction, segment)
+    await asyncio.to_thread(cache_dir.mkdir, parents=True, exist_ok=True)
+    await _atomic_write(cache_path, result.model_dump_json())
+    return _SegmentResult(segment, result, False, result.usage, _model_calls(result, inference))
+
+
 def _make_predictions(
     runs: list[_SegmentResult], dataset: GoalDataset, page_texts: dict[int, str]
 ) -> tuple[tuple[GoalPrediction, ...], tuple[GoalLinkPrediction, ...]]:
@@ -662,6 +695,14 @@ def _make_predictions(
             matches = _annotation_matches(candidate, dataset)
             candidate_matches.append(matches)
             evidence_page = location.get("pdf_page")
+            if (
+                (not isinstance(evidence_page, int) or evidence_page < 1)
+                and candidate.source_key
+                and (source_page := re.fullmatch(r"pdf-page:(\d+)", candidate.source_key))
+            ):
+                selected_page = int(source_page.group(1))
+                if selected_page in verified_pages:
+                    evidence_page = selected_page
             if not isinstance(evidence_page, int) or evidence_page < 1:
                 evidence_page = verified_pages[0] if len(verified_pages) == 1 else None
             printed_page = location.get("printed_page")
@@ -726,6 +767,35 @@ def _metric_results(
 
 def _candidate_payload(predictions: tuple[GoalPrediction, ...]) -> list[dict[str, Any]]:
     return [prediction.model_dump(mode="json") for prediction in predictions]
+
+
+def _enterprise_synthesis_records(
+    predictions: tuple[GoalPrediction, ...],
+) -> list[tuple[str, str, str, str, str]]:
+    return list(
+        dict.fromkeys(
+            (
+                prediction.candidate.statement,
+                (
+                    prediction.candidate.goal_level.value
+                    if prediction.candidate.goal_level is not None
+                    else "unclassified"
+                ),
+                f"pdf-page:{prediction.pdf_page}",
+                prediction.section or "Unknown section",
+                prediction.candidate.excerpt,
+            )
+            for prediction in predictions
+            if prediction.candidate.semantic_type is SemanticType.STRATEGIC_GOAL
+            and prediction.candidate.goal_level
+            in {
+                GoalLevel.ENTERPRISE,
+                None,
+            }
+            and prediction.pdf_page is not None
+            and prediction.candidate.excerpt
+        )
+    )
 
 
 def _deduplicate_offline_candidates(runs: list[_SegmentResult]) -> list[_SegmentResult]:
@@ -841,29 +911,14 @@ async def _strategy(
             synthesis_completed = True
             reconciliation_mode = "offline_exact_deduplication"
         initial, _ = _make_predictions(runs, dataset, page_texts)
-        evidence_records = list(
-            dict.fromkeys(
-                (
-                    item.candidate.statement,
-                    item.candidate.semantic_type.value
-                    if item.candidate.semantic_type is not None
-                    else "unknown",
-                    item.candidate.goal_level.value
-                    if item.candidate.goal_level is not None
-                    else "unclassified",
-                    item.candidate.excerpt,
-                )
-                for item in initial
-                if item.candidate.excerpt
-            )
-        )
+        evidence_records = _enterprise_synthesis_records(initial)
         if evidence_records and not inference.capabilities.model_id.startswith("offline-"):
             synthesis_completed = False
             reconciliation_mode = "model_synthesis"
             synthesis_text = "\n\n".join(
-                f"Candidate: {statement}\nType: {semantic_type}\n"
-                f"Level: {goal_level}\nEvidence: {excerpt}"
-                for statement, semantic_type, goal_level, excerpt in evidence_records
+                f"Candidate: {statement}\nLevel: {goal_level}\nSource key: {source_key}\n"
+                f"Section: {section}\nEvidence: {excerpt}"
+                for statement, goal_level, source_key, section, excerpt in evidence_records
             )
             if len(synthesis_text) > 16_000:
                 raise ValueError("Hierarchical synthesis input exceeds the 16,000-character bound")
@@ -890,8 +945,18 @@ async def _strategy(
                     "Hierarchical synthesis exceeds --max-model-calls before inference"
                 )
             try:
-                synthesis = await _extract_segment(
-                    synthesis_segment, inference, cache_dir, configuration
+                synthesis = (
+                    await _synthesize_segment(
+                        synthesis_segment,
+                        inference,
+                        inference,
+                        cache_dir,
+                        configuration,
+                    )
+                    if isinstance(inference, GoalSynthesisPort)
+                    else await _extract_segment(
+                        synthesis_segment, inference, cache_dir, configuration
+                    )
                 )
                 synthesis_calls = synthesis.model_calls
                 runs.append(synthesis)

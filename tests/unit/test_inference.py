@@ -12,6 +12,7 @@ from ekb.domain.models import (
     ContentLabel,
     ContentLabeling,
     Extraction,
+    GoalLevel,
     Modality,
     Segment,
     SemanticType,
@@ -73,6 +74,10 @@ async def test_model_validation_retry_and_usage_accounting():
     assert result.usage.retry_count == 1
     assert result.usage.validation_failures == 1
     assert result.usage.cost == pytest.approx(0.00004)
+    assert "smallest sufficient evidence span" in calls[1]["messages"][-1]["content"]
+    assert (
+        "Candidate evidence is not an exact source substring" in calls[1]["messages"][-1]["content"]
+    )
 
 
 async def test_invalid_model_output_is_rejected_after_bounded_attempts():
@@ -107,6 +112,51 @@ async def test_reasoning_model_can_omit_temperature_and_select_completion_budget
     )
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         await OpenAIInference(settings, client=client).extract_scoped(segment(), labels())
+
+
+async def test_goal_synthesis_uses_dedicated_prompt_and_requires_enterprise_goals():
+    evidence = "We aim to become a resilient enterprise."
+    source = Segment(
+        id=uuid4(),
+        revision_id=uuid4(),
+        ordinal=0,
+        text=(
+            "Candidate: Become a resilient enterprise.\n"
+            "Level: enterprise\n"
+            "Source key: pdf-page:1\n"
+            f"Evidence: {evidence}"
+        ),
+    )
+
+    def handle(request):
+        body = json.loads(request.content)
+        assert "deliberately small enterprise-level set" in body["messages"][0]["content"]
+        answer = Extraction(
+            candidates=[
+                Candidate(
+                    semantic_type=SemanticType.STRATEGIC_GOAL,
+                    goal_level=GoalLevel.ENTERPRISE,
+                    statement="Become a resilient enterprise.",
+                    excerpt=evidence,
+                    source_key="pdf-page:1",
+                )
+            ]
+        )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": answer.model_dump_json()}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await OpenAIInference(Settings(model_id="test"), client=client).synthesize_goals(
+            source
+        )
+    assert [candidate.statement for candidate in result.extraction.candidates] == [
+        "Become a resilient enterprise."
+    ]
 
 
 async def test_null_temperature_environment_and_verifier_cache_identity(monkeypatch):

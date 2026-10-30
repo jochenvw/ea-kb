@@ -30,6 +30,7 @@ import {
   date,
   assertionText,
   assertionMatches,
+  goalLevelLabel,
   levelLabel,
   externalUrl,
   label,
@@ -193,7 +194,7 @@ export function Knowledge() {
                       </a>
                       <span className="cell-caption">
                         {version
-                          ? `${Math.round(version.candidate.confidence * 100)}% extraction confidence · ${label(version.candidate.modality)}`
+                          ? `${version.candidate.semantic_type === "StrategicGoal" ? `${goalLevelLabel(version.candidate.goal_level)} · ` : ""}${Math.round(version.candidate.confidence * 100)}% extraction confidence · ${label(version.candidate.modality)}`
                           : "Unknown"}
                       </span>
                       {(!version?.assertion?.text ||
@@ -383,6 +384,11 @@ export function ConceptPage({
                     : ""}
                 </Badge>
                 <OntologyBadge name={version.candidate.semantic_type} />
+                {version.candidate.semantic_type === "StrategicGoal" && (
+                  <Badge variant="outline">
+                    {goalLevelLabel(version.candidate.goal_level)}
+                  </Badge>
+                )}
                 <Badge variant="secondary">
                   {label(version.candidate.modality)}
                 </Badge>

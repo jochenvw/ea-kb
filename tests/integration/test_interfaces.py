@@ -150,6 +150,7 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                             update={
                                 "statement": "A later interpretation without this source.",
                                 "semantic_type": SemanticType.PLATFORM_REQUIREMENT,
+                                "goal_level": None,
                                 "scope": Scope(platform="Azure"),
                             }
                         ),

@@ -4,7 +4,7 @@ The following statements are test data, not an external publication or approved 
 
 ## Business outcomes
 
-We aim to reduce operational costs without reducing availability.
+Our vision is to reduce operational costs without reducing availability.
 
 ## Governance
 

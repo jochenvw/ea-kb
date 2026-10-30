@@ -37,6 +37,14 @@
           "section": "Chief Executive Officer's review",
           "strength": "corroborating",
           "explicitness": "explicit"
+        },
+        {
+          "excerpt": "achieve our vision to be the world's leading integrated energy company",
+          "printed_page": 5,
+          "pdf_page": 8,
+          "section": "Chief Executive Officer's review",
+          "strength": "corroborating",
+          "explicitness": "explicit"
         }
       ],
       "rationale": "The report explicitly names this as Shell's vision. It is an intended enterprise outcome, not a binding or time-bound target.",
@@ -115,6 +123,14 @@
           "pdf_page": 9,
           "section": "This is Shell — Our performance culture",
           "strength": "direct",
+          "explicitness": "explicit"
+        },
+        {
+          "excerpt": "We are transforming Shell into a leaner, more competitive organisation as we focus on performance, discipline and simplification.",
+          "printed_page": 10,
+          "pdf_page": 13,
+          "section": "Our strategy",
+          "strength": "corroborating",
           "explicitness": "explicit"
         }
       ],

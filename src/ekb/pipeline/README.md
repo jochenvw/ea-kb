@@ -8,6 +8,8 @@
 - `_execute` reuses parsing/extraction checkpoints and commits exact knowledge/evidence atomically.
 - All scans finish inventory/acquisition before labeling and scoped extraction; labels checkpoint
   independently so extractor failures/prompt changes do not repay unchanged labeling.
+- Live providers defer enterprise-goal hypotheses until source-level synthesis produces a compact
+  evidence-bound set; business-unit goals, subordinate targets and other concepts persist directly.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Non-dry-run scans hold a renewable guard before discovery; loss cancels work and fences commits.

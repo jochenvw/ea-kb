@@ -12,6 +12,8 @@ Explicit page subsets retain generic PDF parsing; native hierarchy parsing requi
 - Images remain original-document references; do not invent diagram semantics or clause text.
 - Document metadata is separate evidence, not body prose to send for semantic extraction.
 - OSCAL control IDs and publisher label aliases survive titled parts; no enhancement IDs are guessed.
+- OSCAL parameter inserts use catalog values or readable organization-defined labels; missing
+  definitions remain explicit in segment locations rather than leaking `{{ insert: ... }}` markup.
 
 No model calls belong here. Start with `tests\unit\test_parsers.py` for format-specific examples
 and `tests\integration\test_pipeline.py` for directory roundtrips.

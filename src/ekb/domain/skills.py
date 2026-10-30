@@ -36,13 +36,15 @@ def validate_scoped_extraction(
             if re.search(rf"\b{qualifier}\b", candidate.excerpt, re.I) and not re.search(
                 rf"\b{qualifier}\b", candidate.statement, re.I
             ):
-                raise GroundingError("Extraction dropped an evidenced qualifier")
+                raise GroundingError(f"Extraction dropped the evidenced qualifier {qualifier!r}")
         numbers = set(re.findall(r"\b\d+(?:[.,]\d+)*%?", candidate.excerpt))
         statement_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)*%?", candidate.statement))
         if not numbers <= statement_numbers:
-            raise GroundingError("Extraction dropped an evidenced numeric qualifier")
+            missing = ", ".join(sorted(numbers - statement_numbers))
+            raise GroundingError(f"Extraction dropped numeric qualifier(s): {missing}")
         if statement_numbers - numbers:
-            raise GroundingError("Extraction invented an unevidenced numeric qualifier")
+            invented = ", ".join(sorted(statement_numbers - numbers))
+            raise GroundingError(f"Extraction invented numeric qualifier(s): {invented}")
         if candidate.modality == Modality.MANDATED and not re.search(
             r"\b(must|shall|mandatory|required to)\b", candidate.excerpt, re.I
         ):

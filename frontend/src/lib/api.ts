@@ -18,6 +18,13 @@ export function levelLabel(level: string | undefined | null) {
       : "Level not classified";
 }
 
+export function goalLevelLabel(level: string | undefined | null) {
+  if (level === "enterprise") return "Enterprise goal";
+  if (level === "business_unit") return "Business-unit goal";
+  if (level === "subordinate_target") return "Supporting target";
+  return "Goal level unresolved";
+}
+
 export function assertionText(
   version: Version | undefined,
   sourceId?: string | string[] | null,

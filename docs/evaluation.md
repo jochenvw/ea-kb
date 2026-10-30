@@ -294,12 +294,24 @@ uv run ekb eval report --latest
 
 `evals\goals\shell-annual-2025.json` stores provisional, source-grounded reference annotations,
 including five goal interpretations, subordinate targets and non-goal examples. The evaluator
-checks the source hash, PDF page count and all 20 evidence anchors against their cited pages before
+checks the source hash, PDF page count and all 22 evidence anchors against their cited pages before
 scoring. Whole-document, section-aware and hierarchical strategies share parse/extraction caches;
 the report scores detection, ontology type, abstraction, scope, duplicates, provenance and
 provisional hierarchy hypotheses, and records tokens, latency, request counts and available cost.
+Live hierarchical evaluation uses the independently versioned enterprise-goal synthesis skill after
+section extraction. It excludes lower-level targets and non-goals from synthesis, enforces a compact
+enterprise-only result, preserves an exact source-page key and rejects ungrounded evidence.
 Semantic fidelity remains explicitly marked for human review. Model comparisons require separately
 configured profiles and `--live`; an unavailable or unconfigured provider is not a successful run.
+
+The measured GPT-6 Astra iteration on 2026-10-30 reduced 40 raw section-level strategic-goal
+predictions to five source-grounded enterprise goals. Against the provisional primary-plus-
+acceptable-alternative annotations, detection precision/recall, abstraction, scope, duplicate and
+provenance checks were all `1.0`; primary-only scoring remains lower because SG-04 and SG-05 are
+deliberately annotated as acceptable alternatives. The completed hierarchical run processed 13
+source pages, used one synthesis call after cached section extraction, and reported 130,742 input
+and 50,875 output tokens across the retained historical calls. Cost remains unknown because model
+prices were not configured, and semantic fidelity still requires human review.
 
 The measured offline Rules baseline and one general-rule iteration were:
 

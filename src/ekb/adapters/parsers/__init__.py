@@ -83,7 +83,7 @@ class StructuredParser:
         self.ocr = ocr
         self.max_chars = max_chars
         self.version = fingerprint(
-            implementation="structured-v5-native-control-labels",
+            implementation="structured-v6-oscal-parameter-labels",
             csf_parser=CSF_PARSER_VERSION,
             ocr=ocr,
             max_chars=max_chars,
@@ -391,21 +391,65 @@ class StructuredParser:
                 "status": metadata.get("status"),
             }
         )
+        parameters: dict[str, str] = {}
+
+        def collect_parameters(node: dict[str, Any]) -> None:
+            for parameter in node.get("params", []):
+                parameter_id = parameter.get("id")
+                if not isinstance(parameter_id, str):
+                    continue
+                values = parameter.get("values")
+                label = parameter.get("label")
+                if isinstance(values, list) and len(values) == 1 and isinstance(values[0], str):
+                    parameters[parameter_id] = values[0]
+                elif isinstance(label, str) and label.strip():
+                    normalized = label.strip()
+                    parameters[parameter_id] = (
+                        normalized
+                        if normalized.casefold().startswith("organization-defined")
+                        else f"organization-defined {normalized}"
+                    )
+            for field_name in ("groups", "controls"):
+                for child in node.get(field_name, []):
+                    collect_parameters(child)
+
+        collect_parameters(catalog)
+
+        def resolve_parameters(prose: str) -> tuple[str, list[str]]:
+            unresolved: list[str] = []
+
+            def replace(match: re.Match[str]) -> str:
+                parameter_id = match.group(1)
+                value = parameters.get(parameter_id)
+                if value is None:
+                    unresolved.append(parameter_id)
+                    return f"[unresolved OSCAL parameter: {parameter_id}]"
+                return f"[{value}]"
+
+            resolved = re.sub(
+                r"\{\{\s*insert:\s*param,\s*([^\s}]+)\s*\}\}",
+                replace,
+                prose,
+                flags=re.I,
+            )
+            return resolved, unresolved
 
         def visit(
             node: dict[str, Any], control_id: str | None = None, labels: tuple[str, ...] = ()
         ) -> None:
             if node.get("prose") and control_id and (not control_ids or control_id in control_ids):
                 key = node.get("id") or node.get("name", "prose")
+                prose, unresolved = resolve_parameters(node["prose"])
                 blocks.append(
                     Block(
-                        node["prose"],
+                        prose,
                         control_id,
                         location={
                             "control_id": control_id,
                             "control_labels": list(labels),
                             "part_id": key,
                             "structured_control": True,
+                            **({"unresolved_oscal_parameters": unresolved} if unresolved else {}),
                         },
                     )
                 )

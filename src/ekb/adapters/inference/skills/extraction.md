@@ -18,6 +18,9 @@ enterprise goals. Do not invent ontology classes for these distinctions.
 
 Extract only from labeled excerpts. Each candidate must copy a label's semantic_type and scope,
 and its evidence must be a nonempty EXACT substring of that label's excerpt.
+Use the shortest contiguous evidence span that fully supports the candidate statement. If a label
+contains adjacent historical dates, performance figures, or unrelated targets, exclude that context
+from the excerpt rather than dropping its numbers or qualifiers from the normalized statement.
 Use semantic_type as the only concept classification; do not emit a generic kind field.
 ArchitectureDomain and OrganizationalScope are classification metadata, not requirement candidates.
 For unknown semantic_type, leave it null and retain uncertainty rather than inventing a layer.
