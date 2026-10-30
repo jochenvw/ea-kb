@@ -40,7 +40,7 @@ import {
 } from "@/lib/api";
 import type { Concept, Provenance, SourceGroup, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
-import { OntologyBadge } from "@/ontology";
+import { OntologyBadge, OntologyDefinition } from "@/ontology";
 
 export function Knowledge() {
   const [level, setLevel] = useState(
@@ -74,12 +74,19 @@ export function Knowledge() {
   return (
     <>
       <Heading
-        eyebrow="KNOWLEDGE LIBRARY"
-        title="Find the knowledge. Follow the evidence."
-        description="Search source-grounded interpretations. A result is not a declaration of enterprise applicability."
-      />
+        eyebrow="CURATE / INTERPRETATIONS"
+        title="Review meaning before adoption."
+        description="Compare source-grounded goals and requirements. Check the ontology definition, original evidence and scope; a result is not an adopted enterprise standard."
+      >
+        <Button variant="outline" asChild>
+          <a href="/ontology">
+            Concepts & definitions
+            <ArrowUpRight />
+          </a>
+        </Button>
+      </Heading>
       <Panel
-        title="Knowledge inventory"
+        title="Interpretation library"
         description="Concise assertion candidates, linked to their original source passages."
       >
         <div className="toolbar">
@@ -354,7 +361,7 @@ export function ConceptPage({
       : selected;
   const evidence = provenance.data?.filter(
     (item) =>
-      (!requested || item.occurrence.concept_version_id === requested) &&
+      item.occurrence.concept_version_id === version?.id &&
       (!members.length || members.includes(item.source.item.id)),
   );
   return (
@@ -362,13 +369,13 @@ export function ConceptPage({
       <Button variant="ghost" size="sm" asChild className="back-link">
         <a href={`/knowledge${back.size ? `?${back}` : ""}`}>
           <ArrowLeft />
-          Knowledge library
+          Interpretation library
         </a>
       </Button>
       <Heading
         eyebrow="CONCEPT DETAIL"
         title="Interpretation & evidence"
-        description="The candidate, its original passages and the decisions that govern its use."
+        description="Verify meaning against the source, validate relationships, then inspect the scoped decisions governing this version."
       />
       {sourceId && (
         <LoadState resource={groups}>
@@ -444,11 +451,12 @@ export function ConceptPage({
               {version.candidate.uncertainty && (
                 <p className="callout">{version.candidate.uncertainty}</p>
               )}
+              <OntologyDefinition name={version.candidate.semantic_type} />
             </Panel>
-            <RelationshipGraph id={id} />
             <Tabs defaultValue="evidence" className="detail-tabs">
               <TabsList aria-label="Concept information">
                 <TabsTrigger value="evidence">Source evidence</TabsTrigger>
+                <TabsTrigger value="validation">Visual validation</TabsTrigger>
                 <TabsTrigger value="governance">Scope & governance</TabsTrigger>
                 <TabsTrigger value="history">
                   Versions & relationships
@@ -459,17 +467,24 @@ export function ConceptPage({
                   title="Exact evidence and provenance"
                   description="Original quotations are not summaries. Offsets refer to the retained segment."
                 >
-                  <LoadState
-                    resource={provenance}
-                    empty={evidence?.length === 0}
-                  >
-                    <div className="evidence-list">
-                      {evidence?.map((item) => (
-                        <Evidence key={item.occurrence.id} item={item} />
-                      ))}
-                    </div>
+                  <LoadState resource={provenance}>
+                    {evidence?.length === 0 ? (
+                      <Empty
+                        title="No evidence recorded for this version"
+                        description="No passage from another version or source has been substituted. Check the version history before relying on this interpretation."
+                      />
+                    ) : (
+                      <div className="evidence-list">
+                        {evidence?.map((item) => (
+                          <Evidence key={item.occurrence.id} item={item} />
+                        ))}
+                      </div>
+                    )}
                   </LoadState>
                 </Panel>
+              </TabsContent>
+              <TabsContent value="validation">
+                <RelationshipGraph id={id} />
               </TabsContent>
               <TabsContent value="governance">
                 <div className="two-column">
@@ -483,33 +498,39 @@ export function ConceptPage({
                     title="Scoped authority"
                     description="Publication maturity, approval and canonical adoption are separate, scoped decisions."
                   >
-                    {concept.data.authority_states.length ? (
-                      concept.data.authority_states.map((state, index) => (
-                        <div key={index} className="record-block">
-                          <div className="tag-row">
-                            <Badge variant="outline">
-                              Governance: {label(state.governance_status)}
-                            </Badge>
-                            <Badge variant="outline">
-                              Canonical: {label(state.canonical_status)}
-                            </Badge>
+                    {concept.data.authority_states.some(
+                      (state) => state.concept_version_id === version.id,
+                    ) ? (
+                      concept.data.authority_states
+                        .filter(
+                          (state) => state.concept_version_id === version.id,
+                        )
+                        .map((state, index) => (
+                          <div key={index} className="record-block">
+                            <div className="tag-row">
+                              <Badge variant="outline">
+                                Governance: {label(state.governance_status)}
+                              </Badge>
+                              <Badge variant="outline">
+                                Canonical: {label(state.canonical_status)}
+                              </Badge>
+                            </div>
+                            <ScopeInfo scope={state.scope} />
+                            <p className="table-note">
+                              Effective period:{" "}
+                              {state.effective_from ?? "Unspecified"} to{" "}
+                              {state.effective_until ?? "Unspecified"}.
+                            </p>
+                            <Technical
+                              value={{ version_id: state.concept_version_id }}
+                              title="Version reference"
+                            />
                           </div>
-                          <ScopeInfo scope={state.scope} />
-                          <p className="table-note">
-                            Effective period:{" "}
-                            {state.effective_from ?? "Unspecified"} to{" "}
-                            {state.effective_until ?? "Unspecified"}.
-                          </p>
-                          <Technical
-                            value={{ version_id: state.concept_version_id }}
-                            title="Version reference"
-                          />
-                        </div>
-                      ))
+                        ))
                     ) : (
                       <Empty
                         title="No authority recorded"
-                        description="No enterprise approval or canonical adoption has been established."
+                        description="No enterprise approval or canonical adoption has been established for this version."
                       />
                     )}
                     <Technical
@@ -520,6 +541,7 @@ export function ConceptPage({
                 </div>
                 <CanonicalProposal
                   concept={concept.data}
+                  versionId={version.id}
                   governance={governance}
                 />
               </TabsContent>
@@ -771,12 +793,13 @@ export function RelatedConcept({ id }: { id: string }) {
 
 function CanonicalProposal({
   concept,
+  versionId,
   governance,
 }: {
   concept: Concept;
+  versionId: string;
   governance: boolean;
 }) {
-  const latest = concept.versions.at(-1)!;
   return (
     <Panel
       title="Canonical adoption"
@@ -801,7 +824,7 @@ function CanonicalProposal({
               className="control"
               id="canonical-version"
               name="version_id"
-              defaultValue={latest.id}
+              defaultValue={versionId}
             >
               {concept.versions.map((version: Version) => (
                 <option key={version.id} value={version.id}>

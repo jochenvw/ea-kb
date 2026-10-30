@@ -452,6 +452,83 @@ main {
   gap: 24px;
   align-items: start;
 }
+.consolidation-journey {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.consolidation-journey li {
+  min-width: 0;
+}
+.consolidation-journey a {
+  display: block;
+  height: 100%;
+  padding: 20px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  background: var(--cp-bg-elevated);
+}
+.consolidation-journey a:hover {
+  border-color: var(--cp-accent);
+  background: var(--cp-accent-soft);
+}
+.journey-number {
+  display: block;
+  color: var(--cp-accent);
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 16px;
+}
+.consolidation-journey h3 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.consolidation-journey svg {
+  flex-shrink: 0;
+}
+.consolidation-journey p {
+  margin-top: 12px;
+  color: var(--cp-text-muted);
+  font-size: 12px;
+}
+.ontology-layer + .ontology-layer {
+  margin-top: 24px;
+}
+.ontology-layer > .eyebrow {
+  margin-bottom: 12px;
+}
+.ontology-definition {
+  padding: 16px;
+  margin-top: 16px;
+  border-left: 3px solid var(--cp-accent);
+  background: var(--cp-bg-elevated);
+  font-size: 12px;
+}
+.ontology-definition a {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--cp-link);
+}
+.curation-guide {
+  padding: 16px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.curation-guide summary {
+  font-weight: 600;
+}
+.curation-guide p,
+.curation-guide ol {
+  margin-top: 12px;
+}
+.curation-guide a {
+  color: var(--cp-link);
+}
 .panel-heading {
   display: flex;
   flex-direction: row;
@@ -1134,6 +1211,9 @@ blockquote {
   z-index: 100;
 }
 @media (max-width: 1200px) {
+  .consolidation-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .page-heading {
     flex-direction: column;
     align-items: flex-start;

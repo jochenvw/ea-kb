@@ -61,10 +61,17 @@ export function Sources() {
   return (
     <>
       <Heading
-        eyebrow="SOURCE REGISTRY"
-        title="Know where it came from."
-        description="One source per benchmark edition. Its pages, workbooks, mappings and policies remain individual evidence documents."
-      />
+        eyebrow="CURATE / SOURCES"
+        title="Establish the source context."
+        description="Inspect strategy documents, standards and platform guidance before relying on extracted statements. Publisher editions remain separate; originals and retrieval history are retained."
+      >
+        <Button variant="outline" asChild>
+          <a href="/pipeline">
+            Ingestion & processing
+            <ArrowUpRight />
+          </a>
+        </Button>
+      </Heading>
       <Panel
         title="Registered sources"
         description="Editions stay separate. Original document identities, retrieval history and exact evidence are preserved."
@@ -100,167 +107,189 @@ export function Sources() {
             ]}
           />
         </div>
-        <LoadState resource={resource} empty={items.length === 0}>
-          <Sheet
-            open={selected !== null}
-            onOpenChange={(open) => {
-              if (!open) setSelected(null);
-            }}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="statement-column">Source</TableHead>
-                  <TableHead>Documents</TableHead>
-                  <TableHead>Retrieval state</TableHead>
-                  <TableHead>Reference document maturity</TableHead>
-                  <TableHead>
-                    <span className="sr-only">Details</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((source) => (
-                  <TableRow key={source.id}>
-                    <TableCell>
-                      <a
-                        className="statement-link"
-                        href={`/sources/${source.id}`}
-                      >
-                        {source.name}
-                      </a>
-                      <span className="cell-caption truncate-location">
-                        {source.publisher ?? "Unknown publisher"}
-                        {source.edition ? ` · ${source.edition}` : ""}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {source.documents.length}{" "}
-                        {source.documents.length === 1
-                          ? "document"
-                          : "documents"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span>
-                        {
-                          source.documents.filter(
-                            (doc) => doc.status === "available",
-                          ).length
-                        }{" "}
-                        / {source.documents.length} available
-                      </span>
-                      {source.documents.some(
-                        (doc) => doc.status === "error",
-                      ) && (
-                        <span className="cell-caption">
-                          Retrieval errors in documents
-                        </span>
-                      )}
-                      {source.documents.every(
-                        (doc) => doc.item.metadata.metadata_only === true,
-                      ) && <span className="cell-caption">Metadata only</span>}
-                    </TableCell>
-                    <TableCell>
-                      <Status
-                        value={
-                          source.documents[0].publication.publication_status
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <SheetTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelected(source)}
-                          aria-label={`Inspect source ${source.name}`}
-                        >
-                          Inspect
-                        </Button>
-                      </SheetTrigger>
-                    </TableCell>
+        <LoadState resource={resource}>
+          {items.length === 0 && (
+            <Empty
+              title={
+                resource.data?.length
+                  ? "No matching sources"
+                  : "No sources registered"
+              }
+              description={
+                resource.data?.length
+                  ? "Clear the search or format filter to see other registered sources."
+                  : "Configure source directories or manifests, then open Ingestion & processing. Discovery and extraction do not establish enterprise approval."
+              }
+            />
+          )}
+          {items.length > 0 && (
+            <Sheet
+              open={selected !== null}
+              onOpenChange={(open) => {
+                if (!open) setSelected(null);
+              }}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="statement-column">Source</TableHead>
+                    <TableHead>Documents</TableHead>
+                    <TableHead>Retrieval state</TableHead>
+                    <TableHead>Reference document maturity</TableHead>
+                    <TableHead>
+                      <span className="sr-only">Details</span>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <SheetContent className="detail-sheet">
-              <SheetHeader>
-                <SheetTitle>Source details</SheetTitle>
-                <SheetDescription>
-                  Metadata describes the overview or first retained document,
-                  not every member or enterprise adoption.
-                </SheetDescription>
-              </SheetHeader>
-              {selected && overview && (
-                <div className="sheet-body">
-                  <h2>{selected.name}</h2>
-                  <Button asChild>
-                    <a href={`/sources/${selected.id}`}>
-                      Browse extracted things
-                      <ArrowUpRight />
-                    </a>
-                  </Button>
-                  <div className="tag-row">
-                    <Badge variant="outline">
-                      {selected.documents.length} evidence documents
-                    </Badge>
-                  </div>
-                  <dl className="metadata">
-                    <div>
-                      <dt>Publisher</dt>
-                      <dd>{selected.publisher ?? "Unknown"}</dd>
-                    </div>
-                    <div>
-                      <dt>Reference document checked</dt>
-                      <dd>{date(overview.checked_at)}</dd>
-                    </div>
-                    <div>
-                      <dt>Reference document maturity</dt>
-                      <dd>{overview.publication.publication_status}</dd>
-                    </div>
-                    <div>
-                      <dt>Publisher version</dt>
-                      <dd>
-                        {overview.publication.publisher_version ?? "Unknown"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Semantic version</dt>
-                      <dd>
-                        {semanticVersion(overview.publication.semantic_version)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Location</dt>
-                      <dd>{overview.item.location}</dd>
-                    </div>
-                  </dl>
-                  {overview.error && (
-                    <p className="callout">{overview.error}</p>
-                  )}
-                  {externalUrl(overview.item.location) && (
-                    <Button asChild variant="outline">
-                      <a
-                        href={externalUrl(overview.item.location)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open publisher location
+                </TableHeader>
+                <TableBody>
+                  {rows.map((source) => (
+                    <TableRow key={source.id}>
+                      <TableCell>
+                        <a
+                          className="statement-link"
+                          href={`/sources/${source.id}`}
+                        >
+                          {source.name}
+                        </a>
+                        <span className="cell-caption truncate-location">
+                          {source.publisher ?? "Unknown publisher"}
+                          {source.edition ? ` · ${source.edition}` : ""}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {source.documents.length}{" "}
+                          {source.documents.length === 1
+                            ? "document"
+                            : "documents"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span>
+                          {
+                            source.documents.filter(
+                              (doc) => doc.status === "available",
+                            ).length
+                          }{" "}
+                          / {source.documents.length} available
+                        </span>
+                        {source.documents.some(
+                          (doc) => doc.status === "error",
+                        ) && (
+                          <span className="cell-caption">
+                            Retrieval errors in documents
+                          </span>
+                        )}
+                        {source.documents.every(
+                          (doc) => doc.item.metadata.metadata_only === true,
+                        ) && (
+                          <span className="cell-caption">Metadata only</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Status
+                          value={
+                            source.documents[0].publication.publication_status
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <SheetTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelected(source)}
+                            aria-label={`Inspect source ${source.name}`}
+                          >
+                            Inspect
+                          </Button>
+                        </SheetTrigger>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <SheetContent className="detail-sheet">
+                <SheetHeader>
+                  <SheetTitle>Source details</SheetTitle>
+                  <SheetDescription>
+                    Metadata describes the overview or first retained document,
+                    not every member or enterprise adoption.
+                  </SheetDescription>
+                </SheetHeader>
+                {selected && overview && (
+                  <div className="sheet-body">
+                    <h2>{selected.name}</h2>
+                    <Button asChild>
+                      <a href={`/sources/${selected.id}`}>
+                        Review extracted interpretations
                         <ArrowUpRight />
                       </a>
                     </Button>
-                  )}
-                  <Technical
-                    value={selected}
-                    title="Source metadata & identifiers"
-                  />
-                </div>
-              )}
-            </SheetContent>
-          </Sheet>
-          <Pager page={page} count={items.length} onChange={setPage} />
+                    <div className="tag-row">
+                      <Badge variant="outline">
+                        {selected.documents.length} evidence documents
+                      </Badge>
+                    </div>
+                    <dl className="metadata">
+                      <div>
+                        <dt>Publisher</dt>
+                        <dd>{selected.publisher ?? "Unknown"}</dd>
+                      </div>
+                      <div>
+                        <dt>Reference document checked</dt>
+                        <dd>{date(overview.checked_at)}</dd>
+                      </div>
+                      <div>
+                        <dt>Reference document maturity</dt>
+                        <dd>{overview.publication.publication_status}</dd>
+                      </div>
+                      <div>
+                        <dt>Publisher version</dt>
+                        <dd>
+                          {overview.publication.publisher_version ?? "Unknown"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Semantic version</dt>
+                        <dd>
+                          {semanticVersion(
+                            overview.publication.semantic_version,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Location</dt>
+                        <dd>{overview.item.location}</dd>
+                      </div>
+                    </dl>
+                    {overview.error && (
+                      <p className="callout">{overview.error}</p>
+                    )}
+                    {externalUrl(overview.item.location) && (
+                      <Button asChild variant="outline">
+                        <a
+                          href={externalUrl(overview.item.location)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open publisher location
+                          <ArrowUpRight />
+                        </a>
+                      </Button>
+                    )}
+                    <Technical
+                      value={selected}
+                      title="Source metadata & identifiers"
+                    />
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
+          )}
+          {items.length > 0 && (
+            <Pager page={page} count={items.length} onChange={setPage} />
+          )}
         </LoadState>
       </Panel>
     </>
@@ -284,9 +313,9 @@ export function SourcePage({ id }: { id: string }) {
         </a>
       </Button>
       <Heading
-        eyebrow="REFERENCE / SOURCE"
+        eyebrow="CURATE / SOURCE"
         title={data?.group?.name ?? data?.source.item.name ?? "Source detail"}
-        description="Follow this source into its extracted interpretations, exact evidence and relationships."
+        description="Check the publisher and edition, then review the extracted meaning against exact source evidence. Retrieval and publication are not enterprise adoption."
       >
         {data && externalUrl(data.source.item.location) && (
           <Button variant="outline" asChild>
@@ -347,6 +376,12 @@ export function SourcePage({ id }: { id: string }) {
                   </dd>
                 </div>
                 <div>
+                  <dt>Publisher version</dt>
+                  <dd>
+                    {data.source.publication.publisher_version ?? "Unknown"}
+                  </dd>
+                </div>
+                <div>
                   <dt>Last checked</dt>
                   <dd>{date(data.source.checked_at)}</dd>
                 </div>
@@ -364,6 +399,27 @@ export function SourcePage({ id }: { id: string }) {
                   <ArrowUpRight />
                 </a>
               </Button>
+              <details className="curation-guide">
+                <summary>Source curation checks</summary>
+                <ol className="option-list">
+                  <li>
+                    Confirm the publisher, edition and maturity of each evidence
+                    document.
+                  </li>
+                  <li>
+                    Open an interpretation; compare its ontology definition and
+                    exact passage with the intended organizational scope.
+                  </li>
+                  <li>
+                    Validate recorded relationships, then resolve proposals and
+                    scoped adoption separately.
+                  </li>
+                </ol>
+                <p className="table-note">
+                  Source selection is managed in operator configuration. These
+                  checks are guidance, not a saved curation or approval status.
+                </p>
+              </details>
               <Button variant="outline" size="sm" asChild>
                 <a href={`/data?table=sources&record=${data.source.item.id}`}>
                   Inspect stored source record
@@ -422,13 +478,13 @@ export function SourcePage({ id }: { id: string }) {
               </Panel>
             )}
             <Panel
-              title="Extracted things"
+              title="Extracted interpretations"
               description="Each row is a version actually evidenced in this source, including historical revisions. Drill down to its original passages."
             >
               {!data.items.length ? (
                 <Empty
                   title="No extracted interpretations"
-                  description="Metadata-only, unprocessed or unsupported sources may have no extracted things. Nothing has been inferred to fill this view."
+                  description="Metadata-only, unprocessed or unsupported sources may have no extracted interpretations. Nothing has been inferred to fill this view."
                 />
               ) : (
                 <Table>

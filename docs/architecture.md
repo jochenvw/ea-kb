@@ -184,7 +184,10 @@ disabled by default. Configuration/deployment does not establish provider qualit
    work and returns domain values. Provenance joins occurrences, segments, source revisions and
    source inventory; retrieving an explanation does not require a model call.
 
-The browser groups **Reference**, **Work** and **Operations**. The `InspectionRepository` port
+The browser puts shared language first, then **Consolidate**, **Reference** and **Operations**.
+The consolidation path is source curation, interpretation review, visual validation and scoped
+decisions; it is guidance, not a persisted completion state. Source selection remains operator-configured.
+The `InspectionRepository` port
 returns bounded source/version pages, concept neighborhoods, active proposal queues and owned-table
 previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill-down selects
 versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
@@ -393,9 +396,16 @@ Basic identifies a local operator and requires HTTPS or loopback plus same-origi
 Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. Remote access
 and enterprise identity/tenant authorization are not implemented.
 
-The browser has a task-oriented hierarchy: overview, searchable knowledge, sources, review queue,
-benchmark explorer and pipeline activity. Exact evidence, history, scope and technical identifiers
-are progressively disclosed. Actual shadcn components use Clawpilot tokens, keyboard-accessible
+The browser starts with a standards-consolidation workspace and the canonical shared language.
+The supported browser target is desktop/PC use only; mobile-specific UX and verification are out of scope.
+Sources, interpretations, visual validation and reconciliation form the architect's work sequence;
+benchmark/decision history is reference material and ingestion/inspection remain operational tools.
+Interpretations show the canonical classification definition and exact evidence before visual validation.
+Evidence and scoped authority belong to the selected version; adoption proposals default to that version.
+Graphs require an explicit starting point and remain bounded concept neighborhoods across versions,
+not global coverage or approval views. Source curation checks do not claim a saved approval state.
+History, scope and technical identifiers are progressively disclosed. Actual shadcn components use
+Clawpilot tokens, keyboard-accessible
 controls and light/dark responsive layouts. TypeScript DTOs describe API responses; no browser code
 infers applicability, runs models or grants authority.
 

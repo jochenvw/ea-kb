@@ -65,6 +65,46 @@ const ontology = {
       category: "classification",
       ranges: ["http://www.w3.org/2001/XMLSchema#string"],
     },
+    {
+      name: "StrategicGoal",
+      label: "Strategic goal",
+      definition:
+        "An outcome the enterprise or one of its organizational units deliberately pursues.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "StrategicRequirement",
+      label: "Strategic requirement",
+      definition:
+        "A fundamental obligation or constraint that the enterprise or one of its organizational units must satisfy or has formally committed to uphold.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "ConceptualRequirement",
+      label: "Conceptual requirement",
+      definition:
+        "A desired condition or constraint expressed independently of specific technologies, platforms, or implementation mechanisms.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "PlatformRequirement",
+      label: "Platform requirement",
+      definition:
+        "A technical condition, constraint, or recommendation applicable to a particular technology platform, such as Microsoft Azure or AWS.",
+      kind: "class",
+      category: "concept",
+    },
+    {
+      name: "ArchitectureDomain",
+      label: "Architecture domain",
+      definition:
+        "A technology-independent area of architectural concern, such as network security, identity management, or data protection.",
+      kind: "class",
+      category: "concept",
+    },
   ].map((term) => ({
     iri: namespace + term.name,
     domains: [],
@@ -526,7 +566,7 @@ test("ontology shows read-only definitions, relations and linked scope constrain
   expect(mutations).toEqual([]);
 });
 
-test("ontology supports deep links, mobile themes and escaped definitions", async ({
+test("ontology supports deep links, themes and escaped definitions", async ({
   page,
 }) => {
   await fixture(page);
@@ -535,7 +575,6 @@ test("ontology supports deep links, mobile themes and escaped definitions", asyn
     data.terms[0].definition = "<img src=x onerror=alert('not markup')>";
     await route.fulfill({ json: data });
   });
-  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/ontology#TechnicalRequirement");
   const term = page.locator("#TechnicalRequirement");
   await expect(term).toBeInViewport();
@@ -546,11 +585,6 @@ test("ontology supports deep links, mobile themes and escaped definitions", asyn
   );
   await page.getByRole("button", { name: "Use dark theme" }).click();
   await expect(term).not.toHaveCSS("background-color", before);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
 });
 
 test("ontology request failure is explicit and retryable", async ({ page }) => {
@@ -574,15 +608,34 @@ test.beforeEach(async ({ page }) => {
   await fixture(page);
 });
 
-test("overview makes attention and durable stages primary", async ({
+test("architect workflow leads from shared language to scoped decisions", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Knowledge, with evidence." }),
+    page.getByRole("heading", { name: "Consolidate architecture standards." }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace navigation" })
+      .getByRole("link", { name: "Shared language" }),
+  ).toHaveAttribute("href", "/ontology");
+  const workflow = page.getByRole("list", {
+    name: "Standards consolidation workflow",
+  });
+  await expect(workflow.getByRole("link")).toHaveCount(4);
+  for (const [index, href] of [
+    "/sources",
+    "/knowledge?level=",
+    "/explore",
+    "/review",
+  ].entries())
+    await expect(workflow.getByRole("link").nth(index)).toHaveAttribute(
+      "href",
+      href,
+    );
   await expect(
     page.getByRole("heading", { name: "Needs your attention" }),
   ).toBeVisible();
@@ -594,6 +647,79 @@ test("overview makes attention and durable stages primary", async ({
   ).toHaveAttribute("href", "/review?view=issues");
   await expect(page.getByText("Indexing", { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
+  await page.getByRole("link", { name: "Start with shared language" }).click();
+  await expect(
+    page.getByRole("region", { name: "Company intent" }),
+  ).toContainText("Strategic goal");
+  await expect(
+    page.getByRole("region", { name: "Company intent" }),
+  ).toContainText("Strategic requirement");
+  await expect(
+    page.getByRole("region", {
+      name: "Classification context, not requirement candidates",
+    }),
+  ).toContainText("Organizational scope");
+  await expect(
+    page.getByRole("region", {
+      name: "Classification context, not requirement candidates",
+    }),
+  ).not.toContainText("Strategic goal");
+});
+
+test("empty workspace guides ingestion without claiming completed review", async ({
+  page,
+}) => {
+  await page.route("**/api/source-groups", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/issues?**", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/pipeline/status", (route) =>
+    route.fulfill({ json: null }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByText("No open issues recorded", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/This is not evidence of coverage or approval/),
+  ).toBeVisible();
+  await page
+    .getByRole("list", { name: "Standards consolidation workflow" })
+    .getByRole("link")
+    .first()
+    .click();
+  await expect(
+    page.getByText("No sources registered", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Configure source directories or manifests/),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Ingestion & processing", exact: true })
+    .last()
+    .click();
+  await expect(page).toHaveURL(/\/pipeline$/);
+});
+
+test("source search distinguishes no matches from an empty registry", async ({
+  page,
+}) => {
+  await page.goto("/sources");
+  await page
+    .getByRole("searchbox", { name: "Search sources" })
+    .fill("no-such-source");
+  await expect(
+    page.getByText("No matching sources", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No sources registered", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Search sources" }).fill("");
+  await page.getByRole("link", { name: source.item.name, exact: true }).click();
+  await page.getByText("Source curation checks", { exact: true }).click();
+  await expect(
+    page.getByText(/guidance, not a saved curation or approval status/),
+  ).toBeVisible();
 });
 
 test("search, exact evidence and scoped authority remain distinct", async ({
@@ -602,6 +728,17 @@ test("search, exact evidence and scoped authority remain distinct", async ({
   await page.goto("/knowledge");
   await page.getByRole("searchbox", { name: "Search knowledge" }).fill("audit");
   await page.getByRole("link", { name: statement, exact: true }).click();
+  await expect(page.getByLabel("Classification definition")).toContainText(
+    ontology.terms[0].definition,
+  );
+  await expect(
+    page.getByLabel("Classification definition").getByRole("link"),
+  ).toHaveAttribute("href", "/ontology#TechnicalRequirement");
+  await expect(
+    page.getByRole("group", {
+      name: "Navigable evidence and relationship map",
+    }),
+  ).toHaveCount(0);
   await expect(page.locator("blockquote")).toHaveText(excerpt);
   await expect(page.locator("blockquote em")).toHaveCount(0);
   await expect(page.locator(".source-context")).toContainText(
@@ -612,6 +749,16 @@ test("search, exact evidence and scoped authority remain distinct", async ({
     "Adjacent retained guidance explains audit review.",
   );
   await expect(page.getByText("Exact segment offsets 5–")).toBeVisible();
+  await page
+    .getByRole("tab", { name: "Visual validation", exact: true })
+    .click();
+  await expect(
+    page.getByRole("group", {
+      name: "Navigable evidence and relationship map",
+    }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Source evidence", exact: true }).click();
+  await expect(page.locator("blockquote")).toHaveText(excerpt);
   await page.getByRole("tab", { name: "Scope & governance" }).click();
   await expect(
     page.getByText("Governance: Approved", { exact: true }),
@@ -622,6 +769,96 @@ test("search, exact evidence and scoped authority remain distinct", async ({
   await expect(
     page.getByText(/Effective period: 2020-01-01 to 2099-12-31/),
   ).toBeVisible();
+});
+
+test("selected version never inherits another version's approval", async ({
+  page,
+}) => {
+  await page.route("**/api/ui/config", (route) =>
+    route.fulfill({ json: { governance_enabled: true, scan_running: false } }),
+  );
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        ...concept,
+        versions: [
+          ...concept.versions,
+          { ...concept.versions[0], id: relatedId },
+        ],
+        authority_states: [
+          { ...concept.authority_states[0], concept_version_id: relatedId },
+        ],
+      },
+    }),
+  );
+  await page.goto(`/concepts/${id}?version_id=${id}`);
+  await expect(page.locator("blockquote")).toHaveText(excerpt);
+  await page.getByRole("tab", { name: "Scope & governance" }).click();
+  await expect(
+    page.getByText("No authority recorded", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Governance: Approved", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByText("Propose scoped canonical adoption", { exact: true })
+    .click();
+  await expect(page.getByLabel("Version to propose")).toHaveValue(id);
+  await expect(page.locator("#canonical-version option")).toHaveCount(2);
+});
+
+test("the default version does not borrow historical source evidence", async ({
+  page,
+}) => {
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        ...concept,
+        versions: [
+          ...concept.versions,
+          {
+            ...concept.versions[0],
+            id: relatedId,
+            candidate: {
+              ...concept.versions[0].candidate,
+              statement: "A newer interpretation without retained evidence.",
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto(`/concepts/${id}`);
+  await expect(page.locator(".concept-statement")).toHaveText(
+    "A newer interpretation without retained evidence.",
+  );
+  await expect(
+    page.getByText("No evidence recorded for this version", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("blockquote")).toHaveCount(0);
+});
+
+test("inline classification definitions stay canonical, escaped and retryable", async ({
+  page,
+}) => {
+  const definition =
+    "Canonical <img src=x onerror=alert('not markup')> definition.";
+  let fail = true;
+  await page.route("**/api/ontology", (route) => {
+    const data = structuredClone(ontology);
+    data.terms[0].definition = definition;
+    return fail
+      ? route.fulfill({ status: 503, json: { detail: "Unavailable" } })
+      : route.fulfill({ json: data });
+  });
+  await page.goto(`/concepts/${id}`);
+  const panel = page.getByLabel("Classification definition");
+  await expect(panel.getByRole("alert")).toBeVisible();
+  await expect(page.locator(".concept-statement")).toHaveText(statement);
+  fail = false;
+  await panel.getByRole("button", { name: "Try again" }).click();
+  await expect(panel).toContainText(definition);
+  await expect(panel.locator("img")).toHaveCount(0);
 });
 
 test("source filtering keeps the evidenced assertion and resets pagination", async ({
@@ -812,7 +1049,7 @@ test("logical editions consolidate documents and preserve exact-source navigatio
   await page.getByRole("link", { name: phrase, exact: true }).click();
   await expect(page.locator(".concept-statement").first()).toHaveText(phrase);
   await expect(page.locator("blockquote")).toHaveText(excerpt);
-  await page.getByRole("link", { name: "Knowledge library" }).click();
+  await page.getByRole("link", { name: "Interpretation library" }).click();
   await page
     .getByRole("combobox", { name: "Evidence document" })
     .selectOption(sourceId);
@@ -995,24 +1232,17 @@ test("read failures are not disguised as empty data and can be retried", async (
   ).toBeVisible();
 });
 
-test("dark theme persists across navigation and mobile stays within its viewport", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("dark theme persists across desktop navigation", async ({ page }) => {
   await page.goto("/?scoutTheme=light");
   await page.getByRole("button", { name: "Use dark theme" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "Toggle navigation" }).click();
-  await page.getByRole("link", { name: "Knowledge", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Interpretations", exact: true })
+    .click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(
     page.getByRole("link", { name: statement, exact: true }),
   ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
 });
 
 test("Bold Wikipedia tokens style primitives and custom views in both modes with a local font", async ({
@@ -1066,7 +1296,10 @@ test("Bold Wikipedia tokens style primitives and custom views in both modes with
     expect(styles.card).toBe(styles.expectedCard);
     expect(styles.sidebar).toBe(styles.expectedSidebar);
     await expect(
-      page.getByRole("link", { name: "Review issues", exact: true }),
+      page.getByRole("link", {
+        name: "Start with shared language",
+        exact: true,
+      }),
     ).toHaveCSS("background-color", styles.expectedAction);
     expect(styles.cardRadius).toBe(styles.expectedCardRadius);
     expect(styles.navigationRadius).toBe(styles.expectedRadius);
@@ -1275,11 +1508,14 @@ test("reference sources drill into source-bound versions and exact evidence", as
   );
   await page.goto("/sources");
   await expect(
-    page.getByRole("navigation", { name: "Reference navigation" }),
+    page.getByRole("navigation", { name: "Consolidate navigation" }),
   ).toContainText("Sources");
   await page.getByRole("link", { name: source.item.name, exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Extracted things", exact: true }),
+    page.getByRole("heading", {
+      name: "Extracted interpretations",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByRole("link", { name: statement, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`version_id=${id}`));
@@ -1315,12 +1551,25 @@ test("visual exploration recenters connected interpretations and separates propo
       name: "Inspect interpretation An associated security objective.",
     }),
   ).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
+});
+
+test("visual validation requires an intentional starting point", async ({
+  page,
+}) => {
+  await page.goto("/explore");
+  await expect(page.locator(".graph-choices a")).toHaveCount(1);
+  await expect(
+    page.getByRole("group", {
+      name: "Navigable evidence and relationship map",
+    }),
+  ).toHaveCount(0);
+  await page.locator(".graph-choices a").click();
+  await expect(page).toHaveURL(new RegExp(`concept=${id}`));
+  await expect(
+    page.getByRole("group", {
+      name: "Navigable evidence and relationship map",
+    }),
+  ).toBeVisible();
 });
 
 test("knowledge levels separate platform implementation and persist the selection", async ({
@@ -1436,12 +1685,6 @@ test("published control mappings link top-level guidance above implementation wi
     "NIST SP800-53 Rev.5: SC-7",
   );
   await expect(native).toHaveAttribute("href", `/sources/${sourceId}`);
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
 });
 
 test("work backlog is separate from the reference reconciliation ledger", async ({

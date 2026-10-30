@@ -30,12 +30,22 @@ export function Explorer() {
   return (
     <>
       <Heading
-        eyebrow="REFERENCE / VISUAL EXPLORER"
-        title="Follow the connections."
-        description="Move between source evidence, interpretations and recorded relationships. Proposals stay visibly separate from asserted links."
-      />
+        eyebrow="VALIDATE / RELATIONSHIPS"
+        title="Validate meaning and connections."
+        description="Inspect one interpretation's neighborhood, not an enterprise coverage map. Check relationship direction and evidence; proposals are not accepted links."
+      >
+        <Button variant="outline" asChild>
+          <a href="/ontology">
+            Relationship definitions
+            <ArrowUpRight />
+          </a>
+        </Button>
+      </Heading>
+      {selected && <RelationshipGraph id={selected} />}
       <Panel
-        title="Choose an interpretation"
+        title={
+          selected ? "Change the starting point" : "Choose an interpretation"
+        }
         description="Search the corpus, then select a starting point. Up to 20 matching interpretations are shown."
       >
         <SearchBox
@@ -90,9 +100,6 @@ export function Explorer() {
           </div>
         </LoadState>
       </Panel>
-      {(selected || matches.data?.[0]?.id) && (
-        <RelationshipGraph id={selected ?? matches.data![0].id} />
-      )}
     </>
   );
 }

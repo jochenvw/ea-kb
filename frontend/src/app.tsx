@@ -42,22 +42,42 @@ import { Ontology } from "@/ontology";
 import type { Issue, Pipeline, SourceGroup } from "@/types";
 
 const navigation = [
-  { href: "/", name: "Overview", icon: LayoutDashboard, group: "Workspace" },
+  {
+    href: "/",
+    name: "Consolidation",
+    icon: LayoutDashboard,
+    group: "Workspace",
+  },
+  {
+    href: "/ontology",
+    name: "Shared language",
+    icon: Layers3,
+    group: "Workspace",
+  },
+  { href: "/sources", name: "Sources", icon: Files, group: "Consolidate" },
+  {
+    href: "/knowledge",
+    name: "Interpretations",
+    icon: BookOpen,
+    group: "Consolidate",
+  },
+  {
+    href: "/explore",
+    name: "Visual validation",
+    icon: Network,
+    group: "Consolidate",
+  },
   {
     href: "/review",
     name: "Reconciliation backlog",
     icon: CheckCheck,
-    group: "Work",
+    group: "Consolidate",
   },
-  { href: "/pipeline", name: "Pipeline", icon: Workflow, group: "Work" },
-  { href: "/sources", name: "Sources", icon: Files, group: "Reference" },
-  { href: "/knowledge", name: "Knowledge", icon: BookOpen, group: "Reference" },
-  { href: "/ontology", name: "Ontology", icon: Layers3, group: "Reference" },
   {
-    href: "/explore",
-    name: "Visual explorer",
-    icon: Network,
-    group: "Reference",
+    href: "/pipeline",
+    name: "Ingestion & processing",
+    icon: Workflow,
+    group: "Operations",
   },
   {
     href: "/benchmarks",
@@ -130,31 +150,33 @@ export function App() {
           </span>
           <span>
             <strong>EKB</strong>
-            <small>Architecture knowledge</small>
+            <small>Architecture standards</small>
           </span>
         </a>
-        {["Workspace", "Work", "Reference", "Operations"].map((group) => (
-          <div className="nav-group" key={group}>
-            <p className="nav-label">{group.toUpperCase()}</p>
-            <nav aria-label={`${group} navigation`}>
-              {navigation
-                .filter((item) => item.group === group)
-                .map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    aria-current={section === item.href ? "page" : undefined}
-                  >
-                    <item.icon aria-hidden="true" />
-                    {item.name}
-                    {section === item.href && (
-                      <ChevronRight className="nav-arrow" />
-                    )}
-                  </a>
-                ))}
-            </nav>
-          </div>
-        ))}
+        {["Workspace", "Consolidate", "Reference", "Operations"].map(
+          (group) => (
+            <div className="nav-group" key={group}>
+              <p className="nav-label">{group.toUpperCase()}</p>
+              <nav aria-label={`${group} navigation`}>
+                {navigation
+                  .filter((item) => item.group === group)
+                  .map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      aria-current={section === item.href ? "page" : undefined}
+                    >
+                      <item.icon aria-hidden="true" />
+                      {item.name}
+                      {section === item.href && (
+                        <ChevronRight className="nav-arrow" />
+                      )}
+                    </a>
+                  ))}
+              </nav>
+            </div>
+          ),
+        )}
         <div className="sidebar-bottom">
           <Separator />
           <div className="workspace-label">
@@ -243,38 +265,78 @@ function Overview() {
   const sources = useResource<SourceGroup[]>("/api/source-groups");
   const issues = useResource<Issue[]>("/api/issues?status=open&limit=1000");
   const pipeline = useResource<Pipeline | null>("/api/pipeline/status");
-  const stats = useResource<{
-    task_count: number;
-    failures: number;
-    input_tokens: number;
-    output_tokens: number;
-    configured_cost: number | null;
-  }>("/api/statistics");
   return (
     <>
       <Heading
-        eyebrow="WORKSPACE OVERVIEW"
-        title="Knowledge, with evidence."
-        description="Explore architecture knowledge, trace its sources and resolve what needs attention."
+        eyebrow="ARCHITECTURE STANDARDS WORKSPACE"
+        title="Consolidate architecture standards."
+        description="Establish a shared language, inspect source-grounded interpretations and decide what applies to your organization."
       >
-        <Button variant="outline" asChild>
-          <a href="/knowledge">
-            <BookOpen />
-            Explore knowledge
-          </a>
-        </Button>
         <Button asChild>
-          <a href="/review?view=issues">
-            <CheckCheck />
-            Review issues
+          <a href="/ontology">
+            <Layers3 />
+            Start with shared language
           </a>
         </Button>
       </Heading>
+      <Panel
+        title="From source material to scoped standards"
+        description="A review path, not a completion tracker. Ingestion produces candidates; it does not approve standards."
+      >
+        <ol
+          className="consolidation-journey"
+          aria-label="Standards consolidation workflow"
+        >
+          {[
+            [
+              "/sources",
+              "Curate sources",
+              "Inspect publisher, edition, retrieval and document maturity. Source selection is operator-configured.",
+            ],
+            [
+              "/knowledge?level=",
+              "Review interpretations",
+              "Check the ontology class, exact source passage and organizational scope.",
+            ],
+            [
+              "/explore",
+              "Validate relationships",
+              "Inspect supporting evidence, direction and proposed links. A mapping is not equivalence.",
+            ],
+            [
+              "/review",
+              "Decide applicability",
+              "Resolve duplicates and conflicts; record explicit, scoped decisions with a rationale.",
+            ],
+          ].map(([href, title, description], index) => (
+            <li key={href}>
+              <a href={href}>
+                <span className="journey-number" aria-hidden="true">
+                  0{index + 1}
+                </span>
+                <h3>
+                  {title}
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </h3>
+                <p>{description}</p>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </Panel>
       <div className="metrics-grid">
         <Metric
           title="Registered sources"
           value={sources.data?.length}
-          detail={`${sources.data?.reduce((count, group) => count + group.documents.length, 0) ?? "…"} evidence documents; one source per edition`}
+          detail="Publisher editions remain separate"
+        />
+        <Metric
+          title="Evidence documents"
+          value={sources.data?.reduce(
+            (count, group) => count + group.documents.length,
+            0,
+          )}
+          detail="Original document identities are retained"
         />
         <Metric
           title="Open issues"
@@ -296,11 +358,6 @@ function Overview() {
           }
           detail="Indexing → enrichment → issues"
         />
-        <Metric
-          title="Recent processing tasks"
-          value={stats.data?.task_count}
-          detail="Up to the latest 1,000 persisted tasks"
-        />
       </div>
       <div className="overview-grid">
         <Panel
@@ -315,35 +372,44 @@ function Overview() {
             </Button>
           }
         >
-          <LoadState resource={issues} empty={issues.data?.length === 0}>
-            <div className="attention-list">
-              {[...(issues.data ?? [])]
-                .sort(
-                  (a, b) =>
-                    ["critical", "high", "medium", "low"].indexOf(a.severity) -
-                    ["critical", "high", "medium", "low"].indexOf(b.severity),
-                )
-                .slice(0, 5)
-                .map((issue) => (
-                  <a
-                    key={issue.id}
-                    href={`/review?issue_id=${issue.id}`}
-                    className="attention-item"
-                  >
-                    <span
-                      className={`severity-mark severity-${issue.severity}`}
-                      aria-hidden="true"
-                    />
-                    <span>
-                      <strong>{label(issue.issue_type)}</strong>
-                      <small>{issue.explanation}</small>
-                    </span>
-                    <Status value={issue.severity} />
-                    <ChevronRight size={16} />
-                  </a>
-                ))}
-            </div>
-            {issues.data && (
+          <LoadState resource={issues}>
+            {issues.data?.length === 0 ? (
+              <Empty
+                title="No open issues recorded"
+                description="This is not evidence of coverage or approval. Inspect the sources and processing history before concluding that review is complete."
+              />
+            ) : (
+              <div className="attention-list">
+                {[...(issues.data ?? [])]
+                  .sort(
+                    (a, b) =>
+                      ["critical", "high", "medium", "low"].indexOf(
+                        a.severity,
+                      ) -
+                      ["critical", "high", "medium", "low"].indexOf(b.severity),
+                  )
+                  .slice(0, 5)
+                  .map((issue) => (
+                    <a
+                      key={issue.id}
+                      href={`/review?issue_id=${issue.id}`}
+                      className="attention-item"
+                    >
+                      <span
+                        className={`severity-mark severity-${issue.severity}`}
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong>{label(issue.issue_type)}</strong>
+                        <small>{issue.explanation}</small>
+                      </span>
+                      <Status value={issue.severity} />
+                      <ChevronRight size={16} />
+                    </a>
+                  ))}
+              </div>
+            )}
+            {!!issues.data?.length && (
               <p className="table-note">
                 Showing {Math.min(5, issues.data.length)} of{" "}
                 {issues.data.length}
@@ -435,14 +501,13 @@ function Overview() {
           ))}
         </div>
       </Panel>
-      {(sources.error || stats.error) && (
+      {sources.error && (
         <p role="alert" className="muted">
           Some workspace metrics are unavailable.{" "}
           <button
             className="text-button"
             onClick={() => {
               sources.reload();
-              stats.reload();
             }}
           >
             Retry metrics

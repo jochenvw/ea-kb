@@ -1,13 +1,15 @@
 # Workspace presentation
 
-`app.tsx` groups Work, Reference and Operations; feature files own their API-backed pages.
+`app.tsx` leads with shared language and a source-to-scoped-standard consolidation journey.
+Workspace, Consolidate, Reference and Operations separate architect tasks from processing tools.
 `sources.tsx` groups benchmark editions, then drills into their documents and source-bound versions.
 `network.tsx` navigates evidence/relationship graphs; source evidence remains document-specific.
 `review.tsx` separates the active backlog from the read-only ledger in `reference.tsx`.
 `reference.tsx` also provides bounded, linked table previews and safe operational log tails.
-`ontology.tsx` reads canonical definitions/IRIs from `/api/ontology`; shared badges link to its terms.
+`ontology.tsx` reads canonical definitions/IRIs from `/api/ontology`; badges and inline definitions reuse it.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
-`knowledge.tsx` filters editions or exact documents, links matching versions and highlights retained quotes.
+`knowledge.tsx` keeps evidence first; visual validation, scoped authority and history have separate tabs.
+Evidence, authority and proposal defaults follow the selected version, not an unrelated latest version.
 Goals/guidance and platform implementations have separate filters and graph lanes; mappings show evidence.
 Use real API records, abort stale reads, disclose query limits and preserve unknown values.
 Publisher maturity, semantic versioning and scoped enterprise authority must stay distinct.

@@ -44,9 +44,9 @@ export function Review({ governance }: { governance: boolean }) {
   return (
     <>
       <Heading
-        eyebrow="WORK / HUMAN REVIEW"
-        title="Focus on what needs a decision."
-        description="Triage exceptions, inspect supporting evidence and record an explicit, auditable decision."
+        eyebrow="DECIDE / SCOPED APPLICABILITY"
+        title="Reconcile before adopting."
+        description="Resolve duplicate interpretations and conflicting requirements. Confirm evidence and scope before recording an explicit, auditable decision."
       >
         <Button variant="outline" asChild>
           <a href="/reconciliation">
@@ -55,6 +55,16 @@ export function Review({ governance }: { governance: boolean }) {
           </a>
         </Button>
       </Heading>
+      <details className="curation-guide">
+        <summary>Before recording a decision</summary>
+        <p>
+          Verify the exact source passage, the{" "}
+          <a href="/ontology">ontology definition</a>, organizational scope and
+          effective period. A published document or a recorded mapping does not
+          establish enterprise authority; adoption remains a separate scoped
+          decision.
+        </p>
+      </details>
       {!governance && (
         <div className="read-only">
           <LockKeyhole size={18} />

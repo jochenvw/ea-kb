@@ -1,6 +1,7 @@
 # Browser application
 
 React, TypeScript, Vite and actual shadcn/ui components; FastAPI remains the only production server.
+The supported browser target is desktop/PC use only; mobile UX and mobile-browser checks are out of scope.
 Contributor builds require Node.js 22.12+; normal Python operation does not require Node.
 From this folder: `npm ci`, `npm run build`, `npm run check`, `npm run format:check`, `npm test`.
 `npm run dev` optionally proxies the local backend on port 8000 for UI development.

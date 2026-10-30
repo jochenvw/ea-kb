@@ -291,10 +291,19 @@ uv run ekb mcp
 ```
 
 The TUI supports source inventory, scan/resume, per-source progress, failures, concepts,
-provenance, relationship inspection and usage statistics. The React/shadcn browser workspace provides
-an overview (`/`), cursor-paged knowledge library (`/knowledge`), source registry (`/sources`),
-issue/proposal review (`/review`), benchmark explorer (`/benchmarks`) and pipeline activity (`/pipeline`).
-Concept deep links retain exact evidence, version history and scoped authority. API documentation
+provenance, relationship inspection and usage statistics. The React/shadcn browser workspace targets
+desktop/PC use, not mobile. It provides
+a consolidation workspace (`/`), shared language (`/ontology`), cursor-paged interpretations
+(`/knowledge`), source curation (`/sources`), visual validation (`/explore`), issue/proposal review
+(`/review`), benchmarks (`/benchmarks`) and ingestion activity (`/pipeline`).
+Start with the shared definitions, then inspect source context, interpretations, relationships and
+scoped decisions. The four-step path is navigation guidance, not saved progress or approval.
+Source selection stays in operator configuration; source curation checks do not change source status.
+Concept deep links retain exact evidence, version history and scoped authority. The default
+**Source evidence** tab shows only the selected version's passages. **Visual validation** is separate
+from **Scope & governance**; recorded authority and adoption proposal defaults follow the selected
+version. A graph is a bounded concept neighborhood across retained versions, not evidence for a
+specific version or a global standards-coverage map. API documentation
 is at `/docs`; `/health` checks PostgreSQL connectivity. Built assets are included in the Python
 package: normal operation needs neither Node.js nor a separate frontend server.
 
@@ -334,10 +343,13 @@ context, section/page and revision metadata. Quotes and context are rendered as 
 When a quote spans its whole segment, adjacent retained passages provide context where available;
 their section headings are shown explicitly. Missing context is disclosed, never reconstructed.
 
-**Ontology** under Reference (`/ontology`, read-only API `/api/ontology`) shows the canonical concepts,
+**Shared language** under Workspace (`/ontology`, read-only API `/api/ontology`) shows the canonical concepts,
 semantic relations, classification/scope properties and exact definitions from the committed OWL/RDF.
 Search names/definitions, inspect domain/range, symmetric/transitive characteristics, IRIs and version.
-Knowledge/source badges use these concept labels and link to their definitions; unknown types say
+Concepts are grouped by company intent, technology-independent requirements, platform requirements
+and classification context; these presentation groups imply no subclass or support relationships.
+Interpretations display their canonical definition inline. Knowledge/source badges link to the
+same catalog; unknown types say
 **Unclassified**. The catalog is available even when no documents have been indexed.
 
 **Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified

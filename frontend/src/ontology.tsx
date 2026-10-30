@@ -45,6 +45,46 @@ export function OntologyBadge({ name }: { name: string | null | undefined }) {
   );
 }
 
+export function OntologyDefinition({
+  name,
+}: {
+  name: string | null | undefined;
+}) {
+  const resource = useOntology();
+  const term = resource.data?.terms.find((item) => item.name === name);
+  return (
+    <div className="ontology-definition" aria-label="Classification definition">
+      <LoadState resource={resource}>
+        <p>
+          {term
+            ? term.definition
+            : "No canonical class definition is available. Review the classification before using this interpretation."}
+        </p>
+        <a
+          href={
+            term ? `/ontology#${encodeURIComponent(term.name)}` : "/ontology"
+          }
+        >
+          {term ? `Definition: ${term.label}` : "Inspect the shared language"}
+        </a>
+      </LoadState>
+    </div>
+  );
+}
+
+const conceptLayers = [
+  { title: "Company intent", names: ["StrategicGoal", "StrategicRequirement"] },
+  {
+    title: "Technology-independent requirements",
+    names: ["ConceptualRequirement", "TechnicalRequirement"],
+  },
+  { title: "Platform-specific requirements", names: ["PlatformRequirement"] },
+  {
+    title: "Classification context, not requirement candidates",
+    names: ["OrganizationalScope", "ArchitectureDomain"],
+  },
+];
+
 export function Ontology() {
   const resource = useOntology();
   const [query, setQuery] = useState("");
@@ -65,7 +105,7 @@ export function Ontology() {
     [
       "concept",
       "Concepts",
-      "OWL classes define the application's shared concepts.",
+      "Use the same definitions when classifying, comparing and reviewing statements. These groups aid navigation; they do not imply subclass or support relationships.",
     ],
     [
       "relation",
@@ -83,7 +123,7 @@ export function Ontology() {
       <Heading
         eyebrow="SHARED DOMAIN LANGUAGE"
         title="Ontology"
-        description="Read-only concepts, relations and definitions from the authoritative OWL/RDF vocabulary."
+        description="The shared language for classifying architecture standards. Read the definitions before comparing intent, requirements or applicability."
       >
         <Badge variant="outline">Read-only</Badge>
       </Heading>
@@ -132,11 +172,52 @@ export function Ontology() {
               );
               return matches.length ? (
                 <Panel key={category} title={title} description={description}>
-                  <div className="ontology-grid">
-                    {matches.map((term) => (
-                      <Term key={term.iri} term={term} catalog={catalog} />
-                    ))}
-                  </div>
+                  {category !== "concept" && (
+                    <div className="ontology-grid">
+                      {matches.map((term) => (
+                        <Term key={term.iri} term={term} catalog={catalog} />
+                      ))}
+                    </div>
+                  )}
+                  {category === "concept" &&
+                    [
+                      ...conceptLayers,
+                      {
+                        title: "Other concepts",
+                        names: matches
+                          .filter(
+                            (term) =>
+                              !conceptLayers.some((layer) =>
+                                layer.names.includes(term.name),
+                              ),
+                          )
+                          .map((term) => term.name),
+                      },
+                    ].map((layer) => {
+                      const members = layer.names.flatMap((name) =>
+                        matches.filter((term) => term.name === name),
+                      );
+                      return (
+                        members.length > 0 && (
+                          <section
+                            key={layer.title}
+                            className="ontology-layer"
+                            aria-label={layer.title}
+                          >
+                            <p className="eyebrow">{layer.title}</p>
+                            <div className="ontology-grid">
+                              {members.map((term) => (
+                                <Term
+                                  key={term.iri}
+                                  term={term}
+                                  catalog={catalog}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        )
+                      );
+                    })}
                 </Panel>
               ) : null;
             })}
