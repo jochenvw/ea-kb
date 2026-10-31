@@ -18,7 +18,10 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("kind", sa.String(length=20), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.CheckConstraint("kind IN ('embedding','verification')", name="semantic_replay_kind"),
+        sa.CheckConstraint(
+            "kind IN ('embedding','verification','traceability')",
+            name="semantic_replay_kind",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(

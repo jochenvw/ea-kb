@@ -5,6 +5,8 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
+from pydantic import Field
+
 from ekb.domain.execution import (
     ArtifactReference,
     CheckOptions,
@@ -30,6 +32,7 @@ class CheckContext(Model):
     options: CheckOptions
     stage_configuration: StageOptions = StageOptions()
     check_version: str = "1"
+    prior_findings: tuple[Finding, ...] = ()
 
 
 class CheckResult(Model):
@@ -39,6 +42,7 @@ class CheckResult(Model):
     model_calls: int = 0
     embedding_calls: int = 0
     usage: Usage = Usage()
+    statistics: dict[str, int | float] = Field(default_factory=dict)
 
 
 class PipelineProgress(Protocol):

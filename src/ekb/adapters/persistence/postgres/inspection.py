@@ -4,7 +4,7 @@ import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ekb.adapters.persistence.postgres.models import (
@@ -226,10 +226,13 @@ class Inspection:
             return None
         relations: list[RelationshipRow] = []
         seen_relations: set[UUID] = set()
+        findings: list[FindingRow] = []
+        seen_findings: set[UUID] = set()
+        active_findings = await self._active()
         known_concepts = {concept_id}
         frontier = {concept_id}
         for _ in range(3):
-            if not frontier or len(relations) >= 13:
+            if not frontier or len(relations) + len(findings) >= 13:
                 break
             rows = list(
                 await self.session.scalars(
@@ -241,7 +244,37 @@ class Inspection:
                         )
                     )
                     .order_by(RelationshipRow.id)
-                    .limit(13 - len(relations))
+                    .limit(13 - len(relations) - len(findings))
+                )
+            )
+            finding_rows = list(
+                await self.session.scalars(
+                    select(FindingRow)
+                    .where(
+                        or_(
+                            *(
+                                FindingRow.payload["concept_ids"].contains([str(identity)])
+                                for identity in frontier
+                            )
+                        ),
+                        or_(
+                            FindingRow.check_id == "manual",
+                            FindingRow.id.in_(active_findings),
+                        ),
+                    )
+                    .order_by(
+                        case(
+                            (
+                                FindingRow.check_id.in_(
+                                    ("company_alignment", "platform_alignment")
+                                ),
+                                0,
+                            ),
+                            else_=1,
+                        ),
+                        FindingRow.id,
+                    )
+                    .limit(13 - len(relations) - len(findings))
                 )
             )
             next_frontier: set[UUID] = set()
@@ -251,23 +284,18 @@ class Inspection:
                 seen_relations.add(row.id)
                 relations.append(row)
                 next_frontier.update((row.from_id, row.to_id))
+            for row in finding_rows:
+                if row.id in seen_findings:
+                    continue
+                candidate = Finding.model_validate(row.payload)
+                if candidate.action != "relationship" or len(candidate.concept_ids) < 2:
+                    continue
+                seen_findings.add(row.id)
+                findings.append(row)
+                next_frontier.update(candidate.concept_ids)
             next_frontier -= known_concepts
             known_concepts.update(next_frontier)
             frontier = next_frontier
-        findings = list(
-            await self.session.scalars(
-                select(FindingRow)
-                .where(
-                    FindingRow.payload["concept_ids"].contains([str(concept_id)]),
-                    or_(
-                        FindingRow.check_id == "manual",
-                        FindingRow.id.in_(await self._active()),
-                    ),
-                )
-                .order_by(FindingRow.id)
-                .limit(13)
-            )
-        )
         occurrences = {
             row.id: Occurrence.model_validate(row.payload)
             for row in await self.session.scalars(
@@ -291,23 +319,27 @@ class Inspection:
         for row in findings[:12]:
             finding = Finding.model_validate(row.payload)
             for other in finding.concept_ids[1:]:
-                if concept_id in (finding.concept_ids[0], other):
-                    kind = (
-                        finding.relationship.value
-                        if finding.relationship is not None
-                        else finding.action
+                kind = (
+                    finding.relationship.value
+                    if finding.relationship is not None
+                    else finding.action
+                )
+                if (finding.concept_ids[0], other, kind) in persisted:
+                    continue
+                edges.append(
+                    GraphEdge(
+                        source=finding.concept_ids[0],
+                        target=other,
+                        kind=kind,
+                        status=(
+                            "inferred"
+                            if finding.check_id in {"company_alignment", "platform_alignment"}
+                            else "proposal"
+                        ),
+                        href=f"/review?finding_id={finding.id}",
+                        note=finding.explanation,
                     )
-                    if (finding.concept_ids[0], other, kind) in persisted:
-                        continue
-                    edges.append(
-                        GraphEdge(
-                            source=finding.concept_ids[0],
-                            target=other,
-                            kind=kind,
-                            status="proposal",
-                            href=f"/review?finding_id={finding.id}",
-                        )
-                    )
+                )
         ids = {concept_id}
         retained = []
         for edge in edges:

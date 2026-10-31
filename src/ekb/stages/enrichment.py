@@ -17,7 +17,7 @@ from ekb.domain.models import (
 )
 from ekb.domain.resolution import Finding, overlaps
 from ekb.observability import tracer
-from ekb.ports import EmbeddingPort, SemanticVerifier, UnitOfWorkFactory
+from ekb.ports import EmbeddingPort, SemanticVerifier, TraceabilityMapper, UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult, KnowledgeCheck
 from ekb.stages import CheckedStage
 
@@ -259,7 +259,15 @@ def enrichment_stage(
     database: UnitOfWorkFactory,
     verifier: SemanticVerifier | None = None,
     embeddings: EmbeddingPort | None = None,
+    traceability_mapper: TraceabilityMapper | None = None,
+    *,
+    model_concurrency: int = 1,
 ) -> CheckedStage:
+    from ekb.stages.provenance import (
+        company_alignment_check,
+        platform_alignment_check,
+        sibling_comparison_check,
+    )
     from ekb.stages.semantic import semantic_check
 
     checks: tuple[KnowledgeCheck, ...] = (
@@ -267,6 +275,19 @@ def enrichment_stage(
         semantic_check(database, verifier, embeddings),
         Check("lineage", lineage),
         Check("scope_authority", scope_authority),
+        company_alignment_check(database),
+        platform_alignment_check(
+            database,
+            traceability_mapper,
+            embeddings,
+            concurrency=model_concurrency,
+        ),
+        sibling_comparison_check(
+            database,
+            verifier,
+            embeddings,
+            concurrency=model_concurrency,
+        ),
     )
     return CheckedStage(
         database,

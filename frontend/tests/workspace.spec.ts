@@ -1407,6 +1407,53 @@ test("visual exploration recenters connected interpretations and separates propo
   ).toBeVisible();
 });
 
+test("inferred provenance is visible by default but remains review-only", async ({
+  page,
+}) => {
+  await page.route(`**/api/concepts/${id}/graph`, (route) =>
+    route.fulfill({
+      json: {
+        root: id,
+        nodes: [
+          {
+            id,
+            label: statement,
+            kind: "PlatformRequirement",
+            href: `/concepts/${id}`,
+            level: "platform_specific",
+          },
+          {
+            id: relatedId,
+            label: "Protect managed network boundaries.",
+            kind: "TechnicalRequirement",
+            href: `/concepts/${relatedId}`,
+            level: "platform_agnostic",
+          },
+        ],
+        edges: [
+          {
+            source: id,
+            target: relatedId,
+            kind: "refines",
+            status: "inferred",
+            href: `/review?finding_id=${findingId}`,
+            note: "A grounded model selected the broader requirement.",
+          },
+        ],
+        truncated: false,
+      },
+    }),
+  );
+
+  await page.goto(`/explore?concept=${id}`);
+
+  await expect(page.locator(".graph-edge.is-proposal")).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "Inspect Refines Inferred link" }),
+  ).toHaveAttribute("href", `/review?finding_id=${findingId}`);
+  await expect(page.locator(".graph-links")).toContainText("Inferred");
+});
+
 test("visual validation requires an intentional starting point", async ({
   page,
 }) => {

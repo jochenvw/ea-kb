@@ -10,6 +10,7 @@
 - `0010-pydantic-evals.md`: standard skill-evaluation runner, bounded cases and durable performance history.
 - `0011-derived-alias-edges.md`: derive reversible aliases from findings and retain distinct scan records.
 - `0012-shared-source-ingestion.md`: ordinary source ingestion and guarded legacy-table cleanup.
+- `0013-layered-provenance-findings.md`: ordered inferred links, asymmetric cardinality and coverage.
 
 Read these before changing persistence invariants, execution boundaries or major dependencies.
 Record a new significant decision briefly; keep detailed implementation description in

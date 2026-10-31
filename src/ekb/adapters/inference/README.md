@@ -2,9 +2,9 @@
 
 `__init__.py` implements `RulesInference`, `OpenAIInference` and optional `AgentFrameworkInference`.
 `reconciliation.py` adds explicitly configured small-model verification and bounded embeddings.
+`traceability.py` maps platform controls only to supplied, grounded platform-independent parents.
 `assertions.py` rephrases selected candidates as source-grounded single-sentence assertions.
-`skills\labeling.md`, `skills\extraction.md` and `skills\strategy_reconciliation.md` are independently
-hashed, bounded runtime prompts.
+Files under `skills\` are independently hashed, bounded runtime prompts.
 Canonical OWL definitions are appended by task; definition/schema changes invalidate prompt replay.
 
 - Input is a persisted segment; output is typed extraction, provider identity and measured usage.
@@ -26,6 +26,7 @@ Canonical OWL definitions are appended by task; definition/schema changes invali
   limiter reserves each transport attempt for the actual deployment; use a dedicated evaluation instance.
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
+- Traceability mapping validates every selected ID and exact child/parent excerpt; no match is valid.
 - Embedding and verification costs remain unknown if prices or request usage are unavailable,
   including unmetered retries; cached results never repeat their original usage.
 - Embedding usage is complete only if every request has positive metering, independently of pricing;

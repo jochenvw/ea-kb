@@ -12,6 +12,8 @@ synthetic cases, with family/split isolation and provisional ontology labels.
 `documents-v1.json` reuses those skill contracts for selected Shell annual-report and NIST CSF
 passages plus an explicitly metadata-only ISO negative. It separates company-level coverage,
 mixed ontology classes and named organizational scope; no standard is automatically adopted.
+`provenance-v1.json` qualifies grounded control-parent selection with ten principles, the Network
+Security Perimeter chain and an unrelated-parent negative; expected IDs never enter model prompts.
 Original PDF hashes/pages can be audited with `uv run ekb eval documents --verify-sources`.
 `nist-csf` imports the supplied Core hierarchy, 25 provisional mappings and 14 negative challenges,
 with separately source-audited excerpts, locator corrections and explicit reference disagreements.

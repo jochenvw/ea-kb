@@ -222,7 +222,10 @@ class ExecutionRow(Base):
 class SemanticCacheRow(Base):
     __tablename__ = "semantic_replay_cache"
     __table_args__ = (
-        CheckConstraint("kind IN ('embedding','verification')", name="semantic_replay_kind"),
+        CheckConstraint(
+            "kind IN ('embedding','verification','traceability')",
+            name="semantic_replay_kind",
+        ),
     )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     kind: Mapped[str] = mapped_column(String(20))

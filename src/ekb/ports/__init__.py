@@ -40,6 +40,7 @@ from ekb.domain.models import (
     WorkspaceCounts,
 )
 from ekb.domain.reconciliation import EmbeddingResult, SemanticAssertion, Verification
+from ekb.domain.traceability import TraceabilityAssertion, TraceabilityVerification
 from ekb.ports.workflow import IssueRepository, ResolutionRepository, WorkflowRepository
 
 
@@ -118,6 +119,18 @@ class SemanticVerifier(Protocol):
     fingerprint: str
 
     async def verify(self, old: SemanticAssertion, new: SemanticAssertion) -> Verification: ...
+
+
+class TraceabilityMapper(Protocol):
+    """Select grounded broader parents only from the supplied bounded candidate set."""
+
+    fingerprint: str
+
+    async def map(
+        self,
+        child: TraceabilityAssertion,
+        parents: tuple[TraceabilityAssertion, ...],
+    ) -> TraceabilityVerification: ...
 
 
 class EmbeddingPort(Protocol):

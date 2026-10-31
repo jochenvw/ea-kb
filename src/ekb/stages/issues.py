@@ -8,7 +8,16 @@ from typing import Literal
 
 from ekb.domain.execution import ProcessorSpec
 from ekb.domain.issues import Issue
-from ekb.domain.models import AuthorityEvent, fingerprint, now, stable_id
+from ekb.domain.models import (
+    AuthorityEvent,
+    KnowledgeLevel,
+    RelationshipKind,
+    SemanticType,
+    fingerprint,
+    knowledge_level,
+    now,
+    stable_id,
+)
 from ekb.domain.publication import project_authority
 from ekb.domain.resolution import (
     Deviation,
@@ -17,6 +26,7 @@ from ekb.domain.resolution import (
     decision_heads,
     overlaps,
     resolve_alias,
+    version_evidence,
 )
 from ekb.observability import tracer
 from ekb.ports import UnitOfWorkFactory
@@ -283,6 +293,98 @@ async def provenance_gaps(context: CheckContext) -> CheckResult:
     return CheckResult(issues=tuple(results), candidates=len(results))
 
 
+async def traceability_cardinality(context: CheckContext) -> CheckResult:
+    from ekb.stages.provenance import reachable, relationship_edges
+
+    entries = {
+        concept.id: (concept, version)
+        for concept in context.snapshot.concepts
+        for version in concept.versions
+        if version.id in context.snapshot.current_version_ids
+    }
+    company = {
+        concept_id
+        for concept_id, (_, version) in entries.items()
+        if knowledge_level(version.candidate) is KnowledgeLevel.COMPANY
+    }
+    agnostic = {
+        concept_id
+        for concept_id, (_, version) in entries.items()
+        if knowledge_level(version.candidate) is KnowledgeLevel.PLATFORM_AGNOSTIC
+    }
+    controls = {
+        concept_id
+        for concept_id, (_, version) in entries.items()
+        if version.candidate.semantic_type is SemanticType.PLATFORM_REQUIREMENT
+    }
+    agnostic_requirements = {
+        concept_id
+        for concept_id in agnostic
+        if entries[concept_id][1].candidate.semantic_type
+        in {SemanticType.CONCEPTUAL_REQUIREMENT, SemanticType.TECHNICAL_REQUIREMENT}
+    }
+    edges = relationship_edges(context)
+    agnostic_orphans = {
+        concept_id for concept_id in agnostic if not reachable(concept_id, company, edges)
+    }
+    control_parents = {
+        concept_id: {
+            edge.target
+            for edge in edges
+            if edge.source == concept_id
+            and edge.target in agnostic_requirements
+            and edge.kind is RelationshipKind.REFINES
+        }
+        for concept_id in controls
+    }
+    control_orphans = {concept_id for concept_id, parents in control_parents.items() if not parents}
+    results = []
+    for concept_id in sorted(agnostic_orphans, key=str):
+        concept, version = entries[concept_id]
+        results.append(
+            issue(
+                context,
+                "traceability_cardinality",
+                "unparented_platform_agnostic",
+                (concept_id,),
+                "A platform-independent concept has no path to organization-level intent; "
+                "its enterprise adoption is not explicit.",
+                occurrences=version_evidence(concept, version.id),
+                severity="high",
+                confidence=1,
+                scope=version.candidate.scope,
+            )
+        )
+    for concept_id in sorted(control_orphans, key=str):
+        concept, version = entries[concept_id]
+        results.append(
+            issue(
+                context,
+                "traceability_cardinality",
+                "unparented_platform_control",
+                (concept_id,),
+                "A platform control has no broader platform-independent requirement parent.",
+                occurrences=version_evidence(concept, version.id),
+                severity="medium",
+                confidence=1,
+                scope=version.candidate.scope,
+            )
+        )
+    return CheckResult(
+        issues=tuple(results),
+        candidates=len(agnostic) + len(controls),
+        statistics={
+            "agnostic_total": len(agnostic),
+            "agnostic_orphaned": len(agnostic_orphans),
+            "platform_controls_total": len(controls),
+            "platform_controls_orphaned": len(control_orphans),
+            "platform_controls_multi_parented": sum(
+                len(parents) > 1 for parents in control_parents.values()
+            ),
+        },
+    )
+
+
 def deviation_issues(context: CheckContext, deviations: tuple[Deviation, ...]) -> CheckResult:
     grouped: dict = defaultdict(list)
     today = now().date()
@@ -336,6 +438,7 @@ def issues_stage(database: UnitOfWorkFactory) -> CheckedStage:
             ("conflicting_requirements", conflicting_requirements),
             ("version_ambiguity", version_ambiguity),
             ("provenance_gaps", provenance_gaps),
+            ("traceability_cardinality", traceability_cardinality),
             ("excessive_deviations", deviations),
         )
     )

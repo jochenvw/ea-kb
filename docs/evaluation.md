@@ -136,6 +136,21 @@ provider-level controls to coordinate aggregate quotas. A single request whose e
 exceeds a configured limit is rejected before inference. Concurrency alone is not rate limiting, and
 neither reservations nor post-run quality/cost gates are a provider billing cap.
 
+### Evaluating layered provenance
+
+```powershell
+uv run ekb eval provenance --live --split validation
+uv run ekb eval provenance --live --split test
+```
+
+`evals\provenance-v1.json` contains 12 provisional, source-attributed control-parent cases across
+train, validation and held-out test splits. It includes the Network Security Perimeter to NIST
+deny-by-default relationship, unrelated-parent negatives and ten organization principles.
+The mapper receives only the child and bounded candidate parents; expected IDs remain evaluator
+metadata. Pydantic Evals reports exact cases plus parent-selection precision and recall, while EKB
+retains immutable reports under `data\evaluation-history`. A pass qualifies this provisional
+relationship task only; links remain inferred proposals pending enterprise governance.
+
 Reports distinguish observed requests and retries from estimated rate-limit reservations.
 `retry_count` sums explicitly measured retry attempts, not additional model calls: one skill may
 make multiple distinct calls. Built-in providers count started transport and validation retries;

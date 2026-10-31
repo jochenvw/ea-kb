@@ -32,7 +32,7 @@ export function Explorer() {
       <Heading
         eyebrow="VALIDATE / RELATIONSHIPS"
         title="Validate meaning and connections."
-        description="Inspect one interpretation's neighborhood, not an enterprise coverage map. Check relationship direction and evidence; proposals are not accepted links."
+        description="Inspect one interpretation's neighborhood, not an enterprise coverage map. Check relationship direction and evidence; inferred and proposed links are not accepted policy."
       >
         <Button variant="outline" asChild>
           <a href="/ontology">
@@ -179,7 +179,7 @@ export function RelationshipGraph({ id }: { id: string }) {
   return (
     <Panel
       title="Evidence & relationship map"
-      description="Concept-level context across retained versions, not proof for a selected version. Company intent, platform-agnostic architecture and platform implementations remain distinct. Dashed proposals require review and do not establish equivalence or authority."
+      description="Concept-level context across retained versions, not proof for a selected version. Company intent, platform-agnostic architecture and platform implementations remain distinct. Dashed inferred or proposed links require review and do not establish equivalence or authority."
     >
       <LoadState resource={resource}>
         {graph && (
@@ -269,7 +269,7 @@ export function RelationshipGraph({ id }: { id: string }) {
                       </title>
                       <path
                         d={curve}
-                        className={`graph-edge ${["proposal", "proposed"].includes(edge.status) ? "is-proposal" : ""}`}
+                        className={`graph-edge ${["proposal", "proposed", "inferred"].includes(edge.status) ? "is-proposal" : ""}`}
                         markerEnd={`url(#${marker})`}
                       />
                     </a>

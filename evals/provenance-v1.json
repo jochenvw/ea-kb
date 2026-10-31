@@ -1,0 +1,302 @@
+{
+  "version": "provenance-v1",
+  "review_status": "provisional",
+  "assertions": {
+    "azure-identity": {
+      "statement": "Establish secure identity and access controls using Azure Active Directory, including single sign-on, strong authentication, managed identities (and service principals) for applications, conditional access, and account anomaly monitoring.",
+      "excerpt": "establish a secure identity and access controls using Azure Active Directory, including the use of single sign-on, strong authentications, managed identities (and service principals) for applications, conditional access, and account anomalies monitoring",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-privileged": {
+      "statement": "Protect privileged access to Azure tenants and resources, including administrative models, administrative accounts, and privileged access workstations, against deliberate and inadvertent risk.",
+      "excerpt": "protect privileged access to your Azure tenant and resources, including a range of controls to protect your administrative model, administrative accounts, and privileged access workstations against deliberate and inadvertent risk.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-incident": {
+      "statement": "Enable detection, investigation, and remediation processes with controls that generate high-quality alerts using native threat detection in Azure services.",
+      "excerpt": "enabling detection, investigation, and remediation processes with controls to generate high-quality alerts with native threat detection in Azure services",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-segmentation": {
+      "statement": "All Azure virtual networks follow an enterprise segmentation principle aligned to business risks.",
+      "excerpt": "Ensure that all Azure virtual networks follow an enterprise segmentation principle that aligns to the business risks.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2 network security",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security"
+      }
+    },
+    "azure-private-connectivity": {
+      "statement": "Use virtual network peering or Private Link to connect two or more virtual networks in Azure.",
+      "excerpt": "To connect two or more virtual networks in Azure together, use virtual network peering or Private Link.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2 network security",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security"
+      }
+    },
+    "azure-ddos": {
+      "statement": "Enable DDoS standard protection on your Azure virtual networks to protect your assets against DDoS attacks.",
+      "excerpt": "Protect your assets against DDoS attacks by enabling DDoS standard protection on your Azure virtual networks.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2 network security",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security"
+      }
+    },
+    "azure-backup": {
+      "statement": "Data and configuration backups at the different service tiers are performed, validated, and protected.",
+      "excerpt": "data and configuration backups at the different service tiers are performed, validated, and protected.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-malware": {
+      "statement": "Use endpoint detection and response (EDR) and anti-malware services for endpoints in Azure environments.",
+      "excerpt": "use of endpoint detection and response (EDR) and anti-malware service for endpoints in Azure environments.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-data": {
+      "statement": "Discover, classify, protect, and monitor sensitive data assets using access control, encryption, and logging in Azure.",
+      "excerpt": "discover, classify, protect, and monitor sensitive data assets using access control, encryption, and logging in Azure.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/overview-v2"
+      }
+    },
+    "azure-configuration": {
+      "statement": "Use Azure Security Center Adaptive Network Hardening to recommend network security group configurations that limit ports and source IPs.",
+      "excerpt": "Use Azure Security Center Adaptive Network Hardening to recommend network security group configurations that limit ports and source IPs based on external network traffic rules.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Azure Security Benchmark v2 network security",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/security-controls-v2-network-security"
+      }
+    },
+    "azure-nsp": {
+      "statement": "Use Network Security Perimeter for PaaS resource isolation.",
+      "excerpt": "Use Network Security Perimeter for PaaS resource isolation",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Microsoft Cloud Security Benchmark v2 network security",
+        "location": "https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-v2-network-security"
+      }
+    },
+    "nist-account": {
+      "statement": "Create, enable, modify, disable, and remove accounts in accordance with organization-defined policy, procedures, prerequisites, and criteria.",
+      "excerpt": "Create, enable, modify, disable, and remove accounts in accordance with [organization-defined policy, procedures, prerequisites, and criteria]",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-least-privilege": {
+      "statement": "Apply least privilege, allowing users or processes acting on their behalf only authorized accesses necessary to accomplish assigned organizational tasks.",
+      "excerpt": "Employ the principle of least privilege, allowing only authorized accesses for users (or processes acting on behalf of users) that are necessary to accomplish assigned organizational tasks.",
+      "semantic_type": "ConceptualRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-incident": {
+      "statement": "Implement an incident handling capability consistent with the incident response plan that includes preparation, detection and analysis, containment, eradication, and recovery.",
+      "excerpt": "Implement an incident handling capability for incidents that is consistent with the incident response plan and includes preparation, detection and analysis, containment, eradication, and recovery",
+      "semantic_type": "ConceptualRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-segmentation": {
+      "statement": "Implement subnetworks for publicly accessible system components that are separated from internal organizational networks.",
+      "excerpt": "Implement subnetworks for publicly accessible system components that are [unresolved OSCAL parameter: sc-07_odp] separated from internal organizational networks",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-boundary": {
+      "statement": "Communications at external managed interfaces to the system are controlled.",
+      "excerpt": "communications at external managed interfaces to the system are controlled",
+      "semantic_type": "ConceptualRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-ddos": {
+      "statement": "Mechanisms protect against or limit the effects of denial-of-service attacks.",
+      "excerpt": "Mechanisms protecting against or limiting the effects of denial-of-service attacks",
+      "semantic_type": "ConceptualRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-backup": {
+      "statement": "Conduct backups of system-level information contained in the system at an organization-defined frequency.",
+      "excerpt": "Conduct backups of system-level information contained in the system [organization-defined frequency];",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-malware": {
+      "statement": "Implement malicious code protection mechanisms at system entry and exit points to detect and eradicate malicious code.",
+      "excerpt": "Implement [unresolved OSCAL parameter: si-03_odp.01] malicious code protection mechanisms at system entry and exit points to detect and eradicate malicious code",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-data-at-rest": {
+      "statement": "Protect the organization-defined confidentiality or integrity property of organization-defined information at rest.",
+      "excerpt": "Protect the [unresolved OSCAL parameter: sc-28_odp.01] of the following information at rest: [organization-defined information at rest].",
+      "semantic_type": "ConceptualRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-configuration": {
+      "statement": "Establish and document restrictive configuration settings for system components consistent with operational requirements.",
+      "excerpt": "Establish and document configuration settings for components employed within the system that reflect the most restrictive mode consistent with operational requirements using [organization-defined common secure configurations]",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    },
+    "nist-default-deny": {
+      "statement": "Deny network communications traffic by default and allow it by exception.",
+      "excerpt": "Deny network communications traffic by default and allow network communications traffic by exception [unresolved OSCAL parameter: sc-07.05_odp.01].",
+      "semantic_type": "TechnicalRequirement",
+      "source": {
+        "name": "NIST SP 800-53 Revision 5",
+        "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "identity-account-management",
+      "family": "identity",
+      "split": "train",
+      "child_key": "azure-identity",
+      "parent_keys": ["nist-account", "nist-backup", "nist-ddos"],
+      "expected_parent_keys": ["nist-account"]
+    },
+    {
+      "id": "privileged-access",
+      "family": "privileged-access",
+      "split": "train",
+      "child_key": "azure-privileged",
+      "parent_keys": ["nist-least-privilege", "nist-incident", "nist-data-at-rest"],
+      "expected_parent_keys": ["nist-least-privilege"]
+    },
+    {
+      "id": "incident-handling",
+      "family": "incident",
+      "split": "train",
+      "child_key": "azure-incident",
+      "parent_keys": ["nist-incident", "nist-account", "nist-configuration"],
+      "expected_parent_keys": ["nist-incident"]
+    },
+    {
+      "id": "network-segmentation",
+      "family": "segmentation",
+      "split": "train",
+      "child_key": "azure-segmentation",
+      "parent_keys": ["nist-segmentation", "nist-backup", "nist-malware"],
+      "expected_parent_keys": ["nist-segmentation"]
+    },
+    {
+      "id": "private-network-connectivity",
+      "family": "private-connectivity",
+      "split": "validation",
+      "child_key": "azure-private-connectivity",
+      "parent_keys": ["nist-boundary", "nist-account", "nist-backup"],
+      "expected_parent_keys": ["nist-boundary"]
+    },
+    {
+      "id": "denial-of-service-protection",
+      "family": "denial-of-service",
+      "split": "validation",
+      "child_key": "azure-ddos",
+      "parent_keys": ["nist-ddos", "nist-incident", "nist-configuration"],
+      "expected_parent_keys": ["nist-ddos"]
+    },
+    {
+      "id": "backup-and-recovery",
+      "family": "backup",
+      "split": "validation",
+      "child_key": "azure-backup",
+      "parent_keys": ["nist-backup", "nist-least-privilege", "nist-segmentation"],
+      "expected_parent_keys": ["nist-backup"]
+    },
+    {
+      "id": "endpoint-malware-protection",
+      "family": "malware",
+      "split": "test",
+      "child_key": "azure-malware",
+      "parent_keys": ["nist-malware", "nist-backup", "nist-boundary"],
+      "expected_parent_keys": ["nist-malware"]
+    },
+    {
+      "id": "data-at-rest-protection",
+      "family": "data-at-rest",
+      "split": "test",
+      "child_key": "azure-data",
+      "parent_keys": ["nist-data-at-rest", "nist-account", "nist-ddos"],
+      "expected_parent_keys": ["nist-data-at-rest"]
+    },
+    {
+      "id": "secure-configuration",
+      "family": "configuration",
+      "split": "test",
+      "child_key": "azure-configuration",
+      "parent_keys": ["nist-configuration", "nist-incident", "nist-backup"],
+      "expected_parent_keys": ["nist-configuration"]
+    },
+    {
+      "id": "network-security-perimeter",
+      "family": "network-security-perimeter",
+      "split": "test",
+      "child_key": "azure-nsp",
+      "parent_keys": ["nist-default-deny", "nist-account", "nist-malware"],
+      "expected_parent_keys": ["nist-default-deny"]
+    },
+    {
+      "id": "no-defensible-parent",
+      "family": "negative-network-hardening",
+      "split": "test",
+      "child_key": "azure-nsp",
+      "parent_keys": ["nist-backup", "nist-incident", "nist-data-at-rest"],
+      "expected_parent_keys": []
+    }
+  ]
+}

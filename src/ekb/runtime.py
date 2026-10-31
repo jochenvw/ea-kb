@@ -7,6 +7,7 @@ from ekb.adapters.artifacts import AzureBlobArtifactStore, FilesystemArtifactSto
 from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference, RulesInference
 from ekb.adapters.inference.assertions import OpenAIAssertionWriter
 from ekb.adapters.inference.reconciliation import OpenAIEmbeddings, OpenAISemanticVerifier
+from ekb.adapters.inference.traceability import OpenAITraceabilityMapper
 from ekb.adapters.parsers import StructuredParser
 from ekb.adapters.persistence.postgres import Postgres
 from ekb.adapters.sources import (
@@ -26,6 +27,7 @@ from ekb.ports import (
     IngestionSkills,
     SemanticVerifier,
     SourceConnector,
+    TraceabilityMapper,
 )
 from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
 from ekb.services.assertions import AssertionService
@@ -71,6 +73,11 @@ class Runtime:
         )
         self.embeddings: EmbeddingPort | None = (
             OpenAIEmbeddings(self.settings) if self.settings.embedding_model_id else None
+        )
+        self.traceability_mapper: TraceabilityMapper | None = (
+            OpenAITraceabilityMapper(self.settings)
+            if self.settings.reconciliation_model_id
+            else None
         )
         self._connectors: list[SourceConnector] = []
         self._connector_cache: dict[tuple[str, str], list[SourceConnector]] = {}
@@ -143,7 +150,15 @@ class Runtime:
                     ),
                 )
             )
-            registry.register(enrichment_stage(self.database, self.verifier, self.embeddings))
+            registry.register(
+                enrichment_stage(
+                    self.database,
+                    self.verifier,
+                    self.embeddings,
+                    self.traceability_mapper,
+                    model_concurrency=self.settings.model_concurrency,
+                )
+            )
             registry.register(issues_stage(self.database))
         return PipelineOrchestrator(
             self.database, registry, progress.execution if progress else None
@@ -209,7 +224,7 @@ class Runtime:
                 await connector.close()
         if isinstance(self.inference, OpenAIInference):
             await self.inference.close()
-        for provider in (self.verifier, self.embeddings):
+        for provider in (self.verifier, self.embeddings, self.traceability_mapper):
             close = getattr(provider, "close", None)
             if close is not None:
                 await close()

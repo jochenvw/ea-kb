@@ -108,6 +108,9 @@ uv run ekb pipeline resume RUN_UUID
 
 Set `EKB_CONFIG_FILE` in both terminals when using a nondefault profile; `--config` selects only the
 invocation on which it appears. Status includes run, stage and check IDs, attempts and error types.
+Check statistics include durable company-alignment, platform-control parenting and sibling-comparison
+coverage, including orphan, multi-parent and unscanned counts. Model-backed control mapping requires
+the configured reconciliation model; without it the scan reports gaps rather than inventing links.
 After interruption, resume the same run rather than resetting it. The pipeline's renewable lease
 prevents concurrent owners. Each non-dry-run scan, including a standalone scan before it claims
 any tasks, also has a renewable, fenced lease. Crashed pipeline and scan leases expire after up to
@@ -174,6 +177,7 @@ It uses Microsoft Agent Framework for the two bounded ingestion skills. Optional
 cheaper labeling deployment with `EKB_LABELING_MODEL_ID`; blank uses `EKB_MODEL_ID` for both.
 This override shares the endpoint/capability limits but needs its own labeling token prices.
 Use `ekb eval skills --skill labeling` / `--skill extraction` to evaluate each independently.
+Use `ekb eval provenance --live --split test` to qualify grounded control-parent selection.
 Environment/`.env` overrides still apply; check the printed provider/model IDs before starting.
 Keep account-specific profiles under ignored `data`, never commit tokens or keys. An existing
 deployment and a successful smoke test prove access, not quality: run the held-out qualification

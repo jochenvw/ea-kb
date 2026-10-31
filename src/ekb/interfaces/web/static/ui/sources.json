@@ -22,7 +22,7 @@
   "frontend/src/lib/api.ts": "1685c37a7a764e692d5a83e6b4e364812a820e1c010f4cf70d93d9b5a9107b8e",
   "frontend/src/lib/utils.ts": "d1f1e0d62cb8d8d1e04c26e14de842d8a151f75812d81b046c65b5d1fe8e4b27",
   "frontend/src/main.tsx": "4ac2bcc4100fd25ed5fdb17c295c1af1e74a47f6b1a24d605e321acc03c48a6a",
-  "frontend/src/network.tsx": "722695c5c03aac54f166675bc2f251b3f32138aceb33407b083ba380089dba0e",
+  "frontend/src/network.tsx": "1d0805d69700977390a6746f50a035149effbe8e19b92674cba0ab93c9e92117",
   "frontend/src/ontology-diagram.tsx": "a8a351889985c448f4bef6d581028263b184220fcc5af2e66f5a545d5b86df1e",
   "frontend/src/ontology.tsx": "994f01272257af3cf341c68491d3291ad0b5b221de36d78e7babc261d66bd6cc",
   "frontend/src/reference.tsx": "1661eaa68e5de9d21b5e42d1f7ff6827c7988e2867498ec8b4e19bfcdb50ceba",

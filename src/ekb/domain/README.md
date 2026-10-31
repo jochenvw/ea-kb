@@ -12,6 +12,7 @@
 - `reconciliation.py` types generic assertions, judgments and discriminated replay entries.
   Cached vectors are finite, nonzero and bounded; judgments require source-grounding checks on use.
   Verification status is separate from adapter-defined methods and from an `unknown` judgment.
+- `traceability.py` types bounded control-to-requirement selections with exact evidence on both ends.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
   alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.

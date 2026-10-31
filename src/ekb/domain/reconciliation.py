@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import Field, ValidationInfo, field_validator
 
 from ekb.domain.models import Model, Scope, SemanticType, Usage
+from ekb.domain.traceability import TraceabilitySelection
 
 type SemanticOutcome = Literal[
     "exact_duplicate",
@@ -101,8 +102,15 @@ class CachedVerification(Model):
         return method
 
 
+class CachedTraceability(Model):
+    kind: Literal["traceability"] = "traceability"
+    selection: TraceabilitySelection
+    method: str
+    model_id: str | None = None
+
+
 type SemanticCacheEntry = Annotated[
-    CachedEmbedding | CachedVerification, Field(discriminator="kind")
+    CachedEmbedding | CachedVerification | CachedTraceability, Field(discriminator="kind")
 ]
 
 

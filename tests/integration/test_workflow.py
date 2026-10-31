@@ -27,6 +27,7 @@ from ekb.domain.models import (
     now,
 )
 from ekb.domain.reconciliation import (
+    CachedTraceability,
     EmbeddingResult,
     SemanticAssertion,
     SemanticJudgment,
@@ -34,6 +35,7 @@ from ekb.domain.reconciliation import (
     VerificationStatus,
 )
 from ekb.domain.resolution import Decision, active_aliases
+from ekb.domain.traceability import TraceabilitySelection
 from ekb.interfaces.api import create_app
 from ekb.interfaces.tui import KnowledgeApp
 from ekb.ports.workflow import CheckResult
@@ -43,6 +45,21 @@ from ekb.stages.enrichment import Check
 from ekb.stages.semantic import _embeddings, _verification, _verification_key
 
 pytestmark = pytest.mark.integration
+
+
+async def test_traceability_replay_entries_satisfy_database_constraint(database):
+    entry = CachedTraceability(
+        selection=TraceabilitySelection(unresolved_reason="No defensible parent."),
+        method="small_model",
+        model_id="synthetic-model",
+    )
+    async with database() as uow:
+        await uow.workflow.save_semantic_cache({"traceability-test": entry})
+        await uow.commit()
+    async with database() as uow:
+        assert await uow.workflow.semantic_cache(["traceability-test"]) == {
+            "traceability-test": entry
+        }
 
 
 async def prepare(database, tmp_path):

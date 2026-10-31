@@ -252,8 +252,8 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: sc-28
-          semantic_type: TechnicalRequirement
-          excerpt_contains: information at rest
+          semantic_type: ConceptualRequirement
+          excerpt_contains: "Protect the [unresolved OSCAL parameter: sc-28_odp.01]"
         controls:
           - source_id: asb-v2
             heading: Overview of Azure security controls (v2)
@@ -270,10 +270,10 @@ sources:
           excerpt_contains: Establish and document configuration settings for components employed
         controls:
           - source_id: asb-v2-network
-            heading: "NS-6: Simplify network security rules"
+            heading: "NS-1: Implement security for internal traffic"
             semantic_type: PlatformRequirement
-            excerpt_contains: service tags and application security groups
-        rationale: Azure service tags and application security groups refine NIST secure-configuration requirements within the Configuration management domain in support of the NIST SP 800-53 control baseline.
+            excerpt_contains: Adaptive Network Hardening to recommend network security group configurations
+        rationale: Azure adaptive network hardening refines NIST secure-configuration requirements within the Configuration management domain in support of the NIST SP 800-53 control baseline.
   - id: iso-iec-27001-metadata
     publisher: International Organization for Standardization
     name: ISO/IEC 27001 information security management systems

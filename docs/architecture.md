@@ -171,6 +171,20 @@ Generic semantic enrichment unions lexical candidates with independently retriev
 from a bounded assertion pool. Completed checks are durably replayed. A single generic cache also
 reuses validated embeddings and grounded verification results across check versions when the provider
 and exact semantic inputs match; changed inputs or provider fingerprints can incur new calls.
+
+Layered provenance runs as three ordered enrichment checks. `company_alignment` deterministically
+connects platform-independent knowledge to explicit source-adoption requirements, allowing company
+intent with no technical descendants. `platform_alignment` embeds a bounded parent pool and asks the
+configured traceability mapper to select only grounded broader requirements for each platform control.
+`sibling_control_comparison` then compares controls under the same inferred or configured parent for
+duplicates, adjacency, distinction or tension. Same-stage findings are passed forward in memory and
+persisted only as reviewable findings; no model accepts policy or creates canonical knowledge.
+Downstream check fingerprints include earlier check-output revisions, and a rerun reproduces its own
+active findings instead of treating them as pre-existing authority and silently deactivating them.
+The issue stage enforces the asymmetric contract: every platform-agnostic concept needs a path to
+company intent, every platform control needs a platform-agnostic requirement parent, while company
+concepts may be leaves and platform-agnostic concepts may have no implementation children. Per-check
+coverage, orphan, multi-parent, candidate, sibling and usage statistics remain in pipeline executions.
 `infra\main.bicep` describes minimal Entra-only Foundry model resources, with an optional teacher
 disabled by default. Configuration/deployment does not establish provider quality.
 
@@ -218,7 +232,8 @@ returns bounded source/version pages, concept neighborhoods, active proposal que
 previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill-down selects
 versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
 Graphs distinguish configured links, persisted relationship assertions, proposal records and
-source-history links. A bounded three-hop neighborhood exposes company → domain → agnostic
+source-history links. Inferred provenance links are visible by default but remain dashed and
+review-only. A bounded three-hop neighborhood exposes company → domain → agnostic
 requirement → platform-control chains and source provenance for every retained concept; it does not
 invent unresolved targets or confer version-specific authority.
 
@@ -320,7 +335,7 @@ specialized benchmark tables and `concept_aliases`, then add `semantic_replay_ca
 | `segment_results` | Validated skill replay indexed by fingerprint and linked to its originating segment |
 | `pipeline_executions` | Pipeline/stage/check attempts, results and artifacts |
 | `pipeline_leases` | Renewable pipeline ownership and fencing |
-| `semantic_replay_cache` | Provider/input-keyed validated embeddings and grounded verification judgments, independent of check versions |
+| `semantic_replay_cache` | Provider/input-keyed validated embeddings, semantic judgments and traceability selections, independent of check versions |
 | `enrichment_findings` | Evidence-bound proposals produced by enrichment checks |
 | `reconciliation_decisions` | Append-only, reversible finding decisions and decision heads |
 | `knowledge_issues` | Deduplicated issues, observations and lifecycle state |

@@ -5,11 +5,25 @@ import asyncio
 from ekb.domain.execution import ArtifactReference, CheckOptions, Execution, ProcessorSpec
 from ekb.domain.issues import consolidate
 from ekb.domain.models import fingerprint, now
-from ekb.domain.resolution import Decision, decision_heads
+from ekb.domain.resolution import Decision, Finding, decision_heads
 from ekb.observability import log, tracer
 from ekb.observability.metrics import count
 from ekb.ports import UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, KnowledgeCheck, StageContext
+
+
+def _check_cache_key(
+    check: KnowledgeCheck,
+    options: CheckOptions,
+    input_revision: str,
+    prior_revisions: list[str],
+) -> str:
+    return fingerprint(
+        spec=check.spec.model_dump(),
+        options=options.model_dump(),
+        input=input_revision,
+        prior=prior_revisions,
+    )
 
 
 class CheckedStage:
@@ -27,13 +41,13 @@ class CheckedStage:
             upstream=[i.revision for i in context.inputs],
         )
         record_ids = []
+        prior_findings: list[Finding] = []
+        prior_revisions: list[str] = []
         for check in self.checks:
             options = context.configuration.checks.get(check.spec.id, CheckOptions())
             if not options.enabled:
                 continue
-            cache_key = fingerprint(
-                spec=check.spec.model_dump(), options=options.model_dump(), input=input_revision
-            )
+            cache_key = _check_cache_key(check, options, input_revision, prior_revisions)
             execution = Execution(
                 parent_id=context.execution_id,
                 kind="check",
@@ -47,6 +61,11 @@ class CheckedStage:
                 cached = await uow.workflow.successful(execution.processor_id, cache_key)
             if cached and cached.output and self.spec.id != "indexing":
                 record_ids.extend(cached.output.record_ids)
+                prior_revisions.append(cached.output.revision)
+                active_ids = set(cached.output.record_ids)
+                prior_findings.extend(
+                    finding for finding in snapshot.findings if finding.id in active_ids
+                )
                 execution = execution.model_copy(
                     update={
                         "status": "skipped",
@@ -78,6 +97,7 @@ class CheckedStage:
                         options=options,
                         stage_configuration=context.configuration,
                         check_version=check.spec.version,
+                        prior_findings=tuple(prior_findings),
                     )
                     result = await check.evaluate(check_context)
                     result = result.model_copy(update={"issues": consolidate(result.issues)})
@@ -137,12 +157,15 @@ class CheckedStage:
                                         if result.usage.cost is not None
                                         else {}
                                     ),
+                                    **result.statistics,
                                 },
                             }
                         )
                         await uow.workflow.save_execution(execution)
                         await uow.commit()
                     record_ids.extend(ids)
+                    prior_revisions.append(output.revision)
+                    prior_findings.extend(result.findings)
                     log.info(
                         "pipeline_check_done",
                         check_id=check.spec.id,

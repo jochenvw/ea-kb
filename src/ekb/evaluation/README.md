@@ -3,6 +3,7 @@
 This package runs source-grounded extraction, classification and qualification evaluations.
 `__init__.py` runs grounded extraction cases and scores aggregate cross-case metrics.
 `skills.py` uses Pydantic Evals for isolated ontology/scope labeling and gold-routed extraction.
+`provenance.py` evaluates grounded platform-control parent selection and retains immutable reports.
 Its retry totals use provider measurements; incomplete request or retry accounting stays unknown.
 `limits.py` coordinates optional per-request, per-deployment quota reservations for skill runs.
 `history.py` atomically publishes create-only reports and recoverable typed indexes for `eval list/history`.
