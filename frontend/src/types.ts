@@ -105,7 +105,10 @@ export interface Concept {
     status: string;
   }[];
   matching_version_id?: string | null;
-  levels?: Record<string, "top_level" | "implementation">;
+  levels?: Record<
+    string,
+    "company" | "platform_agnostic" | "platform_specific" | "unclassified"
+  >;
   sources?: {
     id: string;
     name: string;

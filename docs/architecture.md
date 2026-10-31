@@ -73,6 +73,7 @@ assets, independent fingerprints and evaluations. The implemented ingestion skil
 | Parse | Deterministic parsers/OCR and parse replay | Exact source segments and locations |
 | Label | `IngestionSkills.label`, `skills\labeling.md` | Evidence-backed, multi-label ontology types and explicit scopes |
 | Extract within labels | `IngestionSkills.extract_scoped`, `skills\extraction.md` | Typed candidates/relationships restricted to the labeled evidence, type and scope |
+| Reconcile strategy | `StrategyReconciliationPort.reconcile_strategy`, `skills\strategy_reconciliation.md` | Compact, deduplicated source-level goals and fundamental requirements with safe lower-layer reclassification |
 
 Inventory/acquisition completes before semantic processing starts, including ordinary `scan`.
 The historical `indexing` orchestration stage still wraps the complete ingestion use case; its name
@@ -82,8 +83,11 @@ model-backed skills run only when explicitly configured.
 Architecture layer and applicability are independent: a business-unit goal is still a
 `StrategicGoal`, not a technical requirement. Typed labels use the seven OWL class identifiers in
 `ontology\ontology\ekb.ttl`; `OrganizationalScope` describes applicability. Unknown layers remain
-null with an explanation. Architecture-domain labels remain classification metadata and are not
-materialized as requirements. The OWL catalog loader performs no reasoning or scope inheritance.
+null with an explanation. An explicitly named, source-grounded, platform-independent area of
+architectural concern may be materialized as an `ArchitectureDomain` concept; it remains a
+classification concept, not a requirement. The OWL catalog loader performs no reasoning or scope
+inheritance. An explicit parsed section heading may ground a named organizational-unit scope for
+content in that section; generic headings, filenames and publishers cannot.
 
 Label checkpoints commit separately before extraction, reusing the existing typed JSON replay
 store without a schema migration. Extraction-only changes/failures reuse labels; a successful
@@ -110,9 +114,11 @@ The read-only `/api/ontology` catalog and `/ontology` browser expose concepts, s
 classification properties, exact definitions, IRIs, version, domain/range and OWL characteristics.
 No database, inference call, ontology editing or OWL reasoning is required to view the vocabulary.
 
-`SemanticType` covers all seven classes; extracted goal/requirement candidates use `semantic_type`,
-not a second objective/requirement kind. Organizational scopes and architecture domains are labeling
-context, not requirement candidates. Unsupported classifications stay null, not an invented class.
+`SemanticType` covers all seven classes; extracted concepts use `semantic_type`, not a second
+objective/requirement kind. Organizational scopes remain applicability metadata rather than
+candidate concepts. Architecture domains are retained only when the source explicitly names the
+technology-independent concern; they are never inferred from a publisher, document title or heading.
+Unsupported classifications stay null, not an invented class.
 `concept_versions.semantic_type` is indexed, SQL-constrained to ontology classes and checked against
 its candidate payload. Classification belongs to each interpretation/version, not a timeless record.
 Initial identity includes semantic type; explicit later interpretations retain their predecessor chain.
@@ -181,9 +187,15 @@ disabled by default. Configuration/deployment does not establish provider qualit
    or executes extraction within the labeled spans/scopes. Results must satisfy schema, exact
    grounding, ontology classification consistency and qualifier/scope checks. Domain-only and irrelevant
    content skips model extraction. Image-only segments remain references and do not enter text inference.
-5. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
+5. Model-backed ingestion defers all `StrategicGoal` and `StrategicRequirement` candidates until
+   bounded source-level reconciliation. The reconciler removes duplicate goal formulations, keeps
+   company obligations compact, preserves scope/metrics/dates and may reclassify overpromoted
+   requirements only to an evidence-supported ontology class. A manifest source may set
+   `extract_strategy: false` when it corroborates a designated strategy source; its non-strategy
+   knowledge remains eligible, and the setting participates in the processing fingerprint.
+6. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
    usage commit together. Task/scan records expose completion, partial failure or cancellation.
-6. Inspection bypasses ingestion: an interface calls `KnowledgeService`, which opens a unit of
+7. Inspection bypasses ingestion: an interface calls `KnowledgeService`, which opens a unit of
    work and returns domain values. Provenance joins occurrences, segments, source revisions and
    source inventory; retrieving an explanation does not require a model call.
 
@@ -380,12 +392,17 @@ adjacent passages from the same revision/parser; section labels distinguish neig
 versions evidenced by that source, and assertion caches are reused only for their evidenced source.
 
 Knowledge levels are derived read projections, not new semantic identities or authority states.
-`StrategicGoal` and platform-independent requirements remain top-level; `PlatformRequirement`
-represents implementations. Absent scope is not evidence of universal applicability.
-Source, text and level filters constrain the same version before paging. Original payloads stay intact.
-Graphs place goals/guidance above implementations and keep source evidence separate. They show only
-persisted, evidenced ontology relationships and review proposals; missing or ambiguous links are not
-drawn. Relationships do not establish equivalence, compliance or company-goal alignment.
+The **company** layer contains `StrategicGoal` and `StrategicRequirement`; its focused workspace
+shows enterprise goals and strategic requirements, while subordinate and business-unit goals remain
+available in the diagnostic all-knowledge view. The
+**platform-agnostic** layer contains `ArchitectureDomain`, `ConceptualRequirement` and
+`TechnicalRequirement`; the **platform-specific** layer contains `PlatformRequirement`.
+Unclassified interpretations remain separate. These layers drive the `/company`, `/architecture`
+and `/platforms` workspaces and graph lanes; they do not assert ontology subclassing, authority or
+universal applicability. Source, text, semantic-type and level filters constrain the same version
+before paging. Original payloads stay intact. Graphs keep source evidence separate and show only
+persisted, evidenced ontology relationships and review proposals; missing or ambiguous links are
+not drawn. Relationships do not establish equivalence, compliance or company-goal alignment.
 
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
 Ingestion runs through CLI commands, including the independent `ekb worker`; web startup and

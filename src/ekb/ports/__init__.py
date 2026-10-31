@@ -29,6 +29,7 @@ from ekb.domain.models import (
     PublicationMetadata,
     ScanReport,
     Segment,
+    SemanticType,
     SourceItem,
     SourceRecord,
     SourceRevision,
@@ -85,10 +86,10 @@ class IngestionSkills(InferencePort, Protocol):
 
 
 @runtime_checkable
-class GoalSynthesisPort(Protocol):
-    goal_synthesis_fingerprint: str
+class StrategyReconciliationPort(IngestionSkills, Protocol):
+    strategy_reconciliation_fingerprint: str
 
-    async def synthesize_goals(self, segment: Segment) -> InferenceResult: ...
+    async def reconcile_strategy(self, segment: Segment) -> InferenceResult: ...
 
 
 class ModelRequestLimiter(Protocol):
@@ -152,6 +153,7 @@ class KnowledgeRepository(Protocol):
         after: UUID | None = None,
         source_id: UUID | None = None,
         level: KnowledgeLevel | None = None,
+        semantic_types: tuple[SemanticType, ...] | None = None,
     ) -> list[ConceptDetail]: ...
     async def save_assertion(self, version_id: UUID, assertion: Assertion) -> None: ...
     async def get(self, concept_id: UUID) -> ConceptDetail | None: ...

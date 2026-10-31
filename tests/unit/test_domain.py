@@ -99,6 +99,21 @@ def test_scope_and_modality_validation():
         ).modality
         == Modality.UNSPECIFIED
     )
+    assert (
+        Candidate(
+            semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+            statement="Identity management",
+            excerpt="Identity management",
+        ).semantic_type
+        is SemanticType.ARCHITECTURE_DOMAIN
+    )
+    with pytest.raises(ValidationError):
+        Candidate(
+            semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+            statement="Azure identity",
+            excerpt="Azure identity",
+            scope=Scope(platform="Azure"),
+        )
 
 
 @pytest.mark.parametrize(

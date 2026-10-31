@@ -3,15 +3,17 @@
 `__init__.py` implements `RulesInference`, `OpenAIInference` and optional `AgentFrameworkInference`.
 `reconciliation.py` adds explicitly configured small-model verification and bounded embeddings.
 `assertions.py` rephrases selected candidates as source-grounded single-sentence assertions.
-`skills\labeling.md`, `skills\extraction.md` and `skills\goal_synthesis.md` are independently
+`skills\labeling.md`, `skills\extraction.md` and `skills\strategy_reconciliation.md` are independently
 hashed, bounded runtime prompts.
 Canonical OWL definitions are appended by task; definition/schema changes invalidate prompt replay.
 
 - Input is a persisted segment; output is typed extraction, provider identity and measured usage.
 - `label` identifies ontology spans/scopes; `extract_scoped` cannot broaden their scope or type.
   A separate labeling deployment is optional; unknown layers remain explicit.
-- `synthesize_goals` consolidates already extracted evidence into at most ten enterprise goals;
-  subordinate targets and other concept kinds are rejected by deterministic validation.
+- `reconcile_strategy` reconciles goals and strategic requirements, corrects overclassified
+  requirements, and removes duplicates without dropping distinct scope or qualifiers;
+  every goal level is allowed, while deterministic validation rejects unsupported ontology types,
+  invented evidence, relationships and missing source keys.
 - Rules are an explicitly limited offline baseline, not an automatic model-failure fallback; they
   emit only explicit organization-vision goals rather than promoting generic aim/target wording.
 - Model output must pass schema/exact-evidence validation; retries and context limits are bounded.

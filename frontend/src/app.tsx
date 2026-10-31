@@ -2,9 +2,12 @@ import { useState } from "react";
 import {
   ArrowUpRight,
   BookOpen,
+  Blocks,
+  Building2,
   CheckCheck,
   ChevronRight,
   CircleHelp,
+  CloudCog,
   Database,
   Files,
   Layers3,
@@ -52,10 +55,22 @@ const navigation = [
   },
   { href: "/sources", name: "Sources", icon: Files, group: "Consolidate" },
   {
-    href: "/knowledge",
-    name: "Interpretations",
-    icon: BookOpen,
-    group: "Consolidate",
+    href: "/company",
+    name: "Company intent",
+    icon: Building2,
+    group: "Knowledge",
+  },
+  {
+    href: "/architecture",
+    name: "Platform-agnostic",
+    icon: Blocks,
+    group: "Knowledge",
+  },
+  {
+    href: "/platforms",
+    name: "Platforms & controls",
+    icon: CloudCog,
+    group: "Knowledge",
   },
   {
     href: "/explore",
@@ -92,12 +107,17 @@ const navigation = [
 export function App() {
   const path = window.location.pathname;
   const query = new URLSearchParams(window.location.search);
+  const conceptView = query.get("view");
   const section = path.startsWith("/concepts/")
-    ? "/knowledge"
+    ? conceptView === "architecture"
+      ? "/architecture"
+      : conceptView === "platforms"
+        ? "/platforms"
+        : "/company"
     : path.startsWith("/sources/")
       ? "/sources"
       : path === "/" && query.has("q")
-        ? "/knowledge"
+        ? "/company"
         : path;
   const active =
     navigation.find((item) => item.href === section) ?? navigation[0];
@@ -136,30 +156,34 @@ export function App() {
             <small>Architecture standards</small>
           </span>
         </a>
-        {["Workspace", "Consolidate", "Reference", "Operations"].map(
-          (group) => (
-            <div className="nav-group" key={group}>
-              <p className="nav-label">{group.toUpperCase()}</p>
-              <nav aria-label={`${group} navigation`}>
-                {navigation
-                  .filter((item) => item.group === group)
-                  .map((item) => (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      aria-current={section === item.href ? "page" : undefined}
-                    >
-                      <item.icon aria-hidden="true" />
-                      {item.name}
-                      {section === item.href && (
-                        <ChevronRight className="nav-arrow" />
-                      )}
-                    </a>
-                  ))}
-              </nav>
-            </div>
-          ),
-        )}
+        {[
+          "Workspace",
+          "Consolidate",
+          "Knowledge",
+          "Reference",
+          "Operations",
+        ].map((group) => (
+          <div className="nav-group" key={group}>
+            <p className="nav-label">{group.toUpperCase()}</p>
+            <nav aria-label={`${group} navigation`}>
+              {navigation
+                .filter((item) => item.group === group)
+                .map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    aria-current={section === item.href ? "page" : undefined}
+                  >
+                    <item.icon aria-hidden="true" />
+                    {item.name}
+                    {section === item.href && (
+                      <ChevronRight className="nav-arrow" />
+                    )}
+                  </a>
+                ))}
+            </nav>
+          </div>
+        ))}
         <div className="sidebar-bottom">
           <Separator />
           <div className="workspace-label">
@@ -209,12 +233,25 @@ export function App() {
         </header>
         <main id="main">
           {section === "/" && <Overview />}
-          {section === "/knowledge" &&
+          {section === "/company" &&
             (path.startsWith("/concepts/") ? (
               <ConceptPage id={path.split("/")[2]} governance={governance} />
             ) : (
-              <Knowledge />
+              <Knowledge view="company" />
             ))}
+          {section === "/architecture" &&
+            (path.startsWith("/concepts/") ? (
+              <ConceptPage id={path.split("/")[2]} governance={governance} />
+            ) : (
+              <Knowledge view="architecture" />
+            ))}
+          {section === "/platforms" &&
+            (path.startsWith("/concepts/") ? (
+              <ConceptPage id={path.split("/")[2]} governance={governance} />
+            ) : (
+              <Knowledge view="platforms" />
+            ))}
+          {section === "/knowledge" && <Knowledge view="all" />}
           {section === "/review" && <Review governance={governance} />}
           {section === "/sources" &&
             (path.startsWith("/sources/") ? (
@@ -231,8 +268,8 @@ export function App() {
         <footer className="workspace-footer">
           <ShieldCheck size={14} />
           <span>
-            Interpretations are candidates, not approved enterprise policy.
-            Publication maturity and scoped adoption are separate decisions.
+            Knowledge candidates are not approved enterprise policy. Publication
+            maturity and scoped adoption are separate decisions.
           </span>
         </footer>
       </div>
@@ -272,9 +309,19 @@ function Overview() {
               "Inspect publisher, edition, retrieval and document maturity. Source selection is operator-configured.",
             ],
             [
-              "/knowledge?level=",
-              "Review interpretations",
-              "Check the ontology class, exact source passage and organizational scope.",
+              "/company",
+              "Clarify company intent",
+              "Review the small set of enterprise goals and fundamental obligations before designing solutions.",
+            ],
+            [
+              "/architecture",
+              "Shape platform-agnostic architecture",
+              "Organize domains, conceptual requirements and vendor-neutral technical constraints.",
+            ],
+            [
+              "/platforms",
+              "Inspect platform controls",
+              "Evaluate product-specific implementations without mistaking publisher guidance for adoption.",
             ],
             [
               "/explore",
@@ -290,7 +337,7 @@ function Overview() {
             <li key={href}>
               <a href={href}>
                 <span className="journey-number" aria-hidden="true">
-                  0{index + 1}
+                  {String(index + 1).padStart(2, "0")}
                 </span>
                 <h3>
                   {title}

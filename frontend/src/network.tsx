@@ -60,8 +60,10 @@ export function Explorer() {
           onChange={setLevel}
           options={[
             ["", "All levels"],
-            ["top_level", "Goals & guidance"],
-            ["implementation", "Platform implementation"],
+            ["company", "Company intent"],
+            ["platform_agnostic", "Platform-agnostic architecture"],
+            ["platform_specific", "Platform-specific controls"],
+            ["unclassified", "Unclassified"],
           ]}
         />
         <LoadState
@@ -146,17 +148,22 @@ export function RelationshipGraph({ id }: { id: string }) {
   const positions = new Map<string, { x: number; y: number }>();
   let height = 0;
   const lanes = [
-    { key: "top_level", title: "Goals & guidance" },
-    { key: "implementation", title: "Platform implementation" },
-    ...(nodes.some((node) => node.kind !== "source" && !node.level)
-      ? [{ key: "unknown", title: "Level not classified" }]
+    { key: "company", title: "Company intent" },
+    { key: "platform_agnostic", title: "Platform-agnostic architecture" },
+    { key: "platform_specific", title: "Platform-specific controls" },
+    ...(nodes.some(
+      (node) =>
+        node.kind !== "source" &&
+        (!node.level || node.level === "unclassified"),
+    )
+      ? [{ key: "unclassified", title: "Level not classified" }]
       : []),
     { key: "source", title: "Source evidence" },
   ].map((lane) => {
     const members = nodes.filter((node) =>
       lane.key === "source"
         ? node.kind === "source"
-        : node.kind !== "source" && (node.level ?? "unknown") === lane.key,
+        : node.kind !== "source" && (node.level ?? "unclassified") === lane.key,
     );
     const y = height;
     const size = Math.max(1, Math.ceil(members.length / 3)) * 132 + 52;
@@ -172,13 +179,13 @@ export function RelationshipGraph({ id }: { id: string }) {
   return (
     <Panel
       title="Evidence & relationship map"
-      description="Concept-level context across retained versions, not proof for a selected version. Goals and guidance sit above platform implementations. Dashed proposals require review and do not establish equivalence or authority."
+      description="Concept-level context across retained versions, not proof for a selected version. Company intent, platform-agnostic architecture and platform implementations remain distinct. Dashed proposals require review and do not establish equivalence or authority."
     >
       <LoadState resource={resource}>
         {graph && (
           <>
             <div className="graph-legend">
-              <span>Intent above implementation</span>
+              <span>Intent → architecture → implementation</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -228,7 +235,7 @@ export function RelationshipGraph({ id }: { id: string }) {
                     </text>
                     {lane.empty && (
                       <text x="32" y={lane.y + 80} className="graph-kind">
-                        {lane.key === "implementation"
+                        {lane.key === "platform_specific"
                           ? "No recorded platform implementation linked."
                           : "No recorded nodes at this level."}
                       </text>

@@ -11,13 +11,16 @@ def validate_labeling(labeling: ContentLabeling, segment: Segment) -> None:
         if label.excerpt not in segment.text:
             raise GroundingError("Label evidence is not an exact source substring")
         for value in label.scope.model_dump(mode="json", exclude_none=True).values():
-            if str(value) not in label.excerpt:
-                raise GroundingError("Labeled scope must occur verbatim in its evidence")
+            if str(value) not in label.excerpt and str(value) not in (segment.heading or ""):
+                raise GroundingError(
+                    "Labeled scope must occur verbatim in its evidence or section heading"
+                )
         if label.semantic_type == SemanticType.PLATFORM_REQUIREMENT and not label.scope.platform:
             raise GroundingError("Platform labels require an evidenced platform")
         if (
             label.semantic_type
             in {
+                SemanticType.ARCHITECTURE_DOMAIN,
                 SemanticType.CONCEPTUAL_REQUIREMENT,
                 SemanticType.TECHNICAL_REQUIREMENT,
             }
@@ -52,7 +55,6 @@ def validate_scoped_extraction(
         if not any(
             label.semantic_type
             not in {
-                SemanticType.ARCHITECTURE_DOMAIN,
                 SemanticType.ORGANIZATIONAL_SCOPE,
             }
             and candidate.semantic_type == label.semantic_type

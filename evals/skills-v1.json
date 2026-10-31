@@ -1,5 +1,5 @@
 {
-  "version": "ingestion-skills-v1",
+  "version": "ingestion-skills-v4",
   "review_status": "provisional",
   "cases": [
     {
@@ -25,9 +25,19 @@
       "family": "network-protection",
       "split": "test",
       "source": {"id":"ns1","group":"network-protection","split":"test","url":"https://learn.microsoft.com/en-us/security/benchmark/azure/mcsb-network-security","sha256":"f0d38be4ad7c9a15ed4398a96f32930b626d3d56e86a47ef790ffadd8f83e9d6","attribution":"Microsoft Corporation; CC-BY-4.0"},
+      "heading": "Network Security",
       "text": "Use web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, and Azure Content Delivery Network (CDN) to protect your applications, services and APIs against application layer attacks at the edge of your network.",
       "labeling": {"labels": [{"semantic_type": "PlatformRequirement", "excerpt": "Use web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, and Azure Content Delivery Network (CDN) to protect your applications, services and APIs against application layer attacks at the edge of your network.", "scope": {"platform": "Azure"}}]},
       "expected": {"candidates": [{"semantic_type": "PlatformRequirement", "statement": "Use web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, and Azure Content Delivery Network (CDN) to protect your applications, services and APIs against application layer attacks at the edge of your network.", "excerpt": "Use web application firewall (WAF) capabilities in Azure Application Gateway, Azure Front Door, and Azure Content Delivery Network (CDN) to protect your applications, services and APIs against application layer attacks at the edge of your network.", "scope": {"platform": "Azure"}}]}
+    },
+    {
+      "id": "test-heading-only-requirement-negative",
+      "family": "synthetic-heading-context",
+      "split": "test",
+      "heading": "Establish network segmentation boundaries",
+      "text": "Example: an application stores sensitive data.",
+      "labeling": {"labels": []},
+      "expected": {"candidates": []}
     },
     {
       "id": "source-clock-synchronization",
@@ -102,7 +112,7 @@
       "split": "validation",
       "text": "Architecture domain: Identity management.",
       "labeling": {"labels": [{"semantic_type": "ArchitectureDomain", "excerpt": "Architecture domain: Identity management."}]},
-      "expected": {"candidates": []}
+      "expected": {"candidates": [{"semantic_type": "ArchitectureDomain", "statement": "Architecture domain: Identity management.", "excerpt": "Architecture domain: Identity management."}]}
     },
     {
       "id": "test-mixed-scopes",
@@ -148,7 +158,7 @@
       "split": "test",
       "text": "Architecture domain: Network security.",
       "labeling": {"labels": [{"semantic_type": "ArchitectureDomain", "excerpt": "Architecture domain: Network security."}]},
-      "expected": {"candidates": []}
+      "expected": {"candidates": [{"semantic_type": "ArchitectureDomain", "statement": "Architecture domain: Network security.", "excerpt": "Architecture domain: Network security."}]}
     },
     {
       "id": "test-unknown-layer",
@@ -157,6 +167,23 @@
       "text": "Teams should improve controls.",
       "labeling": {"labels": [{"semantic_type": null, "excerpt": "Teams should improve controls.", "uncertainty": "The architecture layer is not established by this text."}]},
       "expected": {"candidates": [{"semantic_type": null, "statement": "Teams should improve controls.", "excerpt": "Teams should improve controls.", "modality": "recommended", "uncertainty": "The architecture layer is unknown."}]}
+    },
+    {
+      "id": "test-framework-enterprise-risk-outcome",
+      "family": "nist-csf",
+      "split": "test",
+      "source": {"id":"nist-csf-2.0","group":"nist-csf","split":"test","url":"https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=957258","sha256":"3c31f46fee98cac0c4323453e5109291a213b4de7fef8c058af9bf67f717433c","attribution":"NIST CSWP 29, The NIST Cybersecurity Framework (CSF) 2.0, February 26, 2024; US Government material."},
+      "text": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes",
+      "labeling": {"labels": [{"semantic_type": "ConceptualRequirement", "excerpt": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes"}]},
+      "expected": {"candidates": [{"semantic_type": "ConceptualRequirement", "statement": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes", "excerpt": "Cybersecurity risk management activities and outcomes are included in enterprise risk management processes"}]}
+    },
+    {
+      "id": "test-regulator-enforcement-power",
+      "family": "synthetic-regulatory-powers",
+      "split": "test",
+      "text": "The regulator may require an operator to provide records within 14 days.",
+      "labeling": {"labels": []},
+      "expected": {"candidates": []}
     },
     {
       "id": "test-untrusted-annotation",

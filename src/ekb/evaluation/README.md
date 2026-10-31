@@ -7,9 +7,9 @@ Its retry totals use provider measurements; incomplete request or retry accounti
 `limits.py` coordinates optional per-request, per-deployment quota reservations for skill runs.
 `history.py` atomically publishes create-only reports and recoverable typed indexes for `eval list/history`.
 `goals.py` checks annual-report goal evidence, abstraction, scope, duplicates and provenance.
-Hierarchical goal synthesis reconciles only enterprise or unresolved strategic-goal candidates;
-business-unit goals, subordinate targets and non-goals remain scored but cannot crowd the dedicated
-enterprise-goal synthesis skill.
+Hierarchical strategy reconciliation processes every extracted strategic-goal level. Enterprise goals stay
+compact, while distinct business-unit goals and subordinate targets remain available to abstraction,
+scope and duplicate metrics without promotion.
 `nist.py` scores CSF structure, provisional mappings, provenance and explicit negative decisions.
 `dataset.py` materializes split-isolated cases; `frugal.py` applies status and metering-aware gates.
 `runner.py` batches sequential Pydantic Evals cases using opaque IDs, not source text or vectors.

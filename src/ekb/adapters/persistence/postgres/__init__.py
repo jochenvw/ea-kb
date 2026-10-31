@@ -72,6 +72,7 @@ from ekb.domain.models import (
     Relationship,
     ScanReport,
     Segment,
+    SemanticType,
     SourceRecord,
     SourceRevision,
     Usage,
@@ -313,16 +314,35 @@ class Knowledge:
         after: UUID | None = None,
         source_id: UUID | None = None,
         level: KnowledgeLevel | None = None,
+        semantic_types: tuple[SemanticType, ...] | None = None,
     ) -> list[ConceptDetail]:
         matches = select(VersionRow.concept_id, VersionRow.id)
+        if semantic_types:
+            matches = matches.where(
+                VersionRow.semantic_type.in_(item.value for item in semantic_types)
+            )
         if level is not None:
             matches = matches.where(
                 case(
                     (
-                        VersionRow.semantic_type == "PlatformRequirement",
-                        "implementation",
+                        VersionRow.semantic_type.in_(("StrategicGoal", "StrategicRequirement")),
+                        "company",
                     ),
-                    else_="top_level",
+                    (
+                        VersionRow.semantic_type.in_(
+                            (
+                                "ArchitectureDomain",
+                                "ConceptualRequirement",
+                                "TechnicalRequirement",
+                            )
+                        ),
+                        "platform_agnostic",
+                    ),
+                    (
+                        VersionRow.semantic_type == "PlatformRequirement",
+                        "platform_specific",
+                    ),
+                    else_="unclassified",
                 )
                 == level.value
             )

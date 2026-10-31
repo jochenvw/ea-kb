@@ -42,10 +42,69 @@ import type { Concept, Provenance, Source, Version } from "@/types";
 import { RelationshipGraph } from "@/network";
 import { OntologyBadge, OntologyDefinition } from "@/ontology";
 
-export function Knowledge() {
-  const [level, setLevel] = useState(
-    new URLSearchParams(location.search).get("level") ?? "top_level",
-  );
+type KnowledgeView = "company" | "architecture" | "platforms" | "all";
+
+const knowledgeViews: Record<
+  KnowledgeView,
+  {
+    level: string;
+    eyebrow: string;
+    title: string;
+    description: string;
+    panelTitle: string;
+    panelDescription: string;
+    note: string;
+  }
+> = {
+  company: {
+    level: "company",
+    eyebrow: "KNOWLEDGE / COMPANY INTENT",
+    title: "Understand enterprise direction.",
+    description:
+      "Review the compact set of strategic goals and fundamental obligations that describe what the enterprise or an organizational unit pursues and must uphold.",
+    panelTitle: "Company-level goals & requirements",
+    panelDescription:
+      "Source-grounded strategic intent, kept separate from architecture design and platform controls.",
+    note: "This view should remain deliberately small. Targets stay visibly subordinate; external frameworks do not become adopted company requirements without explicit governance.",
+  },
+  architecture: {
+    level: "platform_agnostic",
+    eyebrow: "KNOWLEDGE / PLATFORM-AGNOSTIC ARCHITECTURE",
+    title: "Shape architecture independently of products.",
+    description:
+      "Review architecture domains, conceptual requirements and technically actionable constraints that do not depend on a vendor or platform.",
+    panelTitle: "Architecture domains & platform-independent requirements",
+    panelDescription:
+      "Technology-independent concerns and requirements that can guide multiple implementations.",
+    note: "Architecture domains classify areas of concern. Conceptual and technical requirements remain platform independent and must not acquire vendor scope from their publisher.",
+  },
+  platforms: {
+    level: "platform_specific",
+    eyebrow: "KNOWLEDGE / PLATFORM IMPLEMENTATION",
+    title: "Inspect platform-specific implementation guidance.",
+    description:
+      "Review controls and recommendations that explicitly apply to a technology platform, including Azure-specific benchmark guidance.",
+    panelTitle: "Platform implementations & controls",
+    panelDescription:
+      "Product- or platform-scoped requirements with exact source evidence and explicit platform context.",
+    note: "Publisher attribution alone is not platform scope. Each item must retain evidence that identifies the platform and must not imply enterprise adoption.",
+  },
+  all: {
+    level: "",
+    eyebrow: "KNOWLEDGE / ALL INTERPRETATIONS",
+    title: "Review source-grounded knowledge.",
+    description:
+      "Inspect all classified and unresolved interpretations across company, architecture and platform layers.",
+    panelTitle: "Interpretation library",
+    panelDescription:
+      "Concise assertion candidates, linked to their original source passages.",
+    note: "This combined view is for diagnostics. Use the three knowledge workspaces for architecture decisions.",
+  },
+};
+
+export function Knowledge({ view = "company" }: { view?: KnowledgeView }) {
+  const configuration = knowledgeViews[view];
+  const level = configuration.level;
   const [sourceId, setSourceId] = useState(
     new URLSearchParams(location.search).get("source_id") ?? "",
   );
@@ -65,13 +124,23 @@ export function Knowledge() {
   const resource = useResource<Concept[]>(
     `/api/concepts?limit=50&q=${encodeURIComponent(debounced)}${level ? `&level=${level}` : ""}${sourceId ? `&source_id=${encodeURIComponent(sourceId)}` : ""}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
   );
-  const rows = resource.data ?? [];
+  const rows = (resource.data ?? []).filter((concept) => {
+    if (view !== "company") return true;
+    const version =
+      concept.versions.find(
+        (item) => item.id === concept.matching_version_id,
+      ) ?? concept.versions.at(-1);
+    return (
+      version?.candidate.semantic_type !== "StrategicGoal" ||
+      version.candidate.goal_level === "enterprise"
+    );
+  });
   return (
     <>
       <Heading
-        eyebrow="CURATE / INTERPRETATIONS"
-        title="Review meaning before adoption."
-        description="Compare source-grounded goals and requirements. Check the ontology definition, original evidence and scope; a result is not an adopted enterprise standard."
+        eyebrow={configuration.eyebrow}
+        title={configuration.title}
+        description={configuration.description}
       >
         <Button variant="outline" asChild>
           <a href="/ontology">
@@ -81,25 +150,10 @@ export function Knowledge() {
         </Button>
       </Heading>
       <Panel
-        title="Interpretation library"
-        description="Concise assertion candidates, linked to their original source passages."
+        title={configuration.panelTitle}
+        description={configuration.panelDescription}
       >
         <div className="toolbar">
-          <Filter
-            name="Architecture level"
-            value={level}
-            onChange={(value) => {
-              setLevel(value);
-              const params = new URLSearchParams(location.search);
-              params.set("level", value);
-              history.replaceState(null, "", `${location.pathname}?${params}`);
-            }}
-            options={[
-              ["top_level", "Goals & guidance"],
-              ["implementation", "Platform implementation"],
-              ["", "All levels"],
-            ]}
-          />
           <SearchBox
             value={query}
             onChange={(value) => {
@@ -138,14 +192,11 @@ export function Knowledge() {
           <span className="sr-only">Source document filters loaded</span>
         </LoadState>
         <p className="table-note">
-          {level === "top_level" &&
-            "Showing goals and guidance. Choose Platform implementation for platform-specific guidance. "}
-          Goals and framework guidance describe intent. Explicitly
-          platform-scoped requirements describe implementation. This is a
-          presentation level, not authority or proof of coverage. One assertion
-          per row. Source filters select evidenced versions, not an unrelated
-          latest interpretation. Browse 50 matches per page. Rephrasing is a
-          candidate summary, never a new policy obligation.
+          {configuration.note} This is a presentation layer, not authority or
+          proof of coverage. One assertion per row. Source filters select
+          evidenced versions, not an unrelated latest interpretation. Browse 50
+          matches per page. Rephrasing is a candidate summary, never a new
+          policy obligation.
         </p>
         <LoadState
           resource={{
@@ -185,6 +236,7 @@ export function Knowledge() {
                 if (version) params.set("version_id", version.id);
                 if (sourceId) params.set("source_id", sourceId);
                 if (debounced) params.set("q", debounced);
+                if (view !== "all") params.set("view", view);
                 const href = `/concepts/${concept.id}?${params}`;
                 return (
                   <TableRow key={concept.id}>
@@ -301,9 +353,17 @@ export function ConceptPage({
   );
   const requested = new URLSearchParams(location.search).get("version_id");
   const sourceId = new URLSearchParams(location.search).get("source_id");
+  const view = new URLSearchParams(location.search).get("view");
+  const backPath =
+    view === "architecture"
+      ? "/architecture"
+      : view === "platforms"
+        ? "/platforms"
+        : "/company";
   const members = sourceId ? [sourceId] : [];
   const back = new URLSearchParams(location.search);
   back.delete("version_id");
+  back.delete("view");
   const selected = requested
     ? concept.data?.versions.find((item) => item.id === requested)
     : concept.data?.versions.at(-1);
@@ -319,9 +379,9 @@ export function ConceptPage({
   return (
     <>
       <Button variant="ghost" size="sm" asChild className="back-link">
-        <a href={`/knowledge${back.size ? `?${back}` : ""}`}>
+        <a href={`${backPath}${back.size ? `?${back}` : ""}`}>
           <ArrowLeft />
-          Interpretation library
+          Knowledge workspace
         </a>
       </Button>
       <Heading
@@ -378,7 +438,7 @@ export function ConceptPage({
               <div className="tag-row">
                 <Badge variant="outline">
                   {levelLabel(concept.data.levels?.[version.id])}
-                  {concept.data.levels?.[version.id] === "implementation" &&
+                  {concept.data.levels?.[version.id] === "platform_specific" &&
                   version.candidate.scope.platform
                     ? ` · ${version.candidate.scope.platform}`
                     : ""}

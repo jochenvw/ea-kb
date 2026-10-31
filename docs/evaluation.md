@@ -201,8 +201,9 @@ Organizational coverage is scored independently of ontology class and named scop
 Company-level coverage does not mean every passage has one abstraction level. NIST is the publisher,
 not the organization to which a requirement is automatically applied. No enterprise adoption,
 Shell applicability, platform specificity or mandatory wording is inferred from a standard's name.
-Architecture domains remain context labels, not extracted requirements. Shell's explicit vision
-is distinguished from a binding target; the competitiveness interpretation remains provisional.
+Explicit architecture-domain names may be retained as `ArchitectureDomain` concepts, but never as
+requirements and never when inferred only from publisher/title context. Shell's explicit vision is
+distinguished from a binding target; the competitiveness interpretation remains provisional.
 
 The ISO case uses repository-authored metadata, as explicitly selected by the user. No licensed
 standard was available and ISO's official public overview returned HTTP 403. This negative checks
@@ -302,20 +303,25 @@ checks the source hash, PDF page count and all 22 evidence anchors against their
 scoring. Whole-document, section-aware and hierarchical strategies share parse/extraction caches;
 the report scores detection, ontology type, abstraction, scope, duplicates, provenance and
 provisional hierarchy hypotheses, and records tokens, latency, request counts and available cost.
-Live hierarchical evaluation uses the independently versioned enterprise-goal synthesis skill after
-section extraction. It excludes lower-level targets and non-goals from synthesis, enforces a compact
-enterprise-only result, preserves an exact source-page key and rejects ungrounded evidence.
+Live hierarchical evaluation uses the independently versioned strategy-reconciliation skill after
+section extraction. It reconciles enterprise goals, business-unit goals and subordinate targets,
+and applies the same source-level strategic-requirement boundary used by ingestion. Inputs are
+recursively chunked to the bounded 16,000-character model contract and must reduce before another
+round; non-convergent reconciliation fails explicitly. Exact source-page keys, evidence, scope,
+metrics, dates and qualifiers are preserved.
 Semantic fidelity remains explicitly marked for human review. Model comparisons require separately
 configured profiles and `--live`; an unavailable or unconfigured provider is not a successful run.
 
-The measured GPT-6 Astra iteration on 2026-10-30 reduced 40 raw section-level strategic-goal
-predictions to five source-grounded enterprise goals. Against the provisional primary-plus-
-acceptable-alternative annotations, detection precision/recall, abstraction, scope, duplicate and
-provenance checks were all `1.0`; primary-only scoring remains lower because SG-04 and SG-05 are
-deliberately annotated as acceptable alternatives. The completed hierarchical run processed 13
-source pages, used one synthesis call after cached section extraction, and reported 130,742 input
-and 50,875 output tokens across the retained historical calls. Cost remains unknown because model
-prices were not configured, and semantic fidelity still requires human review.
+The final GPT-6 Astra iteration on 2026-10-31 reconciled every goal level and produced exactly five
+source-grounded enterprise goals. Against the provisional primary-plus-acceptable-alternative
+annotations, detection precision/recall, ontology type, abstraction, duplicate and provenance
+checks were all `1.0`; primary-only scoring remains lower because SG-04 and SG-05 are deliberately
+annotated as acceptable alternatives. Distinct business-unit goals and subordinate targets were
+retained without duplicate formulations. Exact lower-level scope scoring was `0.714` because two
+Integrated Gas candidates used the equally source-grounded label “Integrated gas and LNG business”
+rather than the reference's shorter section label; no scope was promoted to enterprise. The final
+uncached prompt run used 31 model calls. Cost remains unknown because model prices were not
+configured, and semantic fidelity still requires human review.
 
 The measured offline Rules baseline and one general-rule iteration were:
 
@@ -338,12 +344,29 @@ Structured JSON and Markdown artifacts are written under the selected `--output`
 results are provisional diagnostics, not production qualification; independent human review remains
 necessary.
 
-`evals\skills-v1.json` contains 16 provisional cases: three attributed excerpts reused verbatim
-from the existing teacher corpus, retaining its family/split/hash/attribution, and 13 neutral
-synthetic cases. Cases cover mixed organizational scope, six semantic types, unknown layer,
-negation/exception/numeric qualifiers, domain-only content and an untrusted annotation.
+`evals\skills-v1.json` contains 22 provisional cases: seven attributed excerpts from the retained
+evaluation corpus, preserving family/split/hash/attribution, and 15 neutral synthetic cases. Cases
+cover mixed organizational scope, all retained candidate types, unknown layer,
+negation/exception/numeric qualifiers, explicit architecture domains, regulator-power negatives,
+framework outcomes that must not be promoted to company obligations, heading/context separation,
+and an untrusted annotation.
+
+On 2026-10-31, GPT-6 Astra achieved `1.0` precision and recall on both labeling and gold-routed
+extraction across the four-case validation split and 14-case held-out test split. All cases matched
+exactly, including explicit ArchitectureDomain extraction, the regulator-power negative, the NIST
+enterprise-risk outcome, vendor-neutral technical requirements and Azure platform scope. There
+were no evaluation errors, false mandates, retries or throttles. These quality and safety gates
+passed, but the run remains unqualified because deployment prices were not configured and the
+priced-cost gate therefore remains unknown rather than passing.
 Families, original URLs/hashes and duplicate text cannot cross splits. These are regression and
 provisional qualification cases, not independent human gold or production coverage.
+
+The final clean 15-source production ingestion completed with 13 processed and two metadata-only
+sources, zero source failures, zero unresolved issue findings and no unresolved template markers.
+It retained 579 concepts with exact provenance, including exactly five enterprise goals, five
+strategic requirements, explicit architecture domains and platform-specific controls. Corroborating
+strategy pages remained available without adding duplicate goals, and no near-duplicate strategic
+goal pair remained in the persisted corpus.
 
 Each skill reports its own fingerprint, precision/recall, errors, false mandates, p95 latency,
 tokens and priced cost, using the existing gates below. Label accuracy includes ontology type

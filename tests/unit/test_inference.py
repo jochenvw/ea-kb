@@ -21,7 +21,11 @@ from ekb.domain.models import (
 
 def segment():
     return Segment(
-        id=uuid4(), revision_id=uuid4(), ordinal=0, text="Operators must not disable alarms."
+        id=uuid4(),
+        revision_id=uuid4(),
+        ordinal=0,
+        text="Operators must not disable alarms.",
+        heading="Operations",
     )
 
 
@@ -69,6 +73,8 @@ async def test_model_validation_retry_and_usage_accounting():
         result = await adapter.extract_scoped(segment(), labels())
     assert len(calls) == 2
     assert calls[0]["response_format"]["type"] == "json_schema"
+    request_input = json.loads(calls[0]["messages"][1]["content"])
+    assert request_input["section_heading"] == "Operations"
     assert result.usage.input_tokens == 20 and result.usage.output_tokens == 10
     assert result.usage.model_calls == 2
     assert result.usage.retry_count == 1
@@ -114,8 +120,10 @@ async def test_reasoning_model_can_omit_temperature_and_select_completion_budget
         await OpenAIInference(settings, client=client).extract_scoped(segment(), labels())
 
 
-async def test_goal_synthesis_uses_dedicated_prompt_and_requires_enterprise_goals():
+async def test_goal_synthesis_uses_dedicated_prompt_and_accepts_a_typed_goal_hierarchy():
     evidence = "We aim to become a resilient enterprise."
+    target_evidence = "Grow recurring revenue by 5% by 2030."
+    requirement_evidence = "Services should protect data in transit."
     source = Segment(
         id=uuid4(),
         revision_id=uuid4(),
@@ -124,13 +132,23 @@ async def test_goal_synthesis_uses_dedicated_prompt_and_requires_enterprise_goal
             "Candidate: Become a resilient enterprise.\n"
             "Level: enterprise\n"
             "Source key: pdf-page:1\n"
-            f"Evidence: {evidence}"
+            f"Evidence: {evidence}\n\n"
+            f"Candidate: {target_evidence}\n"
+            "Level: subordinate_target\n"
+            "Source key: pdf-page:2\n"
+            f"Evidence: {target_evidence}\n\n"
+            f"Candidate: {requirement_evidence}\n"
+            "Type: StrategicRequirement\n"
+            "Level: unclassified\n"
+            "Scope: {}\n"
+            "Source key: pdf-page:3\n"
+            f"Evidence: {requirement_evidence}"
         ),
     )
 
     def handle(request):
         body = json.loads(request.content)
-        assert "deliberately small enterprise-level set" in body["messages"][0]["content"]
+        assert "coherent source-level enterprise intent" in body["messages"][0]["content"]
         answer = Extraction(
             candidates=[
                 Candidate(
@@ -139,7 +157,21 @@ async def test_goal_synthesis_uses_dedicated_prompt_and_requires_enterprise_goal
                     statement="Become a resilient enterprise.",
                     excerpt=evidence,
                     source_key="pdf-page:1",
-                )
+                ),
+                Candidate(
+                    semantic_type=SemanticType.STRATEGIC_GOAL,
+                    goal_level=GoalLevel.SUBORDINATE_TARGET,
+                    statement=target_evidence,
+                    excerpt=target_evidence,
+                    source_key="pdf-page:2",
+                ),
+                Candidate(
+                    semantic_type=SemanticType.CONCEPTUAL_REQUIREMENT,
+                    statement=requirement_evidence,
+                    excerpt=requirement_evidence,
+                    modality=Modality.RECOMMENDED,
+                    source_key="pdf-page:3",
+                ),
             ]
         )
         return httpx.Response(
@@ -151,12 +183,15 @@ async def test_goal_synthesis_uses_dedicated_prompt_and_requires_enterprise_goal
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        result = await OpenAIInference(Settings(model_id="test"), client=client).synthesize_goals(
+        result = await OpenAIInference(Settings(model_id="test"), client=client).reconcile_strategy(
             source
         )
-    assert [candidate.statement for candidate in result.extraction.candidates] == [
-        "Become a resilient enterprise."
+    assert [candidate.goal_level for candidate in result.extraction.candidates] == [
+        GoalLevel.ENTERPRISE,
+        GoalLevel.SUBORDINATE_TARGET,
+        None,
     ]
+    assert result.extraction.candidates[2].semantic_type is SemanticType.CONCEPTUAL_REQUIREMENT
 
 
 async def test_null_temperature_environment_and_verifier_cache_identity(monkeypatch):

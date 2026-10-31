@@ -1,6 +1,6 @@
 # Bounded ingestion skills
 
-- `labeling.md` labels exact content spans by ontology class and explicit organizational/platform scope.
+- `labeling.md` labels exact segment-text spans; headings may ground unit scope but are not evidence.
 - Organizational coverage is separately evidenced; mixed document layers do not imply company adoption.
 - Framework outcomes need no imperative; native taxonomy is not a goal, ontology layer or adoption.
 - `extraction.md` extracts candidates only within those labeled spans and scopes.

@@ -76,13 +76,17 @@ export function OntologyDefinition({
 const conceptLayers = [
   { title: "Company intent", names: ["StrategicGoal", "StrategicRequirement"] },
   {
-    title: "Technology-independent requirements",
-    names: ["ConceptualRequirement", "TechnicalRequirement"],
+    title: "Platform-agnostic architecture",
+    names: [
+      "ArchitectureDomain",
+      "ConceptualRequirement",
+      "TechnicalRequirement",
+    ],
   },
   { title: "Platform-specific requirements", names: ["PlatformRequirement"] },
   {
-    title: "Classification context, not requirement candidates",
-    names: ["OrganizationalScope", "ArchitectureDomain"],
+    title: "Organizational applicability",
+    names: ["OrganizationalScope"],
   },
 ];
 

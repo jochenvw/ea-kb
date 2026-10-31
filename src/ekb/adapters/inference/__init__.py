@@ -67,11 +67,13 @@ SCOPED_INSTRUCTIONS = (
     + "\n"
     + "\n".join(f"{term.name}: {term.definition}" for term in _VOCABULARY.terms)
 )
-GOAL_SYNTHESIS_INSTRUCTIONS = (_SKILLS / "goal_synthesis.md").read_text(encoding="utf-8")
+STRATEGY_RECONCILIATION_INSTRUCTIONS = (_SKILLS / "strategy_reconciliation.md").read_text(
+    encoding="utf-8"
+)
 LABEL_PROMPT_VERSION = "ontology-labeling-v1:" + fingerprint(prompt=LABEL_INSTRUCTIONS)
 SCOPED_PROMPT_VERSION = "scoped-extraction-v1:" + fingerprint(prompt=SCOPED_INSTRUCTIONS)
-GOAL_SYNTHESIS_PROMPT_VERSION = "enterprise-goal-synthesis-v1:" + fingerprint(
-    prompt=GOAL_SYNTHESIS_INSTRUCTIONS
+STRATEGY_RECONCILIATION_PROMPT_VERSION = "strategy-reconciliation-v1:" + fingerprint(
+    prompt=STRATEGY_RECONCILIATION_INSTRUCTIONS
 )
 
 type _Completion = tuple[str, int | None, int | None, str | None, int | None]
@@ -177,7 +179,6 @@ class RulesInference:
             and candidate.scope == label.scope
             and label.semantic_type
             not in {
-                SemanticType.ARCHITECTURE_DOMAIN,
                 SemanticType.ORGANIZATIONAL_SCOPE,
             }
             and (
@@ -270,7 +271,11 @@ class OpenAIInference:
         schema: type[BaseModel] = Extraction,
         labeling: ContentLabeling | None = None,
     ) -> list[dict[str, str]]:
-        content: dict[str, object] = {"source_reference": str(segment.id), "text": segment.text}
+        content: dict[str, object] = {
+            "source_reference": str(segment.id),
+            "section_heading": segment.heading,
+            "text": segment.text,
+        }
         if labeling is not None:
             content["labeling"] = labeling.model_dump(mode="json")
         return [
@@ -370,7 +375,6 @@ class OpenAIInference:
         if not any(
             label.semantic_type
             not in {
-                SemanticType.ARCHITECTURE_DOMAIN,
                 SemanticType.ORGANIZATIONAL_SCOPE,
             }
             for label in labeling.labels
@@ -397,44 +401,68 @@ class OpenAIInference:
             provider_model_identity_complete=identity_complete,
         )
 
-    goal_synthesis_fingerprint = fingerprint(
-        skill=GOAL_SYNTHESIS_PROMPT_VERSION,
+    strategy_reconciliation_fingerprint = fingerprint(
+        skill=STRATEGY_RECONCILIATION_PROMPT_VERSION,
         schema=Extraction.model_json_schema(),
     )
 
-    async def synthesize_goals(self, segment: Segment) -> InferenceResult:
+    async def reconcile_strategy(self, segment: Segment) -> InferenceResult:
         def validate_synthesis(extraction: Extraction) -> None:
             validate_evidence(extraction, segment)
             if extraction.relationships:
-                raise GroundingError("Goal synthesis must not propose relationships")
-            if len(extraction.candidates) > 10:
-                raise GroundingError("Goal synthesis exceeded the compact ten-candidate bound")
+                raise GroundingError("Strategy reconciliation must not propose relationships")
+            input_candidates = segment.text.count("Candidate: ")
+            if len(extraction.candidates) > input_candidates:
+                raise GroundingError(
+                    "Strategy reconciliation returned more concepts than its input candidates"
+                )
+            enterprise_count = sum(
+                candidate.goal_level is GoalLevel.ENTERPRISE for candidate in extraction.candidates
+            )
+            if enterprise_count > 10:
+                raise GroundingError(
+                    "Strategy reconciliation exceeded the ten-enterprise-goal bound"
+                )
+            strategic_requirement_count = sum(
+                candidate.semantic_type is SemanticType.STRATEGIC_REQUIREMENT
+                for candidate in extraction.candidates
+            )
+            if strategic_requirement_count > 20:
+                raise GroundingError(
+                    "Strategy reconciliation exceeded the twenty-strategic-requirement bound"
+                )
+            allowed_types = {
+                SemanticType.STRATEGIC_GOAL,
+                SemanticType.STRATEGIC_REQUIREMENT,
+                SemanticType.CONCEPTUAL_REQUIREMENT,
+                SemanticType.TECHNICAL_REQUIREMENT,
+                SemanticType.PLATFORM_REQUIREMENT,
+            }
             for candidate in extraction.candidates:
-                if (
-                    candidate.semantic_type is not SemanticType.STRATEGIC_GOAL
-                    or candidate.goal_level is not GoalLevel.ENTERPRISE
-                ):
+                if candidate.semantic_type not in allowed_types:
                     raise GroundingError(
-                        "Goal synthesis returned a non-enterprise strategic-goal candidate"
+                        "Strategy reconciliation returned an unsupported concept type"
                     )
                 if (
                     candidate.source_key is None
                     or f"Source key: {candidate.source_key}" not in segment.text
                 ):
-                    raise GroundingError("Goal synthesis did not preserve a candidate source key")
+                    raise GroundingError(
+                        "Strategy reconciliation did not preserve a candidate source key"
+                    )
 
         extraction, usage, provider_model_ids, identity_complete = await self._run_skill(
             segment,
-            self._messages(segment, GOAL_SYNTHESIS_INSTRUCTIONS, Extraction),
+            self._messages(segment, STRATEGY_RECONCILIATION_INSTRUCTIONS, Extraction),
             Extraction,
             validate_synthesis,
-            GOAL_SYNTHESIS_PROMPT_VERSION,
+            STRATEGY_RECONCILIATION_PROMPT_VERSION,
         )
         return InferenceResult(
             extraction=extraction,
             usage=usage,
             model_id=self.capabilities.model_id,
-            prompt_version=GOAL_SYNTHESIS_PROMPT_VERSION,
+            prompt_version=STRATEGY_RECONCILIATION_PROMPT_VERSION,
             provider_model_ids=provider_model_ids,
             provider_model_identity_complete=identity_complete,
         )

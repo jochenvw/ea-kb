@@ -3,10 +3,12 @@
 `create_app` in `__init__.py` owns FastAPI routes and application/runtime lifespan.
 
 - `/api` endpoints inspect persisted sources, concepts, provenance, lineage and governance.
-- Browser routes return the prebuilt React/shadcn HTML file without templates; `/health` checks PostgreSQL.
+- Browser routes, including `/company`, `/architecture` and `/platforms`, return the prebuilt
+  React/shadcn HTML file without templates; `/health` checks PostgreSQL.
 - `/ontology` and `/api/ontology` expose the read-only packaged OWL catalog without database/model I/O.
 - `/api/ui/config` exposes whether governance is enabled, never credentials.
-- `/api/concepts` accepts `after`, `source_id` and `level`; constraints select the same version.
+- `/api/concepts` accepts `after`, `source_id`, `level` and repeated `semantic_type` filters;
+  constraints select the same version.
 - `/api/sources` lists individual original documents for exact-source inspection and provenance.
 - `inspection.py` serves source drill-down, graphs, outstanding proposals and read-only table/log pages.
 - Inspection permits EKB-owned tables only, not arbitrary SQL, files, raw traces or mutations.

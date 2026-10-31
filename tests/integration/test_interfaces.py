@@ -49,6 +49,9 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             assert inventory.status_code == 200 and 'id="root"' in inventory.text
             assert inventory.text.index("scoutTheme") < inventory.text.index("/static/ui/app.js")
             for path in (
+                "/company",
+                "/architecture",
+                "/platforms",
                 "/knowledge",
                 "/sources",
                 "/review",
@@ -174,15 +177,16 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                 assert (
                     await client.get(f"/api/concepts?source_id={source_id}&q=A%20later")
                 ).json() == []
-                implementations = (await client.get("/api/concepts?level=implementation")).json()
+                implementations = (await client.get("/api/concepts?level=platform_specific")).json()
                 implementation = next(
                     row for row in implementations if row["id"] == item["concept_id"]
                 )
                 assert implementation["matching_version_id"] == str(later.id)
-                assert implementation["levels"][str(later.id)] == "implementation"
+                assert implementation["levels"][str(later.id)] == "platform_specific"
                 assert (
-                    await client.get(f"/api/concepts?level=implementation&source_id={source_id}")
+                    await client.get(f"/api/concepts?level=platform_specific&source_id={source_id}")
                 ).json() == []
+                assert (await client.get("/api/concepts?semantic_type=PlatformRequirement")).json()
                 assert (await client.get("/api/concepts?level=invalid")).status_code == 422
                 assert (await client.get("/api/concepts?source_id=invalid")).status_code == 422
                 assert (await client.get(f"/api/concepts?source_id={uuid4()}")).json() == []

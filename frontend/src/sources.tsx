@@ -362,7 +362,7 @@ export function SourcePage({ id }: { id: string }) {
                 <p className="callout">{data.source.error}</p>
               )}
               <Button variant="outline" size="sm" asChild>
-                <a href={`/knowledge?source_id=${id}&level=`}>
+                <a href={`/company?source_id=${id}`}>
                   Filter knowledge by this source
                   <ArrowUpRight />
                 </a>

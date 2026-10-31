@@ -11,11 +11,10 @@ export function assertionMatches(
 }
 
 export function levelLabel(level: string | undefined | null) {
-  return level === "implementation"
-    ? "Platform implementation"
-    : level === "top_level"
-      ? "Goals & guidance"
-      : "Level not classified";
+  if (level === "company") return "Company intent";
+  if (level === "platform_agnostic") return "Platform-agnostic architecture";
+  if (level === "platform_specific") return "Platform-specific controls";
+  return "Level not classified";
 }
 
 export function goalLevelLabel(level: string | undefined | null) {

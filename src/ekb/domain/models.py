@@ -42,8 +42,10 @@ class SemanticType(StrEnum):
 
 
 class KnowledgeLevel(StrEnum):
-    TOP_LEVEL = "top_level"
-    IMPLEMENTATION = "implementation"
+    COMPANY = "company"
+    PLATFORM_AGNOSTIC = "platform_agnostic"
+    PLATFORM_SPECIFIC = "platform_specific"
+    UNCLASSIFIED = "unclassified"
 
 
 class Modality(StrEnum):
@@ -247,6 +249,7 @@ class SourceSpec(Model):
     publication_status: PublicationStatus = PublicationStatus.UNKNOWN
     framework_namespace: str | None = None
     framework_revision: str | None = None
+    extract_strategy: bool = True
 
 
 class SourceItem(Model):
@@ -330,11 +333,13 @@ class Candidate(Model):
             raise ValueError("Strategic goals do not have requirement modality")
         if self.goal_level is not None and self.semantic_type != SemanticType.STRATEGIC_GOAL:
             raise ValueError("Goal level is internal metadata for StrategicGoal candidates only")
-        if self.semantic_type in {
-            SemanticType.ARCHITECTURE_DOMAIN,
-            SemanticType.ORGANIZATIONAL_SCOPE,
-        }:
-            raise ValueError("Architecture domains and organizational scopes classify content")
+        if self.semantic_type == SemanticType.ORGANIZATIONAL_SCOPE:
+            raise ValueError("Organizational scopes remain applicability metadata")
+        if self.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
+            if self.modality != Modality.UNSPECIFIED:
+                raise ValueError("Architecture domains do not have requirement modality")
+            if self.scope.platform:
+                raise ValueError("Architecture domains are platform independent")
         if self.semantic_type is not None:
             if self.semantic_type == SemanticType.PLATFORM_REQUIREMENT and not self.scope.platform:
                 raise ValueError("Platform requirements must identify a platform")
@@ -351,9 +356,20 @@ class Candidate(Model):
 
 
 def knowledge_level(candidate: Candidate) -> KnowledgeLevel:
+    if candidate.semantic_type in {
+        SemanticType.STRATEGIC_GOAL,
+        SemanticType.STRATEGIC_REQUIREMENT,
+    }:
+        return KnowledgeLevel.COMPANY
+    if candidate.semantic_type in {
+        SemanticType.ARCHITECTURE_DOMAIN,
+        SemanticType.CONCEPTUAL_REQUIREMENT,
+        SemanticType.TECHNICAL_REQUIREMENT,
+    }:
+        return KnowledgeLevel.PLATFORM_AGNOSTIC
     if candidate.semantic_type == SemanticType.PLATFORM_REQUIREMENT:
-        return KnowledgeLevel.IMPLEMENTATION
-    return KnowledgeLevel.TOP_LEVEL
+        return KnowledgeLevel.PLATFORM_SPECIFIC
+    return KnowledgeLevel.UNCLASSIFIED
 
 
 class ProposedRelationship(Model):

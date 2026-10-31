@@ -11,7 +11,6 @@ from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
     Candidate,
     Extraction,
-    GoalLevel,
     InferenceResult,
     ProcessingTask,
     ScanReport,
@@ -34,11 +33,11 @@ from ekb.observability import log, tracer
 from ekb.ports import (
     ArtifactStore,
     DocumentParser,
-    GoalSynthesisPort,
     IngestionSkills,
     ScanLeaseLostError,
     SourceConnector,
     SourceMissingError,
+    StrategyReconciliationPort,
     UnitOfWorkFactory,
 )
 
@@ -47,14 +46,14 @@ class ProcessingIncompleteError(RuntimeError):
     pass
 
 
-def _defer_enterprise_goals(extraction: Extraction) -> tuple[Extraction, list[Candidate]]:
+def _defer_strategic_candidates(extraction: Extraction) -> tuple[Extraction, list[Candidate]]:
     retained = []
     deferred = []
     index_map = {}
     for index, candidate in enumerate(extraction.candidates):
-        if candidate.semantic_type is SemanticType.STRATEGIC_GOAL and candidate.goal_level in {
-            GoalLevel.ENTERPRISE,
-            None,
+        if candidate.semantic_type in {
+            SemanticType.STRATEGIC_GOAL,
+            SemanticType.STRATEGIC_REQUIREMENT,
         }:
             deferred.append(candidate)
         else:
@@ -75,20 +74,18 @@ def _defer_enterprise_goals(extraction: Extraction) -> tuple[Extraction, list[Ca
     return Extraction(candidates=retained, relationships=relationships), deferred
 
 
-def _goal_synthesis_chunks(
+def _extracts_strategy(item: SourceItem) -> bool:
+    return item.metadata.get("extract_strategy", True) is not False
+
+
+def _strategy_reconciliation_chunks(
     records: list[tuple[Segment, Candidate]], max_chars: int = 16_000
 ) -> list[list[tuple[Segment, Candidate]]]:
     chunks: list[list[tuple[Segment, Candidate]]] = []
     current: list[tuple[Segment, Candidate]] = []
     size = 0
     for segment, candidate in records:
-        text = (
-            f"Candidate: {candidate.statement}\n"
-            f"Level: {candidate.goal_level.value if candidate.goal_level else 'unclassified'}\n"
-            f"Source key: segment:{segment.id}\n"
-            f"Section: {segment.heading or 'Unknown section'}\n"
-            f"Evidence: {candidate.excerpt}"
-        )
+        text = _strategy_record_text(segment, candidate)
         if len(text) > max_chars:
             raise ProcessingIncompleteError(
                 "One strategic-goal candidate exceeds the bounded synthesis input"
@@ -106,17 +103,23 @@ def _goal_synthesis_chunks(
     return chunks
 
 
-def _goal_synthesis_text(records: list[tuple[Segment, Candidate]]) -> str:
-    return "\n\n".join(
-        (
-            f"Candidate: {candidate.statement}\n"
-            f"Level: {candidate.goal_level.value if candidate.goal_level else 'unclassified'}\n"
-            f"Source key: segment:{segment.id}\n"
-            f"Section: {segment.heading or 'Unknown section'}\n"
-            f"Evidence: {candidate.excerpt}"
-        )
-        for segment, candidate in records
+def _strategy_record_text(segment: Segment, candidate: Candidate) -> str:
+    semantic_type = candidate.semantic_type.value if candidate.semantic_type else "unclassified"
+    goal_level = candidate.goal_level.value if candidate.goal_level else "unclassified"
+    scope = json.dumps(candidate.scope.model_dump(mode="json", exclude_none=True), sort_keys=True)
+    return (
+        f"Candidate: {candidate.statement}\n"
+        f"Type: {semantic_type}\n"
+        f"Level: {goal_level}\n"
+        f"Scope: {scope}\n"
+        f"Source key: segment:{segment.id}\n"
+        f"Section: {segment.heading or 'Unknown section'}\n"
+        f"Evidence: {candidate.excerpt}"
     )
+
+
+def _strategy_reconciliation_text(records: list[tuple[Segment, Candidate]]) -> str:
+    return "\n\n".join(_strategy_record_text(segment, candidate) for segment, candidate in records)
 
 
 class IngestionPipeline:
@@ -148,8 +151,8 @@ class IngestionPipeline:
             labeling=inference.label_fingerprint,
             extraction=inference.extraction_fingerprint,
             synthesis=(
-                inference.goal_synthesis_fingerprint
-                if isinstance(inference, GoalSynthesisPort)
+                inference.strategy_reconciliation_fingerprint
+                if isinstance(inference, StrategyReconciliationPort)
                 else None
             ),
             config=inference_config,
@@ -157,7 +160,7 @@ class IngestionPipeline:
         self.progress = progress or (lambda item, status: None)
         self.require_complete = require_complete
 
-    async def _synthesize_enterprise_goals(
+    async def _reconcile_strategy(
         self,
         item: SourceItem,
         revision: SourceRevision,
@@ -165,17 +168,17 @@ class IngestionPipeline:
         task_id: UUID,
         owner: UUID,
     ) -> tuple[list[tuple[Segment, Candidate]], Usage, str, str]:
-        if not isinstance(self.inference, GoalSynthesisPort):
+        if not isinstance(self.inference, StrategyReconciliationPort):
             return records, Usage(cost=0), self.inference.capabilities.model_id, "not_applicable"
         current = records
         usages: list[Usage] = []
         model_id = self.inference.capabilities.model_id
-        prompt_version = self.inference.goal_synthesis_fingerprint
+        prompt_version = self.inference.strategy_reconciliation_fingerprint
         for round_index in range(8):
-            chunks = _goal_synthesis_chunks(current)
+            chunks = _strategy_reconciliation_chunks(current)
             reconciled: list[tuple[Segment, Candidate]] = []
             for chunk_index, chunk in enumerate(chunks):
-                text = _goal_synthesis_text(chunk)
+                text = _strategy_reconciliation_text(chunk)
                 synthesis_segment = Segment(
                     id=stable_id(
                         "goal-synthesis",
@@ -187,12 +190,12 @@ class IngestionPipeline:
                     revision_id=revision.id,
                     ordinal=len(chunk),
                     text=text,
-                    heading="Source-grounded strategic-goal synthesis",
+                    heading="Source-grounded strategy reconciliation",
                     location={"goal_synthesis": True},
                 )
                 async with self.model_gate:
-                    self.progress(item, f"reconciling enterprise goals ({len(current)} candidates)")
-                    result = await self.inference.synthesize_goals(synthesis_segment)
+                    self.progress(item, f"reconciling strategy ({len(current)} candidates)")
+                    result = await self.inference.reconcile_strategy(synthesis_segment)
                 validate_evidence(result.extraction, synthesis_segment)
                 usages.append(result.usage)
                 model_id = result.model_id
@@ -206,7 +209,7 @@ class IngestionPipeline:
                     segment = by_segment.get(candidate.source_key or "")
                     if segment is None or candidate.excerpt not in segment.text:
                         raise ProcessingIncompleteError(
-                            "Goal synthesis returned evidence outside its original segment"
+                            "Strategy reconciliation returned evidence outside its original segment"
                         )
                     original = next(
                         (
@@ -217,16 +220,18 @@ class IngestionPipeline:
                         ),
                         None,
                     )
+                    if original is None:
+                        raise ProcessingIncompleteError(
+                            "Strategy reconciliation could not match original candidate evidence"
+                        )
                     reconciled.append(
                         (
                             segment,
                             candidate.model_copy(
                                 update={
-                                    "source_key": (
-                                        original.source_key
-                                        if original is not None
-                                        else segment.location.get("part_id")
-                                    )
+                                    "source_key": original.source_key
+                                    or segment.location.get("part_id"),
+                                    "scope": original.scope,
                                 }
                             ),
                         )
@@ -238,18 +243,23 @@ class IngestionPipeline:
                     model_id,
                     prompt_version,
                 )
+            if not reconciled:
+                return [], total_usage(usages), model_id, prompt_version
             if len(reconciled) >= len(current):
                 raise ProcessingIncompleteError(
-                    "Goal synthesis did not reduce its bounded candidate batches"
+                    "Strategy reconciliation did not reduce its bounded candidate batches"
                 )
             current = reconciled
-        raise ProcessingIncompleteError("Goal synthesis exceeded the bounded reconciliation depth")
+        raise ProcessingIncompleteError(
+            "Strategy reconciliation exceeded the bounded reconciliation depth"
+        )
 
     def _processing_fingerprint(self, content: str, item: SourceItem) -> str:
         return fingerprint(
             content=content,
             parser=parsing_fingerprint(self.parser.version, item),
             inference=self.inference_fingerprint,
+            extract_strategy=_extracts_strategy(item),
             publication=publication_fingerprint(
                 item, parsing_fingerprint(self.parser.version, item)
             ),
@@ -735,9 +745,10 @@ class IngestionPipeline:
                 called_model = False
             validate_scoped_extraction(result.extraction, segment, labeling.labeling)
             persisted_result = result
-            if isinstance(self.inference, GoalSynthesisPort):
-                retained, goals = _defer_enterprise_goals(result.extraction)
-                deferred_goals.extend((segment, candidate) for candidate in goals)
+            if isinstance(self.inference, StrategyReconciliationPort):
+                retained, strategic = _defer_strategic_candidates(result.extraction)
+                if _extracts_strategy(item):
+                    deferred_goals.extend((segment, candidate) for candidate in strategic)
                 persisted_result = result.model_copy(update={"extraction": retained})
             async with self.uow() as uow:
                 await uow.processing.heartbeat(task_id, owner)
@@ -753,9 +764,7 @@ class IngestionPipeline:
                 synthesis_usage,
                 model_id,
                 prompt_version,
-            ) = await self._synthesize_enterprise_goals(
-                item, revision, deferred_goals, task_id, owner
-            )
+            ) = await self._reconcile_strategy(item, revision, deferred_goals, task_id, owner)
             usages.append(synthesis_usage)
             groups: dict[UUID, tuple[Segment, list[Candidate]]] = {}
             for segment, candidate in synthesized:

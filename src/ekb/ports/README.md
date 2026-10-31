@@ -5,8 +5,8 @@ repositories and explicit units of work.
 `UnitOfWorkFactory.scan_guard` scopes renewable scan ownership and fences writes through child tasks.
 `SourceMissingError` distinguishes absent sources from temporary retrieval/access failures.
 `IngestionSkills` separates ontology/scope labeling from scoped extraction with independent replay IDs.
-`GoalSynthesisPort` is an optional evidence-bound skill for reconciling extracted candidates into a
-compact enterprise-goal set without routing subordinate targets through the generic extractor.
+`StrategyReconciliationPort` is an optional evidence-bound skill for reconciling source-level
+strategic goals and requirements before persistence.
 Optional `RequestControlledSkills` scopes a `ModelRequestLimiter` around evaluation requests;
 providers reserve each actual request, including retries, by deployment and reset on cancellation.
 Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.

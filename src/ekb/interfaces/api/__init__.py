@@ -22,6 +22,7 @@ from ekb.domain.models import (
     ConceptDetail,
     KnowledgeLevel,
     Provenance,
+    SemanticType,
     SourceRecord,
 )
 from ekb.domain.ontology import OntologyCatalog
@@ -108,9 +109,15 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         after: UUID | None = None,
         source_id: UUID | None = None,
         level: KnowledgeLevel | None = None,
+        semantic_type: Annotated[list[SemanticType] | None, Query()] = None,
     ):
         return await active(request).knowledge.search(
-            q, limit, after=after, source_id=source_id, level=level
+            q,
+            limit,
+            after=after,
+            source_id=source_id,
+            level=level,
+            semantic_types=tuple(semantic_type) if semantic_type else None,
         )
 
     @app.get("/api/concepts/{concept_id}", response_model=ConceptDetail)
@@ -129,6 +136,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         return await active(request).knowledge.lineage(concept_id)
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/company", response_class=HTMLResponse)
+    @app.get("/architecture", response_class=HTMLResponse)
+    @app.get("/platforms", response_class=HTMLResponse)
     @app.get("/knowledge", response_class=HTMLResponse)
     @app.get("/sources", response_class=HTMLResponse)
     @app.get("/explore", response_class=HTMLResponse)

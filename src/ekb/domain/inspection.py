@@ -12,7 +12,7 @@ class SourceExtraction(Model):
     concept_id: UUID
     version: ConceptVersion
     evidence_count: int
-    level: KnowledgeLevel = KnowledgeLevel.TOP_LEVEL
+    level: KnowledgeLevel = KnowledgeLevel.UNCLASSIFIED
 
 
 class SourceInspection(Model):

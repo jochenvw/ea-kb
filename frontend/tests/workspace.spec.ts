@@ -130,7 +130,7 @@ const source = {
 };
 const concept = {
   id,
-  levels: { [id]: "top_level" },
+  levels: { [id]: "platform_agnostic" },
   versions: [
     {
       id,
@@ -228,14 +228,14 @@ async function fixture(page: Page, governance = false) {
             id,
             label: statement,
             kind: "requirement",
-            level: "top_level",
+            level: "platform_agnostic",
             href: `/concepts/${id}`,
           },
           {
             id: relatedId,
             label: "An associated security objective.",
             kind: "objective",
-            level: "top_level",
+            level: "company",
             href: `/concepts/${relatedId}`,
           },
           {
@@ -478,7 +478,7 @@ test("Mermaid diagram reflects declared ontology terms and constraints", async (
   await page.goto("/ontology");
   await page.getByText("Show Mermaid diagram", { exact: true }).click();
   const diagram = page.getByRole("figure", {
-    name: "Ontology terms and declared domain and range constraints",
+    name: "OWL classes, properties and declared ontology constraints",
   });
   await expect(diagram.locator("svg")).toBeVisible();
   await expect(diagram).toContainText("Strategic goal");
@@ -487,16 +487,22 @@ test("Mermaid diagram reflects declared ontology terms and constraints", async (
   await expect(diagram).toContainText("xsd:string");
   await page.getByText("View Mermaid source", { exact: true }).click();
   const source = await page.locator(".ontology-mermaid-source").innerText();
-  const scope = source.match(/(t\d+)\["Organizational scope"\]/)?.[1];
-  const subScope = source.match(/(t\d+)\["sub-scope of \(transitive\)"\]/)?.[1];
+  const scope = source.match(
+    /(t\d+)\["«owl:Class» Organizational scope"\]/,
+  )?.[1];
   const supports = source.match(/(t\d+)\["supports"\]/)?.[1];
   expect(scope).toBeTruthy();
-  expect(subScope).toBeTruthy();
   expect(supports).toBeTruthy();
-  expect(source).toContain(`${subScope} -->|domain| ${scope}`);
-  expect(source).toContain(`${subScope} -->|range| ${scope}`);
+  expect(source).toContain('subgraph Company_intent["Company intent"]');
+  expect(source).toContain(
+    'subgraph Platform-agnostic_architecture["Platform-agnostic architecture"]',
+  );
+  expect(source).toContain(
+    'subgraph Platform-specific_implementation["Platform-specific implementation"]',
+  );
+  expect(source).toContain(`${scope} -->|"sub-scope of"| ${scope}`);
   expect(source).not.toContain(`${supports} -->`);
-  expect(source).not.toMatch(/-->\|(?:domain|range)\|\s+undefined/);
+  expect(source).not.toContain("undefined");
 
   const node = diagram.locator(".node rect").first();
   const before = await node.evaluate(
@@ -518,7 +524,7 @@ test("Mermaid escapes ontology labels", async ({ page }) => {
   await page.goto("/ontology");
   await page.getByText("Show Mermaid diagram", { exact: true }).click();
   const diagram = page.getByRole("figure", {
-    name: "Ontology terms and declared domain and range constraints",
+    name: "OWL classes, properties and declared ontology constraints",
   });
   await expect(diagram.locator("svg")).toBeVisible();
   await expect(diagram).toContainText('Literal "quote"');
@@ -567,10 +573,12 @@ test("architect workflow leads from shared language to scoped decisions", async 
   const workflow = page.getByRole("list", {
     name: "Standards consolidation workflow",
   });
-  await expect(workflow.getByRole("link")).toHaveCount(4);
+  await expect(workflow.getByRole("link")).toHaveCount(6);
   for (const [index, href] of [
     "/sources",
-    "/knowledge?level=",
+    "/company",
+    "/architecture",
+    "/platforms",
     "/explore",
     "/review",
   ].entries())
@@ -597,12 +605,12 @@ test("architect workflow leads from shared language to scoped decisions", async 
   ).toContainText("Strategic requirement");
   await expect(
     page.getByRole("region", {
-      name: "Classification context, not requirement candidates",
+      name: "Organizational applicability",
     }),
   ).toContainText("Organizational scope");
   await expect(
     page.getByRole("region", {
-      name: "Classification context, not requirement candidates",
+      name: "Organizational applicability",
     }),
   ).not.toContainText("Strategic goal");
 });
@@ -1044,9 +1052,7 @@ test("dark theme persists across desktop navigation", async ({ page }) => {
   await page.goto("/?scoutTheme=light");
   await page.getByRole("button", { name: "Use dark theme" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page
-    .getByRole("link", { name: "Interpretations", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Company intent", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(
     page.getByRole("link", { name: statement, exact: true }),
@@ -1420,12 +1426,44 @@ test("visual validation requires an intentional starting point", async ({
   ).toBeVisible();
 });
 
-test("knowledge levels separate platform implementation and persist the selection", async ({
+test("knowledge workspaces separate company, architecture, and platform concepts", async ({
   page,
 }) => {
+  const company = {
+    ...concept,
+    levels: { [id]: "company" },
+    versions: [
+      {
+        ...concept.versions[0],
+        candidate: {
+          ...concept.versions[0].candidate,
+          semantic_type: "StrategicGoal",
+          statement: "Become a resilient enterprise.",
+          modality: "unspecified",
+          goal_level: "enterprise",
+        },
+      },
+    ],
+  };
+  const subordinate = {
+    ...company,
+    id: relatedId,
+    versions: [
+      {
+        ...company.versions[0],
+        id: findingId,
+        concept_id: relatedId,
+        candidate: {
+          ...company.versions[0].candidate,
+          statement: "Increase a business metric by 5%.",
+          goal_level: "subordinate_target",
+        },
+      },
+    ],
+  };
   const platform = {
     ...concept,
-    levels: { [id]: "implementation" },
+    levels: { [id]: "platform_specific" },
     versions: [
       {
         ...concept.versions[0],
@@ -1440,21 +1478,35 @@ test("knowledge levels separate platform implementation and persist the selectio
   await page.route("**/api/concepts?**", (route) => {
     const level = new URL(route.request().url()).searchParams.get("level");
     return route.fulfill({
-      json: level === "implementation" ? [platform] : [concept],
+      json:
+        level === "platform_specific"
+          ? [platform]
+          : level === "company"
+            ? [company, subordinate]
+            : [concept],
     });
   });
-  await page.goto("/knowledge");
-  const filter = page.getByRole("combobox", { name: "Architecture level" });
-  await expect(filter).toHaveValue("top_level");
+  await page.goto("/company");
+  await expect(
+    page.getByRole("heading", { name: "Understand enterprise direction." }),
+  ).toBeVisible();
+  await expect(page.locator(".statement-link")).toHaveText(
+    "Become a resilient enterprise.",
+  );
+  await expect(
+    page.getByRole("link", { name: "Increase a business metric by 5%." }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("link", { name: "Platform-agnostic", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/architecture$/);
   await expect(page.locator(".statement-link")).toHaveText(statement);
-  await filter.selectOption("implementation");
+  await page.getByRole("link", { name: "Platforms & controls" }).click();
+  await expect(page).toHaveURL(/\/platforms$/);
   await expect(page.locator(".statement-link")).toHaveText(
     "Configure Azure Firewall for inspected traffic.",
   );
-  await expect(page.locator("tbody")).toContainText("Platform implementation");
-  await expect(page).toHaveURL(/level=implementation/);
-  await page.reload();
-  await expect(filter).toHaveValue("implementation");
+  await expect(page.locator("tbody")).toContainText("Platform-specific");
 });
 
 test("relationship maps retain generic occurrence evidence without inventing alignments", async ({
@@ -1469,21 +1521,21 @@ test("relationship maps retain generic occurrence evidence without inventing ali
             id,
             label: "Protect web applications with the selected platform.",
             kind: "requirement",
-            level: "implementation",
+            level: "platform_specific",
             href: `/concepts/${id}`,
           },
           {
             id: sourceId,
             label: source.item.name,
             kind: "source",
-            level: "top_level",
+            level: "platform_agnostic",
             href: `/sources/${sourceId}`,
           },
           {
             id: relatedId,
             label: "A company objective awaiting alignment.",
             kind: "objective",
-            level: "top_level",
+            level: "company",
             href: `/concepts/${relatedId}`,
           },
         ],

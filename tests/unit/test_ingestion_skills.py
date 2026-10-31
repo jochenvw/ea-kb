@@ -178,7 +178,7 @@ async def test_extraction_retries_scope_widening_without_relabeling():
     assert len(calls) == 2 and result.usage.validation_failures == 1
 
 
-async def test_domain_and_irrelevant_labels_do_not_trigger_extraction():
+async def test_irrelevant_and_scope_only_labels_do_not_trigger_extraction():
     segment, _, _ = scoped_input()
 
     def forbidden(request):
@@ -191,13 +191,6 @@ async def test_domain_and_irrelevant_labels_do_not_trigger_extraction():
             ContentLabeling(
                 labels=[
                     ContentLabel(
-                        semantic_type=SemanticType.ARCHITECTURE_DOMAIN, excerpt=segment.text
-                    )
-                ]
-            ),
-            ContentLabeling(
-                labels=[
-                    ContentLabel(
                         semantic_type=SemanticType.ORGANIZATIONAL_SCOPE, excerpt=segment.text
                     )
                 ]
@@ -206,6 +199,45 @@ async def test_domain_and_irrelevant_labels_do_not_trigger_extraction():
             result = await adapter.extract_scoped(segment, labels)
             assert result.extraction == Extraction()
             assert result.usage.cost == 0
+
+
+async def test_domain_label_triggers_source_grounded_extraction():
+    text = "Architecture domain: Identity management."
+    segment = Segment(id=uuid4(), revision_id=uuid4(), ordinal=0, text=text)
+    labeling = ContentLabeling(
+        labels=[
+            ContentLabel(
+                semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+                excerpt=text,
+            )
+        ]
+    )
+    expected = Extraction(
+        candidates=[
+            Candidate(
+                semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+                statement=text,
+                excerpt=text,
+            )
+        ]
+    )
+
+    def handle(request):
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": expected.model_dump_json()}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await OpenAIInference(Settings(model_id="test"), client=client).extract_scoped(
+            segment, labeling
+        )
+
+    assert result.extraction == expected
+    assert result.usage.model_calls == 1
 
 
 def test_fabricated_scope_and_kind_layer_disagreement_are_rejected():
@@ -243,6 +275,28 @@ def test_fabricated_scope_and_kind_layer_disagreement_are_rejected():
         )
 
 
+def test_explicit_section_heading_can_ground_business_unit_scope():
+    text = "Grow LNG sales by 4-5% per year through 2030."
+    segment = Segment(
+        id=uuid4(),
+        revision_id=uuid4(),
+        ordinal=0,
+        text=text,
+        heading="Our strategy - Integrated Gas",
+    )
+    labeling = ContentLabeling(
+        labels=[
+            ContentLabel(
+                semantic_type=SemanticType.STRATEGIC_GOAL,
+                excerpt=text,
+                scope=Scope(business_unit="Integrated Gas"),
+            )
+        ]
+    )
+
+    validate_labeling(labeling, segment)
+
+
 def test_relationship_cannot_escape_the_labeled_scope():
     segment, labels, extraction = scoped_input()
     extraction = Extraction(
@@ -262,6 +316,43 @@ def test_relationship_cannot_escape_the_labeled_scope():
     )
     with pytest.raises(GroundingError, match="Relationship"):
         validate_scoped_extraction(extraction, segment, labels)
+
+
+def test_architecture_domain_is_a_source_grounded_concept_candidate():
+    text = "Architecture domain: Identity management."
+    segment = Segment(id=uuid4(), revision_id=uuid4(), ordinal=0, text=text)
+    labeling = ContentLabeling(
+        labels=[
+            ContentLabel(
+                semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+                excerpt=text,
+            )
+        ]
+    )
+    extraction = Extraction(
+        candidates=[
+            Candidate(
+                semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+                statement=text,
+                excerpt=text,
+            )
+        ]
+    )
+
+    validate_scoped_extraction(extraction, segment, labeling)
+    platform_text = "Architecture domain: Azure identity management."
+    platform_segment = segment.model_copy(update={"text": platform_text})
+    platform_labeling = ContentLabeling(
+        labels=[
+            ContentLabel(
+                semantic_type=SemanticType.ARCHITECTURE_DOMAIN,
+                excerpt=platform_text,
+                scope=Scope(platform="Azure"),
+            )
+        ]
+    )
+    with pytest.raises(GroundingError, match="Platform-independent"):
+        validate_labeling(platform_labeling, platform_segment)
 
 
 @pytest.mark.parametrize(
@@ -523,7 +614,7 @@ async def test_live_skill_gates_require_priced_usage_and_preserve_attribution(tm
     documents = SkillDataset.model_validate_json(DOCUMENTS.read_bytes())
     for case in dataset.cases:
         if case.source:
-            if case.id == "source-nist-data-protection-conceptual":
+            if case.source.id == "nist-csf-2.0":
                 reference = next(
                     c for c in documents.cases if c.id == "nist-csf-company-and-architecture"
                 )

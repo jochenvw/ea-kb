@@ -29,6 +29,8 @@ from ekb.evaluation.goals import (
     GoalPrediction,
     GoalSource,
     _annotation_matches,
+    _goal_synthesis_chunks,
+    _goal_synthesis_text,
     abstraction_metric,
     detection_metric,
     duplicate_metric,
@@ -40,6 +42,26 @@ from ekb.evaluation.goals import (
 _ENTERPRISE_EVIDENCE = "We aim to become a resilient enterprise."
 _TARGET_EVIDENCE = "Grow regional sales by 5% annually."
 _HISTORY_EVIDENCE = "Sales increased by 11% in 2025."
+
+
+def test_hierarchical_reconciliation_chunks_inputs_without_splitting_records():
+    records = [
+        (
+            f"Goal {index}",
+            "StrategicGoal",
+            "enterprise",
+            "{}",
+            f"pdf-page:{index}",
+            "Strategy",
+            f"Evidence {index}",
+        )
+        for index in range(1, 4)
+    ]
+
+    chunks = _goal_synthesis_chunks(records, max_chars=130)
+
+    assert [record for chunk in chunks for record in chunk] == records
+    assert all(len(_goal_synthesis_text(chunk)) <= 130 for chunk in chunks)
 
 
 def _dataset(source: GoalSource) -> GoalDataset:
@@ -300,7 +322,11 @@ async def test_hierarchical_results_are_reconciled_and_cached_usage_is_separate(
         strategies=("hierarchical",),
     )
     result = hierarchical["strategies"]["hierarchical"]
-    assert result["candidate_count"] == 1
+    assert result["candidate_count"] == 2
+    assert {prediction["candidate"]["goal_level"] for prediction in result["predictions"]} == {
+        "enterprise",
+        "subordinate_target",
+    }
     assert result["metrics"]["goal_detection"]["primary_only"]["tp"] == 1
     assert result["current_run_model_calls"] == 2
     assert result["current_run_cost"] == 0.02

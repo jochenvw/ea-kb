@@ -81,6 +81,7 @@ sources:
     retrieval: http
     access_notes: Public JSON representation linked by the official strategy page; Shell copyright. Local analysis only.
     intended_scope: Public corporate strategy at https://www.shell.com/what-we-do/our-strategy.html; not internal policy.
+    extract_strategy: false
   - id: shell-public-sustainability
     publisher: Shell plc
     name: Shell public sustainability
@@ -90,6 +91,7 @@ sources:
     retrieval: http
     access_notes: Public JSON representation of the official sustainability page; Shell copyright. Local analysis only.
     intended_scope: Public sustainability statements, with no assumed legal applicability.
+    extract_strategy: false
   - id: nist-csf-2.0
     framework_namespace: nist-csf
     framework_revision: "2.0"

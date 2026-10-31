@@ -15,7 +15,8 @@
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
   alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
-- Knowledge levels separate goals/guidance from explicit platform requirements; they grant no authority.
+- Knowledge levels separate company intent, platform-agnostic architecture, platform-specific
+  controls and unclassified interpretations; they grant no authority.
 - `ontology.py` types the read-only authoritative catalog; `SemanticType` and `RelationshipKind`
   use OWL identifiers, not a parallel objective/requirement taxonomy or lifecycle relation kinds.
 - Strategic goals and requirements remain candidates until an explicit authority decision.

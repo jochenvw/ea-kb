@@ -87,6 +87,7 @@ async def test_levels_preserve_goals_and_filter_platform_requirements_before_pag
                 (None, " "),
                 (None, "\t\n"),
                 (SemanticType.STRATEGIC_GOAL, "Azure"),
+                (SemanticType.ARCHITECTURE_DOMAIN, None),
             )
         )
     ]
@@ -101,15 +102,31 @@ async def test_levels_preserve_goals_and_filter_platform_requirements_before_pag
         )
         await uow.commit()
     async with database() as uow:
-        platform = await uow.knowledge.search(level=KnowledgeLevel.IMPLEMENTATION)
+        platform = await uow.knowledge.search(level=KnowledgeLevel.PLATFORM_SPECIFIC)
         assert [row.id for row in platform] == [ids[0]]
-        first = await uow.knowledge.search(level=KnowledgeLevel.TOP_LEVEL, limit=1)
-        remaining = await uow.knowledge.search(level=KnowledgeLevel.TOP_LEVEL, after=first[0].id)
-        assert {row.id for row in first + remaining} == set(ids[1:])
-        for row in platform + first + remaining:
+        architecture = await uow.knowledge.search(level=KnowledgeLevel.PLATFORM_AGNOSTIC)
+        assert {row.id for row in architecture} == {ids[1], ids[5]}
+        company = await uow.knowledge.search(level=KnowledgeLevel.COMPANY)
+        assert [row.id for row in company] == [ids[4]]
+        unclassified = await uow.knowledge.search(level=KnowledgeLevel.UNCLASSIFIED)
+        assert {row.id for row in unclassified} == {ids[2], ids[3]}
+        strategic = await uow.knowledge.search(
+            semantic_types=(
+                SemanticType.STRATEGIC_GOAL,
+                SemanticType.STRATEGIC_REQUIREMENT,
+            )
+        )
+        assert [row.id for row in strategic] == [ids[4]]
+        for row in platform + architecture + company + unclassified:
             assert row.matching_version_id
             assert row.levels[row.matching_version_id] == (
-                KnowledgeLevel.IMPLEMENTATION if row.id == ids[0] else KnowledgeLevel.TOP_LEVEL
+                KnowledgeLevel.PLATFORM_SPECIFIC
+                if row.id == ids[0]
+                else KnowledgeLevel.COMPANY
+                if row.id == ids[4]
+                else KnowledgeLevel.PLATFORM_AGNOSTIC
+                if row.id in {ids[1], ids[5]}
+                else KnowledgeLevel.UNCLASSIFIED
             )
 
 

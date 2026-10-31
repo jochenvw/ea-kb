@@ -38,7 +38,7 @@ from ekb.domain.models import (
     total_usage,
 )
 from ekb.observability import tracer
-from ekb.ports import GoalSynthesisPort, IngestionSkills
+from ekb.ports import IngestionSkills, StrategyReconciliationPort
 
 type GoalAbstraction = Literal[
     "enterprise_goal",
@@ -655,7 +655,7 @@ async def _extract_segment(
 async def _synthesize_segment(
     segment: Segment,
     inference: IngestionSkills,
-    synthesizer: GoalSynthesisPort,
+    synthesizer: StrategyReconciliationPort,
     cache_dir: Path,
     configuration: str,
 ) -> _SegmentResult:
@@ -663,7 +663,7 @@ async def _synthesize_segment(
         segment=segment.id,
         content=content_hash(segment.text.encode("utf-8")),
         model=inference.capabilities.model_id,
-        synthesis=synthesizer.goal_synthesis_fingerprint,
+        synthesis=synthesizer.strategy_reconciliation_fingerprint,
         configuration=configuration,
     )
     cache_path = cache_dir / f"goal-synthesis-{key}.json"
@@ -671,7 +671,7 @@ async def _synthesize_segment(
         payload = json.loads(await asyncio.to_thread(cache_path.read_text, encoding="utf-8"))
         result = InferenceResult.model_validate(payload)
         return _SegmentResult(segment, result, True, Usage(), _model_calls(result, inference))
-    result = await synthesizer.synthesize_goals(segment)
+    result = await synthesizer.reconcile_strategy(segment)
     validate_evidence(result.extraction, segment)
     await asyncio.to_thread(cache_dir.mkdir, parents=True, exist_ok=True)
     await _atomic_write(cache_path, result.model_dump_json())
@@ -769,17 +769,22 @@ def _candidate_payload(predictions: tuple[GoalPrediction, ...]) -> list[dict[str
     return [prediction.model_dump(mode="json") for prediction in predictions]
 
 
-def _enterprise_synthesis_records(
+def _goal_synthesis_records(
     predictions: tuple[GoalPrediction, ...],
-) -> list[tuple[str, str, str, str, str]]:
+) -> list[tuple[str, str, str, str, str, str, str]]:
     return list(
         dict.fromkeys(
             (
                 prediction.candidate.statement,
+                prediction.candidate.semantic_type.value,
                 (
                     prediction.candidate.goal_level.value
                     if prediction.candidate.goal_level is not None
                     else "unclassified"
+                ),
+                json.dumps(
+                    prediction.candidate.scope.model_dump(mode="json", exclude_none=True),
+                    sort_keys=True,
                 ),
                 f"pdf-page:{prediction.pdf_page}",
                 prediction.section or "Unknown section",
@@ -787,15 +792,38 @@ def _enterprise_synthesis_records(
             )
             for prediction in predictions
             if prediction.candidate.semantic_type is SemanticType.STRATEGIC_GOAL
-            and prediction.candidate.goal_level
-            in {
-                GoalLevel.ENTERPRISE,
-                None,
-            }
             and prediction.pdf_page is not None
             and prediction.candidate.excerpt
         )
     )
+
+
+def _goal_synthesis_text(records: list[tuple[str, str, str, str, str, str, str]]) -> str:
+    return "\n\n".join(
+        f"Candidate: {statement}\nType: {semantic_type}\nLevel: {goal_level}\n"
+        f"Scope: {scope}\nSource key: {source_key}\nSection: {section}\nEvidence: {excerpt}"
+        for statement, semantic_type, goal_level, scope, source_key, section, excerpt in records
+    )
+
+
+def _goal_synthesis_chunks(
+    records: list[tuple[str, str, str, str, str, str, str]],
+    max_chars: int = 16_000,
+) -> list[list[tuple[str, str, str, str, str, str, str]]]:
+    chunks: list[list[tuple[str, str, str, str, str, str, str]]] = []
+    current: list[tuple[str, str, str, str, str, str, str]] = []
+    for record in records:
+        proposed = [*current, record]
+        if current and len(_goal_synthesis_text(proposed)) > max_chars:
+            chunks.append(current)
+            current = [record]
+        else:
+            current = proposed
+        if len(_goal_synthesis_text(current)) > max_chars:
+            raise ValueError("One hierarchical synthesis record exceeds the character bound")
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def _deduplicate_offline_candidates(runs: list[_SegmentResult]) -> list[_SegmentResult]:
@@ -911,64 +939,96 @@ async def _strategy(
             synthesis_completed = True
             reconciliation_mode = "offline_exact_deduplication"
         initial, _ = _make_predictions(runs, dataset, page_texts)
-        evidence_records = _enterprise_synthesis_records(initial)
+        evidence_records = _goal_synthesis_records(initial)
         if evidence_records and not inference.capabilities.model_id.startswith("offline-"):
             synthesis_completed = False
             reconciliation_mode = "model_synthesis"
-            synthesis_text = "\n\n".join(
-                f"Candidate: {statement}\nLevel: {goal_level}\nSource key: {source_key}\n"
-                f"Section: {section}\nEvidence: {excerpt}"
-                for statement, goal_level, source_key, section, excerpt in evidence_records
-            )
-            if len(synthesis_text) > 16_000:
-                raise ValueError("Hierarchical synthesis input exceeds the 16,000-character bound")
-            synthesis_segment = Segment(
-                id=stable_id("goal-synthesis", configuration, synthesis_text),
-                revision_id=stable_id("goal-synthesis-revision", dataset.source.sha256),
-                ordinal=len(runs),
-                text=synthesis_text,
-                heading="Source-grounded strategic-goal synthesis",
-                location={"pdf_page": 0, "printed_page": None},
-            )
-            synthesis_cache = cache_dir / (
-                f"result-{_cache_key(synthesis_segment, inference, configuration)}.json"
-            )
-            synthesis_cache_hit = await asyncio.to_thread(synthesis_cache.is_file)
-            reserve = (
-                max_calls_per_segment
-                if not synthesis_cache_hit
-                and not inference.capabilities.model_id.startswith("offline-")
-                else 0
-            )
-            if reserve and budget_consumed + reserve > max_model_calls:
-                raise ValueError(
-                    "Hierarchical synthesis exceeds --max-model-calls before inference"
-                )
-            try:
-                synthesis = (
-                    await _synthesize_segment(
-                        synthesis_segment,
-                        inference,
-                        inference,
-                        cache_dir,
-                        configuration,
+            current_records = evidence_records
+            for round_index in range(8):
+                chunks = _goal_synthesis_chunks(current_records)
+                round_runs = []
+                next_records = []
+                round_failed = False
+                for chunk_index, chunk in enumerate(chunks):
+                    synthesis_text = _goal_synthesis_text(chunk)
+                    synthesis_segment = Segment(
+                        id=stable_id(
+                            "goal-synthesis",
+                            configuration,
+                            round_index,
+                            chunk_index,
+                            synthesis_text,
+                        ),
+                        revision_id=stable_id("goal-synthesis-revision", dataset.source.sha256),
+                        ordinal=len(chunk),
+                        text=synthesis_text,
+                        heading="Source-grounded strategic-goal synthesis",
+                        location={"pdf_page": 0, "printed_page": None},
                     )
-                    if isinstance(inference, GoalSynthesisPort)
-                    else await _extract_segment(
-                        synthesis_segment, inference, cache_dir, configuration
+                    synthesis_cache = cache_dir / (
+                        f"result-{_cache_key(synthesis_segment, inference, configuration)}.json"
                     )
-                )
-                synthesis_calls = synthesis.model_calls
-                runs.append(synthesis)
-                synthesis_completed = True
-                final_runs = [synthesis]
-                if not synthesis.cached:
-                    budget_consumed += synthesis.model_calls
-            except Exception as error:
-                if reserve:
-                    budget_consumed += reserve
-                    unaccounted_call_reserve += reserve
-                errors.append({"stage": "synthesis", "error_type": type(error).__name__})
+                    synthesis_cache_hit = await asyncio.to_thread(synthesis_cache.is_file)
+                    reserve = max_calls_per_segment if not synthesis_cache_hit else 0
+                    if reserve and budget_consumed + reserve > max_model_calls:
+                        raise ValueError(
+                            "Hierarchical synthesis exceeds --max-model-calls before inference"
+                        )
+                    try:
+                        synthesis = (
+                            await _synthesize_segment(
+                                synthesis_segment,
+                                inference,
+                                inference,
+                                cache_dir,
+                                configuration,
+                            )
+                            if isinstance(inference, StrategyReconciliationPort)
+                            else await _extract_segment(
+                                synthesis_segment, inference, cache_dir, configuration
+                            )
+                        )
+                        synthesis_calls += synthesis.model_calls
+                        runs.append(synthesis)
+                        round_runs.append(synthesis)
+                        predictions, _ = _make_predictions([synthesis], dataset, page_texts)
+                        next_records.extend(_goal_synthesis_records(predictions))
+                        if not synthesis.cached:
+                            budget_consumed += synthesis.model_calls
+                    except Exception as error:
+                        if reserve:
+                            budget_consumed += reserve
+                            unaccounted_call_reserve += reserve
+                        errors.append(
+                            {
+                                "stage": "synthesis",
+                                "round": round_index,
+                                "chunk": chunk_index,
+                                "error_type": type(error).__name__,
+                            }
+                        )
+                        round_failed = True
+                        break
+                if round_failed:
+                    break
+                if len(chunks) == 1:
+                    synthesis_completed = True
+                    final_runs = round_runs
+                    break
+                if not next_records:
+                    synthesis_completed = True
+                    final_runs = []
+                    break
+                if len(next_records) >= len(current_records):
+                    errors.append(
+                        {
+                            "stage": "synthesis",
+                            "round": round_index,
+                            "error_type": "NonConvergentReconciliation",
+                        }
+                    )
+                    break
+                current_records = next_records
 
     predictions, hierarchy_predictions = _make_predictions(final_runs, dataset, page_texts)
     output_metrics = _metric_results(dataset, predictions, hierarchy_predictions, metrics)

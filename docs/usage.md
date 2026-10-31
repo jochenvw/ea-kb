@@ -207,6 +207,8 @@ identified UK/US offshore safety publications. These are illustrative sources, n
 company restriction. Each entry documents publisher, identifier,
 format, jurisdiction, access conditions and intended scope. Full downloaded originals are retained;
 only selected NIST controls/annual-report pages are initially parsed.
+Corroborating strategy and sustainability pages set `extract_strategy: false`: they remain sources
+for non-strategy knowledge without duplicating the annual report's reconciled strategy set.
 
 ISO/IEC 27001 and ISO 14001 entries are **metadata references only**. No ISO full text or invented
 ISO clauses are provided. Put suitably licensed documents in an authorized private source directory.
@@ -349,8 +351,9 @@ their section headings are shown explicitly. Missing context is disclosed, never
 **Shared language** under Workspace (`/ontology`, read-only API `/api/ontology`) shows the canonical concepts,
 semantic relations, classification/scope properties and exact definitions from the committed OWL/RDF.
 Search names/definitions, inspect domain/range, symmetric/transitive characteristics, IRIs and version.
-Concepts are grouped by company intent, technology-independent requirements, platform requirements
-and classification context; these presentation groups imply no subclass or support relationships.
+Concepts are grouped by company intent, platform-agnostic architecture, platform-specific
+requirements and organizational applicability; these presentation groups imply no subclass or
+support relationships.
 Interpretations display their canonical definition inline. Knowledge/source badges link to the
 same catalog; unknown types say
 **Unclassified**. The catalog is available even when no documents have been indexed.
@@ -359,17 +362,21 @@ source. Boxes are classes and property types, not enterprise-specific assertions
 domains and ranges are drawn as arrows; semantic properties without declared constraints remain
 unconnected. Search filters the catalog, not the diagram. Rendering is local and read-only.
 
-**Architecture level** defaults to **Goals & guidance**: strategic goals and requirements not classified
-as `PlatformRequirement`, including unclassified native guidance. Select **Platform implementation**
-for explicitly platform-scoped `PlatformRequirement` records, or **All levels** to compare.
-Strategic-goal rows separately label enterprise goals, business-unit goals and supporting targets;
-these extraction levels do not create additional ontology classes.
-Level, text and source filters select the same version; CLI/API also accept `--level implementation`
-and `level=implementation`. Unknown scope remains unknown, not universal applicability.
+The browser separates knowledge into three desktop workspaces: **Company intent** (`/company`) for
+enterprise-level `StrategicGoal` and all `StrategicRequirement` concepts; business-unit goals and
+subordinate targets remain visible in the diagnostic `/knowledge` view. **Platform-agnostic**
+(`/architecture`) is for explicit `ArchitectureDomain`, `ConceptualRequirement` and
+`TechnicalRequirement` concepts; and
+**Platforms & controls** (`/platforms`) for `PlatformRequirement`. Strategic-goal rows separately
+label enterprise goals, business-unit goals and supporting targets; these extraction levels do not
+create additional ontology classes. Level, semantic-type, text and source filters select the same
+version. CLI/API level values are `company`, `platform_agnostic`, `platform_specific` and
+`unclassified`. Unknown scope remains unknown, not universal applicability.
 
-Concept details and the visual explorer show goals/guidance above implementation. Click a source
-for evidence or a connected interpretation to recenter. No company-goal alignment, adoption,
-equivalence or compliance is inferred. Review proposals are hidden by default;
+Concept details and the visual explorer separate company intent, platform-agnostic architecture and
+platform-specific controls. Click a source for evidence or a connected interpretation to recenter.
+No company-goal alignment, adoption, equivalence or compliance is inferred. Review proposals are
+hidden by default;
 **Show review proposals** reveals them as dashed links. Unresolved links are not drawn.
 
 Assertions use one standalone sentence: **supported subject + action/outcome + necessary qualifiers**.

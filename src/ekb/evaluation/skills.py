@@ -95,6 +95,7 @@ class SkillCase(Model):
     family: str
     split: Split
     text: str
+    heading: str | None = None
     labeling: ContentLabeling
     expected: Extraction
     source: Source | None = None
@@ -106,6 +107,7 @@ class SkillCase(Model):
             revision_id=stable_id("skill-family", self.family),
             ordinal=0,
             text=self.text,
+            heading=self.heading,
         )
 
 
@@ -228,8 +230,7 @@ async def _run_skill_case(
 ) -> SkillExecution:
     case = cases[case_id]
     requires_model = selected == "labeling" or any(
-        label.semantic_type
-        not in {SemanticType.ARCHITECTURE_DOMAIN, SemanticType.ORGANIZATIONAL_SCOPE}
+        label.semantic_type is not SemanticType.ORGANIZATIONAL_SCOPE
         for label in case.labeling.labels
     )
     state.active += 1

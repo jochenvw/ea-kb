@@ -7,6 +7,7 @@ from ekb.domain.models import (
     Model,
     ProcessingTask,
     Provenance,
+    SemanticType,
     total_usage,
 )
 from ekb.ports import UnitOfWorkFactory
@@ -42,10 +43,16 @@ class KnowledgeService:
         after: UUID | None = None,
         source_id: UUID | None = None,
         level: KnowledgeLevel | None = None,
+        semantic_types: tuple[SemanticType, ...] | None = None,
     ) -> list[ConceptDetail]:
         async with self.uow() as uow:
             return await uow.knowledge.search(
-                query, limit, after=after, source_id=source_id, level=level
+                query,
+                limit,
+                after=after,
+                source_id=source_id,
+                level=level,
+                semantic_types=semantic_types,
             )
 
     async def get(self, concept_id: UUID) -> ConceptDetail | None:

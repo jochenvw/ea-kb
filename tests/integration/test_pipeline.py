@@ -22,6 +22,7 @@ from ekb.domain.models import (
     GoalLevel,
     InferenceResult,
     LabelingResult,
+    Modality,
     SemanticType,
     Usage,
 )
@@ -52,17 +53,28 @@ class CountingInference(RulesInference):
 
 class SynthesizingInference(RulesInference):
     capabilities = Capabilities(model_id="synthetic-live-model")
-    goal_synthesis_fingerprint = "synthetic-goal-synthesis-v1"
+    strategy_reconciliation_fingerprint = "synthetic-strategy-reconciliation-v1"
 
     async def label(self, segment):
         labels = [
             ContentLabel(
                 excerpt=text,
-                semantic_type=SemanticType.STRATEGIC_GOAL,
+                semantic_type=(
+                    SemanticType.STRATEGIC_REQUIREMENT
+                    if "confidential information" in text.lower()
+                    else SemanticType.ARCHITECTURE_DOMAIN
+                    if "architecture domain" in text.lower()
+                    else SemanticType.STRATEGIC_GOAL
+                ),
             )
             for text in (
                 "We aim to become a resilient enterprise.",
                 "We aim to build trusted relationships.",
+                "Grow recurring revenue by 5% by 2030.",
+                "Increase recurring revenue 5% by 2030.",
+                "Teams must protect confidential information.",
+                "Confidential information must be protected by teams.",
+                "Architecture domain: Identity management.",
             )
         ]
         return LabelingResult(
@@ -79,8 +91,19 @@ class SynthesizingInference(RulesInference):
                     Candidate(
                         statement=label.excerpt,
                         excerpt=label.excerpt,
-                        semantic_type=SemanticType.STRATEGIC_GOAL,
-                        goal_level=GoalLevel.ENTERPRISE,
+                        semantic_type=label.semantic_type,
+                        goal_level=(
+                            GoalLevel.SUBORDINATE_TARGET
+                            if "5%" in label.excerpt
+                            else GoalLevel.ENTERPRISE
+                            if label.semantic_type is SemanticType.STRATEGIC_GOAL
+                            else None
+                        ),
+                        modality=(
+                            Modality.MANDATED
+                            if label.semantic_type is SemanticType.STRATEGIC_REQUIREMENT
+                            else Modality.UNSPECIFIED
+                        ),
                     )
                     for label in labeling.labels
                 ]
@@ -90,10 +113,17 @@ class SynthesizingInference(RulesInference):
             prompt_version="synthetic-extraction-v1",
         )
 
-    async def synthesize_goals(self, segment):
+    async def reconcile_strategy(self, segment):
         source_key = re.search(r"Source key: (segment:[0-9a-f-]+)", segment.text)
         evidence = "We aim to become a resilient enterprise."
-        assert source_key and evidence in segment.text
+        target = "Grow recurring revenue by 5% by 2030."
+        requirement = "Teams must protect confidential information."
+        assert (
+            source_key
+            and evidence in segment.text
+            and target in segment.text
+            and requirement in segment.text
+        )
         return InferenceResult(
             extraction=Extraction(
                 candidates=[
@@ -103,12 +133,26 @@ class SynthesizingInference(RulesInference):
                         semantic_type=SemanticType.STRATEGIC_GOAL,
                         goal_level=GoalLevel.ENTERPRISE,
                         source_key=source_key.group(1),
-                    )
+                    ),
+                    Candidate(
+                        statement=target,
+                        excerpt=target,
+                        semantic_type=SemanticType.STRATEGIC_GOAL,
+                        goal_level=GoalLevel.SUBORDINATE_TARGET,
+                        source_key=source_key.group(1),
+                    ),
+                    Candidate(
+                        statement=requirement,
+                        excerpt=requirement,
+                        semantic_type=SemanticType.STRATEGIC_REQUIREMENT,
+                        modality=Modality.MANDATED,
+                        source_key=source_key.group(1),
+                    ),
                 ]
             ),
             usage=Usage(model_calls=1),
             model_id=self.capabilities.model_id,
-            prompt_version=self.goal_synthesis_fingerprint,
+            prompt_version=self.strategy_reconciliation_fingerprint,
         )
 
 
@@ -122,13 +166,18 @@ def build(database, tmp_path):
     return pipeline, parser, inference, source
 
 
-async def test_live_ingestion_persists_only_reconciled_enterprise_goals(database, tmp_path):
+async def test_live_ingestion_reconciles_strategy_and_persists_domain(database, tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     (source / "strategy.md").write_text(
         "# Strategy\n"
         "We aim to become a resilient enterprise. "
-        "We aim to build trusted relationships."
+        "We aim to build trusted relationships. "
+        "Grow recurring revenue by 5% by 2030. "
+        "Increase recurring revenue 5% by 2030. "
+        "Teams must protect confidential information. "
+        "Confidential information must be protected by teams. "
+        "Architecture domain: Identity management."
     )
     pipeline = IngestionPipeline(
         database,
@@ -139,12 +188,21 @@ async def test_live_ingestion_persists_only_reconciled_enterprise_goals(database
 
     report = await pipeline.scan([FilesystemConnector(source)])
 
-    assert report.processed == 1 and report.failed == 0 and report.concepts == 1
+    assert report.processed == 1 and report.failed == 0 and report.concepts == 4
     async with database() as uow:
         concepts = await uow.knowledge.search()
-    assert [item.versions[0].candidate.statement for item in concepts] == [
-        "Become a resilient enterprise."
-    ]
+    assert {
+        (
+            item.versions[0].candidate.statement,
+            item.versions[0].candidate.goal_level,
+        )
+        for item in concepts
+    } == {
+        ("Become a resilient enterprise.", GoalLevel.ENTERPRISE),
+        ("Grow recurring revenue by 5% by 2030.", GoalLevel.SUBORDINATE_TARGET),
+        ("Teams must protect confidential information.", None),
+        ("Architecture domain: Identity management.", None),
+    }
 
 
 async def test_incremental_revisions_grounding_and_deletion(database, tmp_path):

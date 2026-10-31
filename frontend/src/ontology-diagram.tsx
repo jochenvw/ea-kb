@@ -27,14 +27,14 @@ function diagramSource(catalog: OntologyCatalog) {
   ].filter((iri) => !ids.has(iri));
   external.forEach((iri, index) => ids.set(iri, `x${index}`));
 
-  function group(title: string, terms: OntologyTerm[]) {
+  function group(title: string, terms: OntologyTerm[], classTerms = false) {
     if (!terms.length) return [];
     return [
       `  subgraph ${title.replaceAll(" ", "_")}["${title}"]`,
       ...terms.map(
         (term) =>
           `    ${ids.get(term.iri)}["${mermaidText(
-            `${term.label}${term.characteristics.length ? ` (${term.characteristics.join(", ")})` : ""}`,
+            `${classTerms ? "«owl:Class» " : ""}${term.label}${term.characteristics.length ? ` (${term.characteristics.join(", ")})` : ""}`,
           )}"]`,
       ),
       "  end",
@@ -42,8 +42,35 @@ function diagramSource(catalog: OntologyCatalog) {
   }
 
   const lines = [
-    "flowchart LR",
-    ...group("Ontology classes", classes),
+    "flowchart TB",
+    ...group(
+      "Company intent",
+      classes.filter((term) =>
+        ["StrategicGoal", "StrategicRequirement"].includes(term.name),
+      ),
+      true,
+    ),
+    ...group(
+      "Platform-agnostic architecture",
+      classes.filter((term) =>
+        [
+          "ArchitectureDomain",
+          "ConceptualRequirement",
+          "TechnicalRequirement",
+        ].includes(term.name),
+      ),
+      true,
+    ),
+    ...group(
+      "Platform-specific implementation",
+      classes.filter((term) => term.name === "PlatformRequirement"),
+      true,
+    ),
+    ...group(
+      "Organizational applicability",
+      classes.filter((term) => term.name === "OrganizationalScope"),
+      true,
+    ),
     ...group("Semantic relationships", relations),
     ...group(
       "Classification and scope",
@@ -61,14 +88,23 @@ function diagramSource(catalog: OntologyCatalog) {
           "  end",
         ]
       : []),
-    ...catalog.terms.flatMap((term) => [
-      ...term.domains.map(
-        (iri) => `  ${ids.get(term.iri)} -->|domain| ${ids.get(iri)}`,
-      ),
-      ...term.ranges.map(
-        (iri) => `  ${ids.get(term.iri)} -->|range| ${ids.get(iri)}`,
-      ),
-    ]),
+    ...catalog.terms.flatMap((term) =>
+      term.domains.length && term.ranges.length
+        ? term.domains.flatMap((domain) =>
+            term.ranges.map(
+              (range) =>
+                `  ${ids.get(domain)} -->|"${mermaidText(term.label)}"| ${ids.get(range)}`,
+            ),
+          )
+        : [
+            ...term.domains.map(
+              (iri) => `  ${ids.get(term.iri)} -->|domain| ${ids.get(iri)}`,
+            ),
+            ...term.ranges.map(
+              (iri) => `  ${ids.get(term.iri)} -->|range| ${ids.get(iri)}`,
+            ),
+          ],
+    ),
     ...(classes.length && relations.length
       ? [
           "  %% Invisible positioning only; this is not an ontology statement.",
@@ -103,7 +139,7 @@ export function OntologyDiagram({ catalog }: { catalog: OntologyCatalog }) {
           suppressErrorRendering: true,
           htmlLabels: true,
           layout: "dagre",
-          fontFamily: "Inter, sans-serif",
+          fontFamily: "Segoe UI, Aptos, Calibri, sans-serif",
           flowchart: { useMaxWidth: false },
         });
         const { svg } = await mermaid.render(`${id}-${attempt}`, source);
@@ -126,10 +162,10 @@ export function OntologyDiagram({ catalog }: { catalog: OntologyCatalog }) {
   return (
     <>
       <p className="table-note">
-        Boxes are ontology terms, not organization-specific assertions. Arrows
-        show declared domains and ranges only; unconnected properties have no
-        inferred class-specific links. The diagram shows the entire ontology,
-        regardless of search; definitions remain in the catalog below.
+        Class boxes are the OWL concepts grouped by their architecture layer.
+        Labeled arrows show only declared domain/range constraints. Relationship
+        properties without those constraints remain separate rather than
+        inventing class links. The complete definitions remain in the catalog.
       </p>
       {result.error ? (
         <div className="empty" role="alert">
@@ -145,7 +181,7 @@ export function OntologyDiagram({ catalog }: { catalog: OntologyCatalog }) {
       ) : result.svg ? (
         <figure
           className="ontology-diagram"
-          aria-label="Ontology terms and declared domain and range constraints"
+          aria-label="OWL classes, properties and declared ontology constraints"
           dangerouslySetInnerHTML={{ __html: result.svg }}
         />
       ) : (

@@ -317,7 +317,7 @@ class Inspection:
                 label=(
                     f"{version.candidate.scope.platform} · "
                     f"{version.candidate.source_key or 'implementation'}: "
-                    if knowledge_level(version.candidate).value == "implementation"
+                    if knowledge_level(version.candidate).value == "platform_specific"
                     else ""
                 )
                 + (
