@@ -13,6 +13,10 @@
   reclassifies overpromoted requirements when exact evidence supports another ontology class.
 - Sources with `extract_strategy: false` retain non-strategy extraction while avoiding duplicate
   goals from corroborating publications; changing the flag invalidates processing checkpoints.
+- Explicit `platform_scope` policy removes platform-source domains and projects every lower-layer
+  requirement into `PlatformRequirement`, preserving a more specific evidenced platform when present.
+- `organization.py` persists manifest-curated strategic requirements/domains and configured,
+  evidence-backed cross-source principle links after every successful corpus scan.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Non-dry-run scans hold a renewable guard before discovery; loss cancels work and fences commits.

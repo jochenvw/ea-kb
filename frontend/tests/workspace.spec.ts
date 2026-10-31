@@ -1574,6 +1574,165 @@ test("relationship maps retain generic occurrence evidence without inventing ali
   await expect(publisher).toHaveAttribute("href", `/sources/${sourceId}`);
 });
 
+test("configured principles show the complete evidence-backed architecture chain", async ({
+  page,
+}) => {
+  const requirementId = "55555555-5555-4555-8555-555555555555";
+  const domainId = "66666666-6666-4666-8666-666666666666";
+  const nistSourceId = "77777777-7777-4777-8777-777777777777";
+  const curationSourceId = "88888888-8888-4888-8888-888888888888";
+  const rationale =
+    "Azure virtual-network peering refines NIST boundary protection within Network security in support of the NIST control baseline.";
+  await page.route(`**/api/concepts/${id}/graph`, (route) =>
+    route.fulfill({
+      json: {
+        root: id,
+        nodes: [
+          {
+            id,
+            label: "Azure · NS-2: Use virtual network peering.",
+            kind: "PlatformRequirement",
+            level: "platform_specific",
+            href: `/concepts/${id}`,
+          },
+          {
+            id: relatedId,
+            label: "Control communications at external managed interfaces.",
+            kind: "TechnicalRequirement",
+            level: "platform_agnostic",
+            href: `/concepts/${relatedId}`,
+          },
+          {
+            id: domainId,
+            label: "Network security",
+            kind: "ArchitectureDomain",
+            level: "platform_agnostic",
+            href: `/concepts/${domainId}`,
+          },
+          {
+            id: requirementId,
+            label:
+              "Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.",
+            kind: "StrategicRequirement",
+            level: "company",
+            href: `/concepts/${requirementId}`,
+          },
+          {
+            id: sourceId,
+            label: "Azure Security Benchmark v2",
+            kind: "source",
+            href: `/sources/${sourceId}`,
+          },
+          {
+            id: nistSourceId,
+            label: "NIST SP 800-53 Revision 5",
+            kind: "source",
+            href: `/sources/${nistSourceId}`,
+          },
+          {
+            id: curationSourceId,
+            label: "Organization architecture curation",
+            kind: "source",
+            href: `/sources/${curationSourceId}`,
+          },
+        ],
+        edges: [
+          {
+            source: id,
+            target: relatedId,
+            kind: "refines",
+            status: "configured",
+            href: `/concepts/${id}`,
+            evidence: { excerpt: rationale },
+          },
+          {
+            source: relatedId,
+            target: domainId,
+            kind: "inDomain",
+            status: "configured",
+            href: `/concepts/${relatedId}`,
+            evidence: { excerpt: rationale },
+          },
+          {
+            source: domainId,
+            target: requirementId,
+            kind: "supports",
+            status: "configured",
+            href: `/concepts/${domainId}`,
+            evidence: { excerpt: rationale },
+          },
+          {
+            source: sourceId,
+            target: id,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${sourceId}`,
+          },
+          {
+            source: nistSourceId,
+            target: relatedId,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${nistSourceId}`,
+          },
+          {
+            source: curationSourceId,
+            target: domainId,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${curationSourceId}`,
+          },
+          {
+            source: curationSourceId,
+            target: requirementId,
+            kind: "evidence",
+            status: "provenance",
+            href: `/sources/${curationSourceId}`,
+          },
+        ],
+        truncated: false,
+      },
+    }),
+  );
+
+  await page.goto(`/explore?concept=${id}`);
+
+  const laneTitles = page.locator("svg .graph-lane-title");
+  await expect(laneTitles).toContainText([
+    "Company intent",
+    "Platform-agnostic architecture",
+    "Platform-specific controls",
+  ]);
+  await expect(
+    page.getByRole("link", {
+      name: /Explore Control communications at external managed interfaces/,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Explore Network security/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: /Explore Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline/,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".graph-links")).toContainText("Refines");
+  await expect(page.locator(".graph-links")).toContainText("In Domain");
+  await expect(page.locator(".graph-links")).toContainText("Supports");
+  await expect(page.locator(".graph-links")).toContainText("Configured");
+  const refinement = page.locator(".graph-record").first();
+  await refinement.getByText("Link basis & evidence").click();
+  await expect(refinement.locator("blockquote")).toHaveText(rationale);
+  for (const name of [
+    "Azure Security Benchmark v2",
+    "NIST SP 800-53 Revision 5",
+    "Organization architecture curation",
+  ])
+    await expect(
+      page.getByRole("link", { name: `Browse source ${name}` }),
+    ).toBeVisible();
+});
+
 test("work backlog is separate from the reference reconciliation ledger", async ({
   page,
 }) => {

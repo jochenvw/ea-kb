@@ -8,9 +8,11 @@ import pytest
 from ekb.domain.execution import CheckOptions, PipelineConfiguration, ProcessorSpec, StageOptions
 from ekb.domain.models import (
     Candidate,
+    ClassificationProperty,
     ConceptDetail,
     ConceptVersion,
     Occurrence,
+    Relationship,
     RelationshipKind,
     Scope,
     SemanticType,
@@ -39,7 +41,7 @@ from ekb.domain.resolution import (
 from ekb.orchestration.registry import StageRegistry
 from ekb.ports import UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext
-from ekb.stages.enrichment import Check
+from ekb.stages.enrichment import Check, lineage
 from ekb.stages.issues import (
     conflicting_requirements,
     deviation_issues,
@@ -156,6 +158,26 @@ async def test_uncertain_relation_only_reports_a_real_provenance_gap():
     )
     result = await provenance_gaps(ctx.model_copy(update={"snapshot": snapshot}))
     assert {issue.issue_type for issue in result.issues} == {"missing_relationship_provenance"}
+
+
+async def test_lineage_records_ontology_classification_relationships():
+    ctx = context()
+    source, target = ctx.snapshot.concepts
+    relationship = Relationship(
+        id=uuid4(),
+        from_concept_id=source.id,
+        to_concept_id=target.id,
+        kind=ClassificationProperty.IN_DOMAIN,
+        occurrence_id=source.occurrences[0].id,
+        status="configured",
+    )
+    source = source.model_copy(update={"relationships": [relationship]})
+    snapshot = ctx.snapshot.model_copy(update={"concepts": (source, target)})
+
+    result = await lineage(ctx.model_copy(update={"snapshot": snapshot}))
+
+    assert len(result.findings) == 1
+    assert result.findings[0].relationship == ClassificationProperty.IN_DOMAIN
 
 
 async def test_tension_is_not_a_proven_hard_conflict():

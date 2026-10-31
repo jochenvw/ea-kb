@@ -48,7 +48,9 @@ def test_ontology_language_agrees_across_domain_database_and_browser():
         return set(re.findall(r"'([^']+)'", str(constraint.sqltext)))
 
     assert values(VersionRow.__table__, "version_semantic_type") == classes
-    assert values(RelationshipRow.__table__, "ontology_relationship_kind") == relations
+    assert values(RelationshipRow.__table__, "ontology_relationship_kind") == relations | {
+        ClassificationProperty.IN_DOMAIN
+    }
     browser = (Path("frontend") / "src" / "types.ts").read_text(encoding="utf-8")
     union = browser.split("export type SemanticType =", 1)[1].split(";", 1)[0]
     assert set(re.findall(r'"([^"]+)"', union)) == classes

@@ -61,8 +61,12 @@ from ekb.domain.models import (
     Assertion,
     AuthorityEvent,
     ConceptDetail,
+    ConceptLink,
+    ConceptMatch,
+    ConceptSelector,
     ConceptSource,
     ConceptVersion,
+    Extraction,
     InferenceResult,
     KnowledgeLevel,
     Occurrence,
@@ -534,7 +538,11 @@ class Knowledge:
             if from_id == to_id:
                 continue
             occurrence = await self._occurrence(
-                version_ids[proposal.from_index], segment, proposal.excerpt, result
+                version_ids[proposal.from_index],
+                segment,
+                proposal.excerpt,
+                result,
+                purpose="relationship",
             )
             relationship = Relationship(
                 id=stable_id(from_id, to_id, proposal.kind, occurrence.id),
@@ -559,8 +567,105 @@ class Knowledge:
                 )
         return concept_ids
 
+    async def match(self, selector: ConceptSelector) -> list[ConceptMatch]:
+        source_id = stable_id("manifest", selector.source_id)
+        source = await self.session.get(SourceRow, source_id)
+        if source is None or not source.payload.get("revision_id"):
+            return []
+        rows = await self.session.execute(
+            select(VersionRow, OccurrenceRow, SegmentRow)
+            .join(OccurrenceRow, OccurrenceRow.concept_version_id == VersionRow.id)
+            .join(SegmentRow, SegmentRow.id == OccurrenceRow.segment_id)
+            .where(
+                SegmentRow.revision_id == UUID(source.payload["revision_id"]),
+                VersionRow.semantic_type == selector.semantic_type,
+                SegmentRow.payload["heading"].astext == selector.heading,
+                OccurrenceRow.payload["excerpt"].astext.icontains(
+                    selector.excerpt_contains,
+                    autoescape=True,
+                ),
+            )
+            .order_by(VersionRow.id, OccurrenceRow.id)
+            .limit(101)
+        )
+        matches: dict[tuple[UUID, UUID], ConceptMatch] = {}
+        needle = selector.excerpt_contains.casefold()
+        for version, occurrence, segment in rows:
+            evidence = Occurrence.model_validate(occurrence.payload)
+            if evidence.extraction_metadata.get("purpose") == "relationship":
+                continue
+            source_segment = Segment.model_validate(segment.payload)
+            if (
+                source_segment.heading != selector.heading
+                or needle not in evidence.excerpt.casefold()
+            ):
+                continue
+            matches[(version.concept_id, version.id)] = ConceptMatch(
+                concept_id=version.concept_id,
+                version_id=version.id,
+                candidate=version.to_domain().candidate,
+            )
+        return list(matches.values())
+
+    async def link(
+        self,
+        segment: Segment,
+        link: ConceptLink,
+        *,
+        model_id: str,
+        prompt_version: str,
+    ) -> None:
+        version = await self.session.get(VersionRow, link.from_version_id)
+        if version is None or version.concept_id != link.from_concept_id:
+            raise ValueError("Relationship source version does not belong to its concept")
+        if await self.session.get(ConceptRow, link.to_concept_id) is None:
+            raise ValueError("Relationship target concept does not exist")
+        occurrence = await self._occurrence(
+            link.from_version_id,
+            segment,
+            link.excerpt,
+            InferenceResult(
+                extraction=Extraction(),
+                model_id=model_id,
+                prompt_version=prompt_version,
+            ),
+            purpose="relationship",
+        )
+        relationship = Relationship(
+            id=stable_id(
+                link.from_concept_id,
+                link.to_concept_id,
+                link.kind,
+                occurrence.id,
+            ),
+            from_concept_id=link.from_concept_id,
+            to_concept_id=link.to_concept_id,
+            kind=link.kind,
+            occurrence_id=occurrence.id,
+            scope=link.scope,
+            status=link.status,
+        )
+        await immutable(
+            self.session,
+            RelationshipRow,
+            {
+                "id": relationship.id,
+                "from_id": relationship.from_concept_id,
+                "to_id": relationship.to_concept_id,
+                "kind": relationship.kind,
+                "occurrence_id": relationship.occurrence_id,
+                "payload": relationship.model_dump(mode="json"),
+            },
+        )
+
     async def _occurrence(
-        self, version_id: UUID, segment: Segment, excerpt: str, result: InferenceResult
+        self,
+        version_id: UUID,
+        segment: Segment,
+        excerpt: str,
+        result: InferenceResult,
+        *,
+        purpose: str = "candidate",
     ) -> Occurrence:
         start = segment.text.index(excerpt)
         end = start + len(excerpt)
@@ -576,6 +681,7 @@ class Knowledge:
                 "prompt_version": result.prompt_version,
                 "usage": result.usage.model_dump(),
                 "authority": "candidate",
+                "purpose": purpose,
             },
         )
         await immutable(
@@ -603,6 +709,9 @@ class Knowledge:
         )
         results = []
         for occ, seg, rev, src in rows:
+            occurrence = Occurrence.model_validate(occ.payload)
+            if occurrence.extraction_metadata.get("purpose") == "relationship":
+                continue
             neighbors = list(
                 await self.session.scalars(
                     select(SegmentRow)
@@ -616,7 +725,7 @@ class Knowledge:
             )
             results.append(
                 Provenance(
-                    occurrence=Occurrence.model_validate(occ.payload),
+                    occurrence=occurrence,
                     segment=Segment.model_validate(seg.payload),
                     revision=SourceRevision.model_validate(rev.payload),
                     source=SourceRecord.model_validate(src.payload),

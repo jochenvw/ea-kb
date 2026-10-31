@@ -224,19 +224,36 @@ class Inspection:
     async def graph(self, concept_id: UUID) -> KnowledgeGraph | None:
         if await self.session.get(ConceptRow, concept_id) is None:
             return None
-        relations = list(
-            await self.session.scalars(
-                select(RelationshipRow)
-                .where(
-                    or_(
-                        RelationshipRow.from_id == concept_id,
-                        RelationshipRow.to_id == concept_id,
+        relations: list[RelationshipRow] = []
+        seen_relations: set[UUID] = set()
+        known_concepts = {concept_id}
+        frontier = {concept_id}
+        for _ in range(3):
+            if not frontier or len(relations) >= 13:
+                break
+            rows = list(
+                await self.session.scalars(
+                    select(RelationshipRow)
+                    .where(
+                        or_(
+                            RelationshipRow.from_id.in_(frontier),
+                            RelationshipRow.to_id.in_(frontier),
+                        )
                     )
+                    .order_by(RelationshipRow.id)
+                    .limit(13 - len(relations))
                 )
-                .order_by(RelationshipRow.id)
-                .limit(13)
             )
-        )
+            next_frontier: set[UUID] = set()
+            for row in rows:
+                if row.id in seen_relations:
+                    continue
+                seen_relations.add(row.id)
+                relations.append(row)
+                next_frontier.update((row.from_id, row.to_id))
+            next_frontier -= known_concepts
+            known_concepts.update(next_frontier)
+            frontier = next_frontier
         findings = list(
             await self.session.scalars(
                 select(FindingRow)
@@ -265,20 +282,28 @@ class Inspection:
                 target=row.to_id,
                 kind=row.kind,
                 status=row.payload.get("status", "asserted"),
-                href=f"/concepts/{concept_id}",
+                href=f"/concepts/{row.from_id}",
                 evidence=occurrences.get(row.occurrence_id),
             )
             for row in relations[:12]
         ]
+        persisted = {(row.from_id, row.to_id, row.kind) for row in relations}
         for row in findings[:12]:
             finding = Finding.model_validate(row.payload)
             for other in finding.concept_ids[1:]:
                 if concept_id in (finding.concept_ids[0], other):
+                    kind = (
+                        finding.relationship.value
+                        if finding.relationship is not None
+                        else finding.action
+                    )
+                    if (finding.concept_ids[0], other, kind) in persisted:
+                        continue
                     edges.append(
                         GraphEdge(
                             source=finding.concept_ids[0],
                             target=other,
-                            kind=finding.relationship or finding.action,
+                            kind=kind,
                             status="proposal",
                             href=f"/review?finding_id={finding.id}",
                         )
@@ -330,34 +355,46 @@ class Inspection:
             )
             for version in (row.to_domain() for row in versions)
         ]
-        sources = list(
+        source_rows = list(
             (
                 await self.session.execute(
-                    select(SourceRow)
+                    select(SourceRow, VersionRow.concept_id)
                     .join(RevisionRow, RevisionRow.source_id == SourceRow.id)
                     .join(SegmentRow, SegmentRow.revision_id == RevisionRow.id)
                     .join(OccurrenceRow, OccurrenceRow.segment_id == SegmentRow.id)
                     .join(VersionRow, VersionRow.id == OccurrenceRow.concept_version_id)
-                    .where(VersionRow.concept_id == concept_id)
+                    .where(
+                        VersionRow.concept_id.in_(ids),
+                        or_(
+                            OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(
+                                None
+                            ),
+                            OccurrenceRow.payload["extraction_metadata"]["purpose"].astext
+                            != "relationship",
+                        ),
+                    )
                     .distinct()
-                    .order_by(SourceRow.id)
-                    .limit(9)
+                    .order_by(SourceRow.id, VersionRow.concept_id)
+                    .limit(13)
                 )
-            ).scalars()
+            ).all()
         )
-        for source in sources[:8]:
-            nodes.append(
-                GraphNode(
-                    id=source.id,
-                    label=source.payload["item"]["name"],
-                    kind="source",
-                    href=f"/sources/{source.id}",
+        source_ids: set[UUID] = set()
+        for source, evidenced_concept_id in source_rows[:12]:
+            if source.id not in source_ids:
+                nodes.append(
+                    GraphNode(
+                        id=source.id,
+                        label=source.payload["item"]["name"],
+                        kind="source",
+                        href=f"/sources/{source.id}",
+                    )
                 )
-            )
+                source_ids.add(source.id)
             retained.append(
                 GraphEdge(
                     source=source.id,
-                    target=concept_id,
+                    target=evidenced_concept_id,
                     kind="evidence",
                     status="provenance",
                     href=f"/sources/{source.id}",
@@ -367,5 +404,7 @@ class Inspection:
             root=concept_id,
             nodes=nodes,
             edges=retained,
-            truncated=len(relations) > 12 or len(findings) > 12 or len(sources) > 8 or truncated,
+            truncated=(
+                len(relations) > 12 or len(findings) > 12 or len(source_rows) > 12 or truncated
+            ),
         )

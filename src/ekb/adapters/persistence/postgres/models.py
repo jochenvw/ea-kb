@@ -19,7 +19,14 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from ekb.domain.assertions import checked_assertion
-from ekb.domain.models import Assertion, ConceptVersion, RelationshipKind, SemanticType, now
+from ekb.domain.models import (
+    Assertion,
+    ClassificationProperty,
+    ConceptVersion,
+    RelationshipKind,
+    SemanticType,
+    now,
+)
 
 SCAN_LEASE_PREFIX = "ingestion-scan:"
 
@@ -124,7 +131,11 @@ class RelationshipRow(Base):
         UniqueConstraint("from_id", "to_id", "kind", "occurrence_id"),
         CheckConstraint("from_id <> to_id"),
         CheckConstraint(
-            "kind IN (" + ",".join(repr(value.value) for value in RelationshipKind) + ")",
+            "kind IN ("
+            + ",".join(
+                repr(value.value) for value in (*RelationshipKind, ClassificationProperty.IN_DOMAIN)
+            )
+            + ")",
             name="ontology_relationship_kind",
         ),
     )

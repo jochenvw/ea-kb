@@ -8,6 +8,8 @@ sources:
     category: security-guidance
     retrieval: http
     publisher_version: v2
+    platform_scope: Azure
+    extract_strategy: false
     access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
     intended_scope: Historical Azure guidance and published mappings; no automatic equivalence or enterprise mandate.
   - id: mcsb-v1
@@ -18,6 +20,8 @@ sources:
     category: security-guidance
     retrieval: http
     publisher_version: v1
+    platform_scope: Azure, AWS and GCP
+    extract_strategy: false
     access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
     intended_scope: Earlier edition, with source-specific publication maturity; no automatic enterprise adoption.
   - id: mcsb-v2
@@ -29,6 +33,8 @@ sources:
     retrieval: http
     publisher_version: v2
     publication_status: preview
+    platform_scope: Azure, AWS and GCP
+    extract_strategy: false
     access_notes: Microsoft Learn; preserve original and CC-BY 4.0 attribution. This overview does not include linked guidance.
     intended_scope: Preview edition; mappings are publisher assertions, not equivalence, coverage or approved enterprise requirements.
   - id: asb-v2-network
@@ -39,6 +45,8 @@ sources:
     category: security-guidance
     retrieval: http
     publisher_version: v2
+    platform_scope: Azure
+    extract_strategy: false
     access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
     intended_scope: Historical source guidance; preserve explicit platform qualifiers without assuming adoption.
   - id: mcsb-v1-network
@@ -49,6 +57,8 @@ sources:
     category: security-guidance
     retrieval: http
     publisher_version: v1
+    platform_scope: Azure, AWS and GCP
+    extract_strategy: false
     access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
     intended_scope: Guidance contains vendor-independent and named-platform statements; assess each from its evidence.
   - id: mcsb-v2-network
@@ -60,6 +70,8 @@ sources:
     retrieval: http
     publisher_version: v2
     publication_status: preview
+    platform_scope: Azure, AWS and GCP
+    extract_strategy: false
     access_notes: Microsoft Learn network security guidance; preserve original and CC-BY 4.0 attribution.
     intended_scope: Preview guidance is not an approved enterprise obligation or evidence of cross-framework equivalence.
   - id: shell-annual-2025
@@ -95,6 +107,7 @@ sources:
   - id: nist-csf-2.0
     framework_namespace: nist-csf
     framework_revision: "2.0"
+    enterprise_requirement: Adhere to NIST Cybersecurity Framework 2.0.
     publisher: US National Institute of Standards and Technology
     name: NIST Cybersecurity Framework 2.0 (selected OSCAL outcomes)
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/CSF/v2.0/json/NIST_CSF_v2.0_catalog.json
@@ -108,6 +121,7 @@ sources:
   - id: nist-sp800-53-rev5
     framework_namespace: nist-sp-800-53
     framework_revision: "5"
+    enterprise_requirement: Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.
     publisher: US National Institute of Standards and Technology
     name: NIST SP 800-53 revision 5 (selected OSCAL controls)
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json
@@ -117,7 +131,149 @@ sources:
     jurisdiction: United States
     access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained; only selected controls parsed.
     intended_scope: Selected access, incident response, boundary protection and input-validation controls; parameter placeholders remain unresolved. Publication does not establish enterprise authority.
-    control_ids: [ac-1, ac-2, ir-4, sc-7, sc-7.5, si-10, si-10.1, si-11]
+    control_ids:
+      [ac-1, ac-2, ac-6, cm-6, cp-9, ir-4, sc-5, sc-7, sc-7.5, sc-28, si-3, si-10, si-10.1, si-11]
+    architecture_principles:
+      - id: identity-account-management
+        domain: Identity and access management
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: ac-2
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Create, enable, modify, disable, and remove accounts
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: establish a secure identity and access controls using Azure Active Directory
+        rationale: Azure identity and access controls refine NIST account management within the Identity and access management domain in support of the NIST SP 800-53 control baseline.
+      - id: privileged-access
+        domain: Identity and access management
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: ac-6
+          semantic_type: ConceptualRequirement
+          excerpt_contains: Employ the principle of least privilege, allowing only
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: protect privileged access to your Azure tenant and resources
+        rationale: Azure privileged-access controls refine the NIST least-privilege requirement within the Identity and access management domain in support of the NIST SP 800-53 control baseline.
+      - id: incident-handling
+        domain: Incident response
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: ir-4
+          semantic_type: ConceptualRequirement
+          excerpt_contains: Implement an incident handling capability for incidents
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: enabling detection, investigation, and remediation processes
+        rationale: Azure incident-response automation refines NIST incident handling within the Incident response domain in support of the NIST SP 800-53 control baseline.
+      - id: network-segmentation
+        domain: Network security
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: sc-7
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Implement subnetworks for publicly accessible system components
+        controls:
+          - source_id: asb-v2-network
+            heading: "NS-1: Implement security for internal traffic"
+            semantic_type: PlatformRequirement
+            excerpt_contains: enterprise segmentation principle
+        rationale: Azure virtual-network segmentation refines NIST boundary separation within the Network security domain in support of the NIST SP 800-53 control baseline.
+      - id: private-network-connectivity
+        domain: Network security
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: sc-7
+          semantic_type: ConceptualRequirement
+          excerpt_contains: Communications at external managed interfaces
+        controls:
+          - source_id: asb-v2-network
+            heading: "NS-2: Connect private networks together"
+            semantic_type: PlatformRequirement
+            excerpt_contains: virtual network peering or Private Link
+        rationale: Azure virtual-network peering and Private Link refine NIST managed boundary interfaces within the Network security domain in support of the NIST SP 800-53 control baseline.
+      - id: denial-of-service-protection
+        domain: Network security
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: sc-5
+          semantic_type: ConceptualRequirement
+          excerpt_contains: denial-of-service attacks
+        controls:
+          - source_id: asb-v2-network
+            heading: "NS-4: Protect applications and services from external network attacks"
+            semantic_type: PlatformRequirement
+            excerpt_contains: enabling DDoS standard protection
+        rationale: Azure DDoS protection refines NIST denial-of-service protection within the Network security domain in support of the NIST SP 800-53 control baseline.
+      - id: backup-and-recovery
+        domain: Backup and recovery
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: cp-9
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Conduct backups of system-level information
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: data and configuration backups
+        rationale: Azure backup controls refine NIST information-system backup within the Backup and recovery domain in support of the NIST SP 800-53 control baseline.
+      - id: endpoint-malware-protection
+        domain: Endpoint security
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: si-3
+          semantic_type: TechnicalRequirement
+          excerpt_contains: system entry and exit points to detect and eradicate malicious code
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: endpoint detection and response (EDR) and anti-malware
+        rationale: Azure endpoint detection and anti-malware controls refine NIST malicious-code protection within the Endpoint security domain in support of the NIST SP 800-53 control baseline.
+      - id: data-at-rest-protection
+        domain: Data protection
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: sc-28
+          semantic_type: TechnicalRequirement
+          excerpt_contains: information at rest
+        controls:
+          - source_id: asb-v2
+            heading: Overview of Azure security controls (v2)
+            semantic_type: PlatformRequirement
+            excerpt_contains: protect, and monitor sensitive data assets
+        rationale: Azure data-protection controls refine NIST protection of information at rest within the Data protection domain in support of the NIST SP 800-53 control baseline.
+      - id: secure-configuration
+        domain: Configuration management
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: cm-6
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Establish and document configuration settings for components employed
+        controls:
+          - source_id: asb-v2-network
+            heading: "NS-6: Simplify network security rules"
+            semantic_type: PlatformRequirement
+            excerpt_contains: service tags and application security groups
+        rationale: Azure service tags and application security groups refine NIST secure-configuration requirements within the Configuration management domain in support of the NIST SP 800-53 control baseline.
   - id: iso-iec-27001-metadata
     publisher: International Organization for Standardization
     name: ISO/IEC 27001 information security management systems
@@ -126,6 +282,7 @@ sources:
     category: industry-standard
     retrieval: metadata
     metadata_only: true
+    enterprise_requirement: Maintain alignment with ISO/IEC 27001 for information security management.
     access_notes: Metadata reference only. ISO full text is copyrighted and requires a suitable license. Website may deny automated access.
     intended_scope: Information security management systems metadata; no clause text or fabricated ISO requirement. Put licensed documents in a private local source directory.
   - id: iso-14001-metadata
@@ -136,6 +293,7 @@ sources:
     category: industry-standard
     retrieval: metadata
     metadata_only: true
+    enterprise_requirement: Maintain alignment with ISO 14001 for environmental management.
     access_notes: Metadata reference to the 2015 edition; confirm current edition and applicability. No full-text download or redistribution.
     intended_scope: Environmental management systems metadata only. Supply authorized clause text locally for extraction.
   - id: uk-offshore-safety-2015-reg5

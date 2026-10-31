@@ -77,6 +77,9 @@ class ClassificationProperty(StrEnum):
     PLATFORM_NAME = "platformName"
 
 
+type ConceptRelationshipKind = RelationshipKind | Literal[ClassificationProperty.IN_DOMAIN]
+
+
 REQUIREMENT_TYPES = frozenset(
     {
         SemanticType.STRATEGIC_REQUIREMENT,
@@ -230,6 +233,36 @@ class PublicationMetadata(Model):
         return self
 
 
+class ConceptSelector(Model):
+    source_id: str
+    heading: str
+    semantic_type: SemanticType
+    excerpt_contains: str = Field(min_length=1)
+
+
+class ArchitecturePrincipleSpec(Model):
+    id: str
+    domain: str = Field(min_length=1)
+    strategic_requirement_source_id: str
+    agnostic: ConceptSelector
+    controls: list[ConceptSelector] = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def valid_layers(self) -> Self:
+        if self.agnostic.semantic_type not in {
+            SemanticType.CONCEPTUAL_REQUIREMENT,
+            SemanticType.TECHNICAL_REQUIREMENT,
+        }:
+            raise ValueError("Principle architecture selectors must be platform independent")
+        if any(
+            selector.semantic_type != SemanticType.PLATFORM_REQUIREMENT
+            for selector in self.controls
+        ):
+            raise ValueError("Principle control selectors must be platform requirements")
+        return self
+
+
 class SourceSpec(Model):
     id: str
     publisher: str
@@ -250,6 +283,9 @@ class SourceSpec(Model):
     framework_namespace: str | None = None
     framework_revision: str | None = None
     extract_strategy: bool = True
+    platform_scope: str | None = None
+    enterprise_requirement: str | None = None
+    architecture_principles: list[ArchitecturePrincipleSpec] = Field(default_factory=list)
 
 
 class SourceItem(Model):
@@ -580,10 +616,26 @@ class Relationship(Model):
     id: UUID
     from_concept_id: UUID
     to_concept_id: UUID
-    kind: RelationshipKind
+    kind: ConceptRelationshipKind
     occurrence_id: UUID
     scope: Scope = Field(default_factory=Scope)
     status: str = "proposed"
+
+
+class ConceptMatch(Model):
+    concept_id: UUID
+    version_id: UUID
+    candidate: Candidate
+
+
+class ConceptLink(Model):
+    from_concept_id: UUID
+    from_version_id: UUID
+    to_concept_id: UUID
+    kind: ConceptRelationshipKind
+    excerpt: str = Field(min_length=1)
+    scope: Scope = Field(default_factory=Scope)
+    status: str = "configured"
 
 
 class ConceptSource(Model):

@@ -271,7 +271,13 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
     assert set(examples) == wanted
     real = next(s for s in read_manifest(Path("sources/public.yaml")) if s.id == "mcsb-v1-network")
     nist = next(s for s in read_manifest(Path("sources/public.yaml")) if s.id == "nist-csf-2.0")
-    nist = nist.model_copy(update={"control_ids": ["PR.DS-01"]})
+    nist = nist.model_copy(
+        update={
+            "control_ids": ["PR.DS-01"],
+            "enterprise_requirement": None,
+            "architecture_principles": [],
+        }
+    )
     synthetic = real.model_copy(
         update={
             "id": "synthetic-other-publisher",
@@ -280,6 +286,7 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
             "location": "https://example.test/architecture",
             "publisher_version": None,
             "access_notes": "Synthetic test source",
+            "platform_scope": None,
         }
     )
 
@@ -386,8 +393,12 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
                 candidate = case.expected.candidates[0]
                 concept = by_excerpt[candidate.excerpt]
                 stored = concept.versions[-1].candidate
-                assert stored.semantic_type == candidate.semantic_type
-                assert stored.scope == candidate.scope
+                if case.id == "source-network-firewall-technical":
+                    assert stored.semantic_type == SemanticType.PLATFORM_REQUIREMENT
+                    assert stored.scope.platform == "Azure, AWS and GCP"
+                else:
+                    assert stored.semantic_type == candidate.semantic_type
+                    assert stored.scope == candidate.scope
                 assert not concept.relationships and not concept.authority_events
                 assert all(
                     state.governance_status == "proposed"
@@ -408,8 +419,7 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
                 )
                 graph = await uow.inspection.graph(concept.id)
                 assert graph and any(
-                    node.id == concept.id
-                    and node.kind == (candidate.semantic_type or "unclassified")
+                    node.id == concept.id and node.kind == (stored.semantic_type or "unclassified")
                     for node in graph.nodes
                 )
                 assert any(node.id == p.source.item.id for node in graph.nodes)

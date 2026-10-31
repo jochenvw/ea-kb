@@ -17,6 +17,8 @@
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.
 - Knowledge levels separate company intent, platform-agnostic architecture, platform-specific
   controls and unclassified interpretations; they grant no authority.
+- Source selectors and architecture-principle schemas type explicit organization curation; platform
+  applicability cannot be weakened by generic sentence wording.
 - `ontology.py` types the read-only authoritative catalog; `SemanticType` and `RelationshipKind`
   use OWL identifiers, not a parallel objective/requirement taxonomy or lifecycle relation kinds.
 - Strategic goals and requirements remain candidates until an explicit authority decision.

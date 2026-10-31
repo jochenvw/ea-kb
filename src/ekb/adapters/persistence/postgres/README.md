@@ -7,6 +7,10 @@
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters and text search match the same evidenced version, not an unrelated latest one.
 - Level filters use that same evidenced version; graph edges require retained evidence or proposals.
+- Provenance selectors resolve exact current-revision heading/excerpt matches; configured links keep
+  relationship evidence separate from concept evidence and may use ontology `inDomain`.
+- Graph inspection follows up to three relationship hops and shows source provenance for every
+  retained concept in the bounded neighborhood.
 - `concept_versions.assertion` is a replaceable phrasing cache; original version payloads stay immutable.
 - `Postgres` creates units of work; uncommitted changes roll back on exit.
 - `reset` locks and clears only EKB tables transactionally; active scans/leases block fresh starts.

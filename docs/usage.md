@@ -306,16 +306,19 @@ The TUI supports source inventory, concepts, provenance, relationship inspection
 It does not execute or monitor ingestion. The React/shadcn browser workspace targets
 desktop/PC use, not mobile. It provides
 a consolidation workspace (`/`), shared language (`/ontology`), cursor-paged interpretations
-(`/knowledge`), source curation (`/sources`), visual validation (`/explore`), issue/proposal review
-(`/review`) and read-only data/log inspection (`/data`, `/logs`).
+(`/knowledge`), company intent (`/company`), platform-agnostic architecture (`/architecture`),
+platform controls (`/platforms`), source curation (`/sources`), visual validation (`/explore`),
+issue/proposal review (`/review`) and read-only data/log inspection (`/data`, `/logs`).
 Start with the shared definitions, then inspect source context, interpretations, relationships and
 scoped decisions. The four-step path is navigation guidance, not saved progress or approval.
 Source selection stays in operator configuration; source curation checks do not change source status.
 Concept deep links retain exact evidence, version history and scoped authority. The default
 **Source evidence** tab shows only the selected version's passages. **Visual validation** is separate
 from **Scope & governance**; recorded authority and adoption proposal defaults follow the selected
-version. A graph is a bounded concept neighborhood across retained versions, not evidence for a
-specific version or a global standards-coverage map. API documentation
+version. A graph follows up to three explicit relationship hops and shows source provenance for each visible
+concept. Configured principle links make the bottom-up platform control → platform-independent
+requirement → architecture domain → company requirement path inspectable; their recorded rationale
+is curation evidence, not proof of compliance or publisher-declared adoption. API documentation
 is at `/docs`; `/health` checks PostgreSQL connectivity. Built assets are included in the Python
 package: normal operation needs neither Node.js nor a separate frontend server.
 

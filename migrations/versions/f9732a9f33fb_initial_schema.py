@@ -212,7 +212,7 @@ def upgrade() -> None:
         sa.CheckConstraint("from_id <> to_id"),
         sa.CheckConstraint(
             "kind IN ('refines','supports','constrains','mapsTo','dependsOn',"
-            "'tensionWith','conflictsWith')",
+            "'tensionWith','conflictsWith','inDomain')",
             name="ontology_relationship_kind",
         ),
         sa.ForeignKeyConstraint(

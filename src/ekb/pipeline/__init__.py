@@ -30,6 +30,11 @@ from ekb.domain.models import (
 from ekb.domain.publication import assess_publication, publication_fingerprint
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
+from ekb.pipeline.organization import (
+    apply_source_policy,
+    has_organization_configuration,
+    organize_knowledge,
+)
 from ekb.ports import (
     ArtifactStore,
     DocumentParser,
@@ -260,6 +265,7 @@ class IngestionPipeline:
             parser=parsing_fingerprint(self.parser.version, item),
             inference=self.inference_fingerprint,
             extract_strategy=_extracts_strategy(item),
+            platform_scope=item.metadata.get("platform_scope"),
             publication=publication_fingerprint(
                 item, parsing_fingerprint(self.parser.version, item)
             ),
@@ -305,6 +311,8 @@ class IngestionPipeline:
             maxsize=self.concurrency * 2
         )
         discovery_gate = asyncio.Semaphore(self.concurrency)
+        discovered_items: list[SourceItem] = []
+        discovered_items_lock = asyncio.Lock()
 
         async def discover(connector: SourceConnector) -> None:
             seen: set[UUID] = set()
@@ -317,6 +325,8 @@ class IngestionPipeline:
                             if item.id in seen:
                                 continue
                             seen.add(item.id)
+                            async with discovered_items_lock:
+                                discovered_items.append(item)
                             increment(discovered=1)
                             await queue.put((connector, item))
                     if not dry_run:
@@ -437,6 +447,17 @@ class IngestionPipeline:
                             group.create_task(prepared_producer())
                             for _ in range(self.concurrency):
                                 group.create_task(prepared_worker())
+                    if (
+                        not dry_run
+                        and report.failed == 0
+                        and has_organization_configuration(discovered_items)
+                    ):
+                        if phase:
+                            phase("organizing", report)
+                        organized = await organize_knowledge(
+                            self.uow, self.artifacts, discovered_items
+                        )
+                        increment(concepts=organized)
                     report = report.model_copy(
                         update={"status": "completed" if report.failed == 0 else "partial"}
                     )
@@ -744,12 +765,14 @@ class IngestionPipeline:
                 log.info("segment_replayed", segment_id=str(segment.id))
                 called_model = False
             validate_scoped_extraction(result.extraction, segment, labeling.labeling)
-            persisted_result = result
+            persisted_result = result.model_copy(
+                update={"extraction": apply_source_policy(item, result.extraction)}
+            )
             if isinstance(self.inference, StrategyReconciliationPort):
-                retained, strategic = _defer_strategic_candidates(result.extraction)
+                retained, strategic = _defer_strategic_candidates(persisted_result.extraction)
                 if _extracts_strategy(item):
                     deferred_goals.extend((segment, candidate) for candidate in strategic)
-                persisted_result = result.model_copy(update={"extraction": retained})
+                persisted_result = persisted_result.model_copy(update={"extraction": retained})
             async with self.uow() as uow:
                 await uow.processing.heartbeat(task_id, owner)
                 ids = await uow.knowledge.persist(segment, persisted_result)

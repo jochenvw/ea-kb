@@ -46,8 +46,10 @@ in threads. HTTPX and SQLAlchemy sessions perform asynchronous I/O.
 
 Publisher documents follow the same connector, parser and ontology-skill path as every other source.
 Names, titles, versions, licenses and explicitly evidenced platforms remain source facts; an overview
-does not imply that linked documents were acquired. Requirements are not classified from a publisher
-or identifier alone, and unsupported relationships are not invented.
+does not imply that linked documents were acquired. Sentence wording alone does not weaken an
+explicit manifest applicability boundary: a platform-bound benchmark can emit only platform
+requirements, while more specific evidenced platform names remain intact. Unsupported relationships
+are not invented.
 
 `PipelineOrchestrator` composes `indexing -> enrichment -> issues`; indexing invokes this same
 ingestion engine. Versioned stage/check contracts and input/configuration fingerprints control
@@ -74,6 +76,7 @@ assets, independent fingerprints and evaluations. The implemented ingestion skil
 | Label | `IngestionSkills.label`, `skills\labeling.md` | Evidence-backed, multi-label ontology types and explicit scopes |
 | Extract within labels | `IngestionSkills.extract_scoped`, `skills\extraction.md` | Typed candidates/relationships restricted to the labeled evidence, type and scope |
 | Reconcile strategy | `StrategyReconciliationPort.reconcile_strategy`, `skills\strategy_reconciliation.md` | Compact, deduplicated source-level goals and fundamental requirements with safe lower-layer reclassification |
+| Organize knowledge | Deterministic manifest curation in `pipeline\organization.py` | One company requirement per configured standards document, architecture domains and exact-evidence cross-layer links |
 
 Inventory/acquisition completes before semantic processing starts, including ordinary `scan`.
 The historical `indexing` orchestration stage still wraps the complete ingestion use case; its name
@@ -193,9 +196,17 @@ disabled by default. Configuration/deployment does not establish provider qualit
    requirements only to an evidence-supported ontology class. A manifest source may set
    `extract_strategy: false` when it corroborates a designated strategy source; its non-strategy
    knowledge remains eligible, and the setting participates in the processing fingerprint.
-6. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
+6. A configured `platform_scope` then acts as a layer boundary: architecture domains from that
+   source are omitted and conceptual/technical requirements become platform requirements. After all
+   sources succeed, organization curation persists explicit `enterprise_requirement` statements,
+   shared domains and configured principle links. Each selector must resolve exactly one current
+   source occurrence; missing or ambiguous evidence fails the scan rather than inventing a chain.
+   Platform controls `refines` platform-independent requirements, those requirements use `inDomain`,
+   and domains `supports` the configured strategic requirement. Link rationale is persisted as
+   separate curation evidence and does not become concept provenance.
+7. Ownership checks, candidate/relationship persistence, extraction checkpoints and newly incurred
    usage commit together. Task/scan records expose completion, partial failure or cancellation.
-7. Inspection bypasses ingestion: an interface calls `KnowledgeService`, which opens a unit of
+8. Inspection bypasses ingestion: an interface calls `KnowledgeService`, which opens a unit of
    work and returns domain values. Provenance joins occurrences, segments, source revisions and
    source inventory; retrieving an explanation does not require a model call.
 
@@ -206,8 +217,10 @@ The `InspectionRepository` port
 returns bounded source/version pages, concept neighborhoods, active proposal queues and owned-table
 previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill-down selects
 versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
-Graphs distinguish persisted relationship assertions, proposal records and source-history links;
-they do not invent unresolved targets or confer version-specific authority.
+Graphs distinguish configured links, persisted relationship assertions, proposal records and
+source-history links. A bounded three-hop neighborhood exposes company → domain → agnostic
+requirement → platform-control chains and source provenance for every retained concept; it does not
+invent unresolved targets or confer version-specific authority.
 
 The work backlog selects manual proposals plus the latest successful enrichment output, excluding
 accepted/rejected decision heads and obsolete-run findings. Deferred/reversed heads remain work;

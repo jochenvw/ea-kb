@@ -9,10 +9,10 @@ from pydantic import Field, model_validator
 
 from ekb.domain.models import (
     ConceptDetail,
+    ConceptRelationshipKind,
     ConceptVersion,
     Model,
     Provenance,
-    RelationshipKind,
     Scope,
     now,
 )
@@ -36,7 +36,7 @@ class Finding(Model):
     concept_ids: tuple[UUID, ...]
     version_ids: tuple[UUID, ...] = ()
     occurrence_ids: tuple[UUID, ...] = ()
-    relationship: RelationshipKind | None = None
+    relationship: ConceptRelationshipKind | None = None
     scope: Scope = Field(default_factory=Scope)
     confidence: float = Field(ge=0, le=1)
     explanation: str = Field(min_length=1)
