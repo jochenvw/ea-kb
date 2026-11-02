@@ -177,6 +177,12 @@ proposals and are never automatically approved. Qualification also requires isol
 families and execution of the complete held-out test split; partial, training and legacy runs remain
 diagnostic even when their measured gates pass.
 
+A 385-case offline production diagnostic exposed unsafe broad mechanism shortcuts: 174 automatic
+links had 0.374 precision. Production now bypasses mapping only for identical normalized mechanism
+statements, and model critique rejections cannot be overridden by keywords. Repeating the diagnostic
+with an unresolved offline mapper produced zero automatic links and zero recall. This is a
+fail-closed safety result, not semantic qualification; revised live quality/cost gates remain unrun.
+
 The historical independently adjudicated v6 component run measured 67 controls,
 61 exact cases, 0.904 parent-selection precision, 0.959 control-level recall and 0.959 retrieval
 recall (47 true-positive selections, five false positives and two false negatives). The immutable

@@ -292,8 +292,9 @@ intent with no technical descendants. `platform_alignment` embeds a bounded pare
 configured traceability mapper to select only grounded broader requirements for each platform control.
 Retrieval combines semantic, lexical and publisher-reference evidence in a bounded pool of at most
 35 candidates. The mapper explicitly judges every candidate, globally arbitrates the defensible
-set and adversarially critiques selected links; bounded standardized-mechanism rules make reviewed
-semantics deterministic without turning publisher mappings or product names into automatic links.
+set and adversarially critiques selected links; a rejected link stays rejected. Only identical,
+whitespace/case-normalized mechanism statements bypass mapping. Related mechanism keywords do not
+establish refinement: the source-grounded offline diagnostic exposed false parents in broader rules.
 `sibling_control_comparison` then compares controls under the same inferred or configured parent for
 duplicates, adjacency, distinction or tension. Same-stage findings are passed forward in memory and
 persisted only as reviewable findings; no model accepts policy or creates canonical knowledge.

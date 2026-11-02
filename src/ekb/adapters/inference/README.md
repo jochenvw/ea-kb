@@ -27,6 +27,7 @@ Canonical OWL definitions are appended by task; definition/schema changes invali
 - Optional debug payloads are separate from normal telemetry and never include authorization headers.
 - Reconciliation validates evidence from both inputs; invalid model answers remain unknown.
 - Traceability mapping validates every selected ID and exact child/parent excerpt; no match is valid.
+  An adversarial rejection is final; keyword heuristics cannot override it.
 - Embedding and verification costs remain unknown if prices or request usage are unavailable,
   including unmetered retries; cached results never repeat their original usage.
 - Embedding usage is complete only if every request has positive metering, independently of pricing;

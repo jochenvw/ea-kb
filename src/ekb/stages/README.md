@@ -11,8 +11,9 @@ judgments replay across changed check versions; changed providers or semantic in
 later checks consume earlier findings from the same stage without treating them as approved policy.
 Platform alignment carries unchanged active links only for the current producer and referenced versions,
 reapplies confidence/parent limits, and
-bypasses model mapping when bounded standardized-mechanism semantics determine the parent.
-Negated/conditional mechanisms require model judgment. An optional ID-only observer records the
+bypasses model mapping only for identical, whitespace/case-normalized mechanism statements.
+Related wording, negation and conditional mechanisms require model judgment; keyword overlap is
+not proof of refinement. An optional ID-only observer records the
 actual bounded retrieval pool before cache/model routing for production-path evaluation.
 Control mapping combines twenty semantic and ten weighted lexical neighbors with every
 publisher-declared reference, bounded to thirty-five candidates; the mapper receives source identifiers

@@ -9,10 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from ekb.adapters.inference.traceability import (
-    OpenAITraceabilityMapper,
-    _explicit_mechanism_supports,
-)
+from ekb.adapters.inference.traceability import OpenAITraceabilityMapper
 from ekb.adapters.inference.traceability import (
     _input as traceability_input,
 )
@@ -175,13 +172,16 @@ def proposed_parent(child: ConceptDetail, parent: ConceptDetail) -> Finding:
     )
 
 
-async def test_traceability_mapper_batches_and_explicitly_assesses_every_candidate(monkeypatch):
+@pytest.mark.parametrize("critic_verdict", ["refines", "not_refines"])
+async def test_traceability_mapper_batches_and_explicitly_assesses_every_candidate(
+    monkeypatch, critic_verdict
+):
     child = TraceabilityAssertion(
         concept_id=uuid4(),
         version_id=uuid4(),
         occurrence_id=uuid4(),
-        statement="Restrict network traffic using platform rules.",
-        excerpt="Restrict network traffic using platform rules.",
+        statement="Use Private Link for secure and private access to hosted services.",
+        excerpt="Use Private Link for secure and private access to hosted services.",
         semantic_type=SemanticType.PLATFORM_REQUIREMENT,
         scope=Scope(platform="Platform"),
     )
@@ -190,8 +190,16 @@ async def test_traceability_mapper_batches_and_explicitly_assesses_every_candida
             concept_id=uuid4(),
             version_id=uuid4(),
             occurrence_id=uuid4(),
-            statement=f"Parent requirement {index}.",
-            excerpt=f"Parent requirement {index}.",
+            statement=(
+                "Separate information flows logically or physically."
+                if index == 0
+                else f"Parent requirement {index}."
+            ),
+            excerpt=(
+                "Separate information flows logically or physically."
+                if index == 0
+                else f"Parent requirement {index}."
+            ),
             semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
         )
         for index in range(21)
@@ -209,7 +217,7 @@ async def test_traceability_mapper_batches_and_explicitly_assesses_every_candida
                         "assessments": [
                             {
                                 "parent_concept_id": parent["concept_id"],
-                                "verdict": "refines",
+                                "verdict": critic_verdict,
                                 "confidence": 0.99,
                                 "rationale": "The selected parent survives adversarial review.",
                                 "child_excerpt": payload["child"]["excerpt"],
@@ -271,9 +279,9 @@ async def test_traceability_mapper_batches_and_explicitly_assesses_every_candida
         await mapper.close()
 
     assert calls == [10, 10, 1, 3, 1]
-    assert [link.parent_concept_id for link in result.selection.links] == [
-        parents[0].concept_id,
-    ]
+    assert [link.parent_concept_id for link in result.selection.links] == (
+        [parents[0].concept_id] if critic_verdict == "refines" else []
+    )
     assert result.completed and result.method == "small_model_batched"
     assert result.model_calls == result.usage.model_calls == 5
     assert result.usage.input_tokens == 50 and result.usage.output_tokens == 25
@@ -330,21 +338,6 @@ def test_lexical_retrieval_expands_equivalent_control_language():
     assert {"authorization", "control", "flow"} <= firewall.keys()
     assert {"configuration", "settings"} <= configuration.keys()
     assert {"denial", "service"} <= denial_of_service.keys()
-
-
-def test_explicit_standardized_mechanisms_survive_adversarial_review():
-    assert _explicit_mechanism_supports(
-        "Use Private Link for secure and private access to hosted services.",
-        "Separate information flows logically or physically.",
-    )
-    assert _explicit_mechanism_supports(
-        "Deploy a host-based IDS endpoint for host-level detection.",
-        "Implement host-based monitoring mechanisms.",
-    )
-    assert not _explicit_mechanism_supports(
-        "Use a private high-performance connection.",
-        "Network integrity is protected through segmentation.",
-    )
 
 
 def test_platform_alignment_recognizes_bounded_standardized_mechanisms():
@@ -592,7 +585,7 @@ def test_standardized_mechanisms_do_not_invent_behavior_from_product_topics():
     )
 
 
-def test_standardized_rescue_searches_beyond_the_retrieved_shortlist():
+def test_related_mechanisms_do_not_establish_a_deterministic_parent():
     child = TraceabilityAssertion(
         concept_id=uuid4(),
         version_id=uuid4(),
@@ -618,7 +611,7 @@ def test_standardized_rescue_searches_beyond_the_retrieved_shortlist():
         semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
     )
 
-    assert _standardized_parent_candidates(child, [distractor, parent], (distractor,)) == (parent,)
+    assert _standardized_parent_candidates(child, [distractor, parent], (distractor,)) == ()
 
 
 def test_traceability_model_receives_source_keys_and_declared_framework_references():
@@ -881,7 +874,7 @@ class Mapper:
         )
 
 
-async def test_platform_alignment_bypasses_mapper_for_standardized_mechanisms():
+async def test_platform_alignment_bypasses_mapper_only_for_identical_mechanism_statements():
     class UnexpectedMapper:
         fingerprint = "unexpected-mapper"
 
@@ -890,12 +883,12 @@ async def test_platform_alignment_bypasses_mapper_for_standardized_mechanisms():
 
     control = concept(
         SemanticType.PLATFORM_REQUIREMENT,
-        "Use network security groups to restrict traffic inbound and outbound.",
+        "Use network security groups to restrict traffic with information flow control.",
         platform="Azure",
     )
     parent = concept(
         SemanticType.TECHNICAL_REQUIREMENT,
-        "Enforce information flow control using policy filters.",
+        "Use network security groups to restrict traffic with information flow control.",
     )
 
     check = platform_alignment_check(
@@ -1588,7 +1581,7 @@ async def test_production_provenance_qualifies_retrieval_and_reports_false_links
     assert report["qualified"] is False
     assert report["review_status"] == "provisional"
     assert report["authority_status"] == "review_only_no_automatic_approval"
-    assert report["outcome_link_counts"]["deterministic"] > 0
+    assert report["outcome_link_counts"]["deterministic"] == 0
     assert report["outcome_link_counts"]["carried"] == 1
     assert report["outcome_case_counts"]["unresolved"] >= 2
     assert report["selection_policy_fingerprint"]

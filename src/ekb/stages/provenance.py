@@ -551,10 +551,12 @@ def _standardized_parent_candidates(
     parents: list[TraceabilityAssertion],
     ranked: tuple[TraceabilityAssertion, ...],
 ) -> tuple[TraceabilityAssertion, ...]:
+    statement = " ".join(child.statement.casefold().split())
     matches = [
         parent
         for parent in parents
-        if standardized_mechanism_supports(child.statement, parent.statement)
+        if " ".join(parent.statement.casefold().split()) == statement
+        and standardized_mechanism_supports(child.statement, parent.statement)
     ]
     if not matches:
         return ()
@@ -582,7 +584,7 @@ def platform_alignment_check(
     observe_candidates: Callable[[UUID, UUID, tuple[UUID, ...]], None] | None = None,
 ) -> Check:
     version = fingerprint(
-        implementation="platform-alignment-v15",
+        implementation="platform-alignment-v16",
         mapper=mapper.fingerprint if mapper else None,
         embeddings=embedding_provider.fingerprint if embedding_provider else None,
     )
@@ -729,9 +731,8 @@ def platform_alignment_check(
                                 ].concept_id,
                                 confidence=0.95,
                                 rationale=(
-                                    "The child explicitly states a standardized mechanism whose "
-                                    "bounded semantics directly implement the selected parent "
-                                    "clause."
+                                    "The child and parent state the same explicit mechanism "
+                                    "after whitespace and case normalization."
                                 ),
                                 child_excerpt=child.excerpt,
                                 parent_excerpt=deterministic_candidates[child.concept_id][

@@ -163,27 +163,6 @@ def _input(assertion: TraceabilityAssertion) -> dict[str, object]:
     }
 
 
-def _explicit_mechanism_supports(child_statement: str, parent_statement: str) -> bool:
-    child = child_statement.casefold()
-    parent = parent_statement.casefold()
-    private_access = any(
-        mechanism in child
-        for mechanism in ("private link", "private endpoint", "private access point")
-    )
-    if (
-        private_access
-        and "private" in child
-        and ("separate information flows" in parent or "network integrity is protected" in parent)
-    ):
-        return True
-    host_detection = "host" in child and any(
-        mechanism in child for mechanism in ("ids", "ips", "intrusion detection", "edr")
-    )
-    return host_detection and (
-        "host-based monitoring" in parent or "monitor the system to detect" in parent
-    )
-
-
 class OpenAITraceabilityMapper:
     def __init__(self, settings: Settings, *, client: httpx.AsyncClient | None = None):
         self.chat = OpenAIInference(
@@ -191,7 +170,7 @@ class OpenAITraceabilityMapper:
             client=client,
         )
         self.fingerprint = fingerprint(
-            implementation="control-traceability-v7",
+            implementation="control-traceability-v8",
             model=settings.reconciliation_model_id,
             endpoint=settings.model_endpoint,
             instructions=INSTRUCTIONS,
@@ -276,10 +255,10 @@ class OpenAITraceabilityMapper:
                 )
             selection = arbitration.selection
             if selection.links:
-                selected_by_id = {link.parent_concept_id: link for link in selection.links}
+                selected_parent_ids = {link.parent_concept_id for link in selection.links}
                 critique = await self._assess_batch(
                     child,
-                    tuple(parent for parent in parents if parent.concept_id in selected_by_id),
+                    tuple(parent for parent in parents if parent.concept_id in selected_parent_ids),
                     instructions=INSTRUCTIONS + "\n" + CRITIC_INSTRUCTIONS,
                     phase="adversarial_critique",
                     span_name="traceability.control_critique",
@@ -297,7 +276,6 @@ class OpenAITraceabilityMapper:
                         model_calls=usage.model_calls,
                         usage=usage,
                     )
-                parent_by_id = {parent.concept_id: parent for parent in parents}
                 kept: list[ParentSelection] = []
                 for item in critique.assessment.assessments:
                     if item.verdict == "refines":
@@ -310,11 +288,6 @@ class OpenAITraceabilityMapper:
                                 parent_excerpt=item.parent_excerpt,
                             )
                         )
-                    elif _explicit_mechanism_supports(
-                        child.statement,
-                        parent_by_id[item.parent_concept_id].statement,
-                    ):
-                        kept.append(selected_by_id[item.parent_concept_id])
                 selection = (
                     TraceabilitySelection(links=tuple(kept))
                     if kept
