@@ -35,6 +35,7 @@ type ProvenanceSplit = Split | Literal["all"]
 class ProvenanceSource(Model):
     name: str = Field(min_length=1)
     location: str = Field(min_length=1)
+    document_family: str | None = Field(default=None, min_length=1)
 
 
 class ProvenanceAssertion(Model):
@@ -63,9 +64,12 @@ class ProvenanceDataset(Model):
 
     @model_validator(mode="after")
     def isolated_splits(self) -> Self:
-        if {case.split for case in self.cases} != {"train", "validation", "test"}:
-            raise ValueError("Provenance evaluation requires train, validation, and test splits")
+        if not {"validation", "test"} <= {case.split for case in self.cases}:
+            raise ValueError("Provenance evaluation requires validation and test splits")
         families: dict[str, Split] = {}
+        source_locations: dict[str, Split] = {}
+        location_families: dict[str, str] = {}
+        document_families: dict[str, Split] = {}
         texts: dict[str, Split] = {}
         for case in self.cases:
             referenced = {
@@ -77,6 +81,20 @@ class ProvenanceDataset(Model):
                 raise ValueError("Provenance case references an unknown assertion")
             if len(set(case.parent_keys)) != len(case.parent_keys):
                 raise ValueError("Parent keys must be unique within a provenance case")
+            child_source = self.assertions[case.child_key].source
+            if child_source.document_family is not None:
+                previous_family = location_families.get(child_source.location)
+                if previous_family is not None and previous_family != child_source.document_family:
+                    raise ValueError("A child source location must have one document family")
+                location_families[child_source.location] = child_source.document_family
+                previous_split = source_locations.get(child_source.location)
+                if previous_split is not None and previous_split != case.split:
+                    raise ValueError("Child source locations cannot cross dataset splits")
+                source_locations[child_source.location] = case.split
+                previous_split = document_families.get(child_source.document_family)
+                if previous_split is not None and previous_split != case.split:
+                    raise ValueError("Child document families cannot cross dataset splits")
+                document_families[child_source.document_family] = case.split
             if case.family in families and families[case.family] != case.split:
                 raise ValueError("Provenance families cannot cross dataset splits")
             families[case.family] = case.split
@@ -85,6 +103,13 @@ class ProvenanceDataset(Model):
                 raise ValueError("Duplicate child assertions cannot cross dataset splits")
             texts[normalized] = case.split
         return self
+
+    @property
+    def document_family_isolated(self) -> bool:
+        return all(
+            self.assertions[case.child_key].source.document_family is not None
+            for case in self.cases
+        )
 
 
 class ProvenanceExecution(Model):
@@ -287,6 +312,7 @@ async def evaluate_provenance(
         "dataset_version": dataset.version,
         "dataset_sha256": content_hash(raw),
         "review_status": dataset.review_status,
+        "document_family_isolated": dataset.document_family_isolated,
         "split": split,
         "cases": len(cases),
         "exact_cases": exact,

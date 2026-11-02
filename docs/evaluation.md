@@ -144,14 +144,21 @@ uv run ekb eval provenance --live --split test
 uv run ekb eval provenance --live --split test --dataset evals\provenance-complete-v1.json
 ```
 
-`evals\provenance-v1.json` contains 12 provisional, source-attributed control-parent cases across
-train, validation and held-out test splits. It includes strict negatives where related security
-topics do not establish semantic refinement. `evals\provenance-complete-v1.json` contains one
-multi-pass reviewed case for each of the 385 platform controls in its review snapshot, including
-117 controls for which the adopted platform-independent corpus has no defensible parent. The
-current live parse has 384 controls; concept IDs or wording from the reviewed snapshot must not be
-silently treated as labels for materially changed controls.
-
+`evals\provenance-v2.json` contains 12 provisional, source-attributed control-parent cases: validation
+has six cases from one Azure Security Benchmark v2 overview source family/document; test has six
+cases from one network-security family spanning two related Azure Security Benchmark and Microsoft
+Cloud Security Benchmark documents. The shared NIST parent catalog is reference data, not a held-out
+child family.
+Use validation for selection and reserve test for final qualification. The v2 dataset SHA-256 is
+`5a3c0c86e9d53dc60d6bb9aa5174cc1c9650a45ca0f557b0ed64f4aae6b205f4`.
+The prior `provenance-v1.json` is retained for component diagnostics, but its shared child sources
+crossed all three splits; its scores are invalid as document-family-generalization evidence and are
+not comparable to v2.
+`evals\provenance-complete-v1.json` contains one multi-pass reviewed case for each of the 385 platform
+controls in its review snapshot, including 117 reviewed no-parent outcomes. It also lacks isolated
+child document families and remains a component diagnostic, not held-out qualification. Reports
+explicitly record `document_family_isolated`. The current live parse has 384 controls; materially
+changed controls must not silently inherit snapshot labels.
 The mapper receives only the child and bounded candidate parents; expected IDs remain evaluator
 metadata. Multiple reviewed parents are acceptable alternatives: a parented case passes when the
 mapper selects at least one reviewed parent and no unreviewed parent, rather than requiring every

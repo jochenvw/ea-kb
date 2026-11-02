@@ -242,7 +242,7 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             bool, typer.Option(help="Explicitly allow configured model calls.")
         ] = False,
         split: Annotated[str, typer.Option()] = "test",
-        dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v1.json",
+        dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v2.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "provenance-evaluation.json",
         history_dir: Annotated[Path, typer.Option()] = HISTORY,
         config: Annotated[

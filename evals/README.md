@@ -12,10 +12,13 @@ synthetic cases, with family/split isolation and provisional ontology labels.
 `documents-v1.json` reuses those skill contracts for selected Shell annual-report and NIST CSF
 passages plus an explicitly metadata-only ISO negative. It separates company-level coverage,
 mixed ontology classes and named organizational scope; no standard is automatically adopted.
-`provenance-v1.json` qualifies grounded control-parent selection with compact positive and strict
-negative cases; expected IDs never enter model prompts. `provenance-complete-v1.json` covers all
-385 controls from the reviewed corpus, including reviewed no-parent outcomes and bounded retrieval
-candidates generated independently from the expected answers.
+`provenance-v2.json` qualifies grounded control-parent selection with validation/test-isolated child
+document families, ten principles, the Network Security Perimeter chain and an unrelated-parent
+negative; expected IDs never enter model prompts. `provenance-v1.json` is retained unchanged as a
+legacy split whose results are not comparable to the isolated v2 qualification.
+`provenance-complete-v1.json` covers all 385 controls from the reviewed corpus, including reviewed
+no-parent outcomes and independently generated retrieval candidates. Like v1, its legacy splits
+are component diagnostics, not document-family-isolated qualification.
 `architecture-assessment-v1.json` qualifies required, missing, excepted and expired solution-control
 outcomes with Pydantic Evals; it is deterministic and does not claim to inspect implementation code.
 Original PDF hashes/pages can be audited with `uv run ekb eval documents --verify-sources`.
