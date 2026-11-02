@@ -17,6 +17,8 @@
   declared implementation evidence and deterministic coverage outcomes.
 - `assessment.py` defines the fail-closed verified-assessment contract and synchronous reducer;
   authority, design, observations, exception validity and population completeness stay separate.
+- `baselines.py` types explicit selected baselines, workload applicability and structured design
+  choices. Policy alternatives/check bindings are metadata, not new ontology vocabulary.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
   alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.

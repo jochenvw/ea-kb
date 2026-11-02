@@ -83,6 +83,15 @@ internal contract does not itself establish authority or inspect implementation 
 must obtain those facts through the application boundaries. The existing declared-evidence
 transport remains explicitly non-verifying until integrated with those boundaries.
 
+`AssessmentBasisService` establishes an explicit selected baseline independently of registered
+controls. Approval must resolve canonically to the pinned version with candidate evidence in the
+exact baseline artifact; each selected requirement must also resolve to its approved pinned
+version. Changed bytes or unresolved authority make the basis incomplete. This is explicit
+selection, not automatic discovery of every enterprise obligation. Structured design JSON records
+workload context, repository and versioned option decisions; missing context or decisions stays
+unresolved. Only approved baseline options are permitted alternatives. The registered architecture
+retains exception approval metadata; this service grants no new approval and does not parse prose.
+
 These feedback-loop capabilities are intended outcomes tracked in
 [the assessment backlog](https://github.com/jochenvw/ea-kb/issues/25). Existing foundations include
 exact evidence, immutable interpretations and architecture revisions, scoped authority, explicit

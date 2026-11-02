@@ -12,6 +12,8 @@
   scaling avoids overflow and underflow for finite nonzero embedding vectors.
 - `architectures.py` registers immutable solution artefacts and assesses declared implementation
   evidence against explicit requirements and approved exceptions with terse provenance chains.
+- `assessment_basis.py` resolves a selected baseline independently of the design checklist;
+  canonical evidence must bind its approval to the exact policy artifact and requirement versions.
 
 Keep queries behind unit-of-work/repository contracts, returning domain values rather than ORM rows.
 Do not silently expand bounded inspection into whole-corpus analytics.
