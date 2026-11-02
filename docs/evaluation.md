@@ -43,6 +43,9 @@ uv run ekb eval verify-corpus
 This requires retained content-addressed originals matching the dataset's exact hashes, including
 the recorded representation of each document; a newly downloaded HTML rendition may differ from
 an earlier Markdown rendition. The verifier checks bytes and quotations, not database state.
+For the six Microsoft Learn sources, the publisher's `?accept=text/markdown` representation
+matches the recorded hashes. Recovery must check each hash and quotation before storing those bytes
+in the local artifact store; do not replace the recorded hashes with those of a different rendition.
 Missing or changed originals fail
 explicitly; normal offline evaluations use the committed attributed excerpts without downloading.
 The v2 corpus verifier checks all retained original bytes and quotations before reporting coverage.
