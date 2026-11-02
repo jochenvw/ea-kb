@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select, update
 
 from ekb.adapters.artifacts import FilesystemArtifactStore
-from ekb.adapters.persistence.postgres.models import TaskRow, VersionRow
+from ekb.adapters.persistence.postgres.models import OccurrenceRow, TaskRow, VersionRow
 from ekb.domain.architectures import (
     ArchitectureControl,
     ArchitectureEvidence,
@@ -353,6 +353,172 @@ async def test_repository_evidence_contract_and_idempotency(database):
                     }
                 ),
             )
+
+
+async def test_relationship_occurrences_do_not_project_as_candidate_evidence(database):
+    original_source_id, curation_source_id = uuid4(), uuid4()
+    original_revision_id, curation_revision_id, replacement_revision_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+    original_text = "Operators must authenticate."
+    curation_text = "Service owners must retain audit records. This rationale links the requirement."
+    replacement_text = "Operators must restore service after an outage."
+    original_segment = Segment(
+        id=uuid4(), revision_id=original_revision_id, ordinal=0, text=original_text
+    )
+    curation_segment = Segment(
+        id=uuid4(), revision_id=curation_revision_id, ordinal=0, text=curation_text
+    )
+    replacement_segment = Segment(
+        id=uuid4(), revision_id=replacement_revision_id, ordinal=0, text=replacement_text
+    )
+    original_item = SourceItem(
+        id=original_source_id,
+        connector="fixture",
+        location="synthetic:original",
+        name="Synthetic requirement",
+        format="txt",
+    )
+    curation_item = SourceItem(
+        id=curation_source_id,
+        connector="fixture",
+        location="synthetic:curation",
+        name="Synthetic curation",
+        format="txt",
+    )
+    async with database() as uow:
+        await uow.sources.save(
+            SourceRecord(item=original_item, revision_id=original_revision_id)
+        )
+        await uow.sources.save_revision(
+            SourceRevision(
+                id=original_revision_id,
+                source_id=original_source_id,
+                content_hash=content_hash(original_text.encode()),
+                artifact_key="synthetic-original",
+            )
+        )
+        await uow.sources.save_segments(original_revision_id, [original_segment], "contract")
+        original_concept_id = (
+            await uow.knowledge.persist(
+                original_segment,
+                InferenceResult(
+                    extraction=Extraction(
+                        candidates=[
+                            Candidate(
+                                semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                                statement=original_text,
+                                excerpt=original_text,
+                            )
+                        ]
+                    ),
+                    model_id="fixture",
+                    prompt_version="contract",
+                ),
+            )
+        )[0]
+        await uow.sources.save(
+            SourceRecord(item=curation_item, revision_id=curation_revision_id)
+        )
+        await uow.sources.save_revision(
+            SourceRevision(
+                id=curation_revision_id,
+                source_id=curation_source_id,
+                content_hash=content_hash(curation_text.encode()),
+                artifact_key="synthetic-curation",
+            )
+        )
+        await uow.sources.save_segments(curation_revision_id, [curation_segment], "contract")
+        curation_concept_id = (
+            await uow.knowledge.persist(
+                curation_segment,
+                InferenceResult(
+                    extraction=Extraction(
+                        candidates=[
+                            Candidate(
+                                semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                                statement="Service owners must retain audit records.",
+                                excerpt="Service owners must retain audit records.",
+                            )
+                        ]
+                    ),
+                    model_id="fixture",
+                    prompt_version="contract",
+                ),
+            )
+        )[0]
+        original = await uow.knowledge.get(original_concept_id)
+        curation = await uow.knowledge.get(curation_concept_id)
+        assert original and curation
+        original_version = original.versions[0]
+        curation_version = curation.versions[0]
+        await uow.knowledge.link(
+            curation_segment,
+            ConceptLink(
+                from_concept_id=original_concept_id,
+                from_version_id=original_version.id,
+                to_concept_id=curation_concept_id,
+                kind=RelationshipKind.DEPENDS_ON,
+                excerpt="This rationale links the requirement.",
+            ),
+            model_id="fixture",
+            prompt_version="contract",
+        )
+        await uow.sources.save_revision(
+            SourceRevision(
+                id=replacement_revision_id,
+                source_id=original_source_id,
+                content_hash=content_hash(replacement_text.encode()),
+                artifact_key="synthetic-replacement",
+                predecessor_id=original_revision_id,
+            )
+        )
+        await uow.sources.save_segments(replacement_revision_id, [replacement_segment], "contract")
+        await uow.sources.save(
+            SourceRecord(item=original_item, revision_id=replacement_revision_id)
+        )
+        await uow.commit()
+
+    async with database() as uow:
+        occurrence = await uow.session.scalar(
+            select(OccurrenceRow).where(
+                OccurrenceRow.concept_version_id == curation_version.id
+            )
+        )
+        assert occurrence
+        payload = dict(occurrence.payload)
+        payload["extraction_metadata"] = dict(payload["extraction_metadata"])
+        payload["extraction_metadata"].pop("purpose")
+        occurrence.payload = payload
+        await uow.commit()
+
+    async with database() as uow:
+        snapshot = await uow.resolution.snapshot()
+        assert original_version.id not in snapshot.current_version_ids
+        assert curation_version.id in snapshot.current_version_ids
+        search = await uow.knowledge.search(source_id=curation_source_id)
+        assert [concept.id for concept in search] == [curation_concept_id]
+
+        original = await uow.knowledge.get(original_concept_id)
+        assert original and len(original.relationships) == 1
+        relationship_evidence = next(
+            occurrence
+            for occurrence in original.occurrences
+            if occurrence.extraction_metadata.get("purpose") == "relationship"
+        )
+        assert relationship_evidence.excerpt == "This rationale links the requirement."
+        assert [source.id for source in original.sources] == [original_source_id]
+
+        source = await uow.inspection.source(curation_source_id)
+        assert source and source.versions == 1 and source.occurrences == 1
+        assert [item.version.id for item in source.items] == [curation_version.id]
+        graph = await uow.inspection.graph(original_concept_id)
+        assert graph and any(
+            edge.evidence and edge.evidence.excerpt == relationship_evidence.excerpt
+            for edge in graph.edges
+        )
 
 
 async def test_recursive_lineage_handles_cycles_and_reverse_edges(database):
