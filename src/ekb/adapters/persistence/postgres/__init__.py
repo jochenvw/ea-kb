@@ -572,12 +572,13 @@ class Knowledge:
         source = await self.session.get(SourceRow, source_id)
         if source is None or not source.payload.get("revision_id"):
             return []
+        revision_id = UUID(source.payload["revision_id"])
         rows = await self.session.execute(
             select(VersionRow, OccurrenceRow, SegmentRow)
             .join(OccurrenceRow, OccurrenceRow.concept_version_id == VersionRow.id)
             .join(SegmentRow, SegmentRow.id == OccurrenceRow.segment_id)
             .where(
-                SegmentRow.revision_id == UUID(source.payload["revision_id"]),
+                SegmentRow.revision_id == revision_id,
                 VersionRow.semantic_type == selector.semantic_type,
                 SegmentRow.payload["heading"].astext == selector.heading,
                 OccurrenceRow.payload["excerpt"].astext.icontains(
@@ -600,10 +601,16 @@ class Knowledge:
                 or needle not in evidence.excerpt.casefold()
             ):
                 continue
-            matches[(version.concept_id, version.id)] = ConceptMatch(
+            key = (version.concept_id, version.id)
+            match = matches.get(key)
+            evidence_ids = tuple(sorted({*(match.evidence_ids if match else ()), evidence.id}))
+            matches[key] = ConceptMatch(
                 concept_id=version.concept_id,
                 version_id=version.id,
                 candidate=version.to_domain().candidate,
+                source_id=source_id,
+                revision_id=revision_id,
+                evidence_ids=evidence_ids,
             )
         return list(matches.values())
 

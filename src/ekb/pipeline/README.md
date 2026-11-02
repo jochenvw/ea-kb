@@ -15,8 +15,8 @@
   goals from corroborating publications; changing the flag invalidates processing checkpoints.
 - Explicit `platform_scope` policy removes platform-source domains and projects every lower-layer
   requirement into `PlatformRequirement`, preserving a more specific evidenced platform when present.
-- `organization.py` persists manifest-curated strategic requirements/domains and configured,
-  evidence-backed cross-source principle links after every successful corpus scan.
+- `organization.py` revalidates current selector evidence before reusing manifest-curated
+  requirements, domains and cross-source links; prior curation revisions remain historical.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
 - `_heartbeat` renews ownership; persistence must reject stale workers.
 - Non-dry-run scans hold a renewable guard before discovery; loss cancels work and fences commits.

@@ -32,7 +32,6 @@ from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
 from ekb.pipeline.organization import (
     apply_source_policy,
-    has_organization_configuration,
     organize_knowledge,
 )
 from ekb.ports import (
@@ -447,11 +446,7 @@ class IngestionPipeline:
                             group.create_task(prepared_producer())
                             for _ in range(self.concurrency):
                                 group.create_task(prepared_worker())
-                    if (
-                        not dry_run
-                        and report.failed == 0
-                        and has_organization_configuration(discovered_items)
-                    ):
+                    if not dry_run and report.failed == 0:
                         if phase:
                             phase("organizing", report)
                         organized = await organize_knowledge(
