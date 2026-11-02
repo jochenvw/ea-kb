@@ -18,7 +18,7 @@ from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_la
 from ekb.evaluation.history import HISTORY, list_skill_catalog, skill_history
 from ekb.evaluation.limits import DeploymentRateLimiter
 from ekb.evaluation.nist import evaluate_nist
-from ekb.evaluation.provenance import evaluate_provenance
+from ekb.evaluation.provenance import evaluate_provenance, evaluate_provenance_production
 from ekb.evaluation.skills import (
     SkillSelection,
     compare_skill_concurrency,
@@ -228,13 +228,13 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             bool, typer.Option(help="Explicitly allow configured model calls.")
         ] = False,
         split: Annotated[str, typer.Option()] = "test",
-        dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v1.json",
+        dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v2.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "provenance-evaluation.json",
         history_dir: Annotated[Path, typer.Option()] = HISTORY,
         max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
         max_concurrency: Annotated[int, typer.Option(min=1, max=16)] = 4,
     ):
-        """Evaluate grounded platform-control parent selection with Pydantic Evals."""
+        """Evaluate the frozen-candidate mapper component with Pydantic Evals."""
 
         async def operation():
             if not live:
@@ -250,6 +250,44 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
                     split=selected,
                     max_cases=max_cases,
                     max_concurrency=max_concurrency,
+                    history_dir=history_dir,
+                )
+
+        execute(operation)
+
+    @evaluations.command("provenance-production")
+    def provenance_production(
+        live: Annotated[
+            bool, typer.Option(help="Explicitly allow configured model and embedding calls.")
+        ] = False,
+        split: Annotated[str, typer.Option()] = "test",
+        dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v2.json",
+        output: Annotated[Path, typer.Option()] = (
+            Path("data") / "provenance-production-evaluation.json"
+        ),
+        history_dir: Annotated[Path, typer.Option()] = HISTORY,
+        max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
+        max_concurrency: Annotated[int, typer.Option(min=1, max=16)] = 4,
+        gates: Annotated[Path, typer.Option()] = GATES,
+    ):
+        """Evaluate production retrieval, parent selection, and review-only outcomes."""
+
+        async def operation():
+            if not live:
+                raise ValueError("Production provenance evaluation requires explicit --live")
+            selected = "all" if split == "all" else TypeAdapter(Split).validate_python(split)
+            async with Runtime() as runtime:
+                if runtime.traceability_mapper is None:
+                    raise ValueError("Configure a reconciliation model for provenance evaluation")
+                return await evaluate_provenance_production(
+                    dataset,
+                    output,
+                    runtime.traceability_mapper,
+                    runtime.embeddings,
+                    split=selected,
+                    max_cases=max_cases,
+                    max_concurrency=max_concurrency,
+                    gates_path=gates,
                     history_dir=history_dir,
                 )
 

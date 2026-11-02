@@ -1,5 +1,5 @@
 {
-  "version": "provenance-v1",
+  "version": "provenance-v2",
   "review_status": "provisional",
   "assertions": {
     "azure-identity": {
@@ -199,6 +199,42 @@
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
       }
+    },
+    "synthetic-negated-network": {
+      "statement": "Do not deny network communications traffic by default; allow all communications except when an incident is detected.",
+      "excerpt": "Do not deny network communications traffic by default; allow all communications except when an incident is detected.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:negation"
+      }
+    },
+    "synthetic-conditional-boundary": {
+      "statement": "Only when a threat is detected at a managed external interface, control communications; otherwise leave traffic unrestricted.",
+      "excerpt": "Only when a threat is detected at a managed external interface, control communications; otherwise leave traffic unrestricted.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:conditional-scope"
+      }
+    },
+    "synthetic-shared-mechanism": {
+      "statement": "Mechanisms protect confidential information at rest by using encrypted backups.",
+      "excerpt": "Mechanisms protect confidential information at rest by using encrypted backups.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:shared-mechanism"
+      }
+    },
+    "synthetic-no-defensible-parent": {
+      "statement": "Use Network Security Perimeter for PaaS resource isolation only; network traffic may be permitted without a default-deny policy.",
+      "excerpt": "Use Network Security Perimeter for PaaS resource isolation only; network traffic may be permitted without a default-deny policy.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:no-defensible-parent"
+      }
     }
   },
   "cases": [
@@ -294,9 +330,42 @@
       "id": "no-defensible-parent",
       "family": "negative-network-hardening",
       "split": "test",
-      "child_key": "azure-nsp",
+      "child_key": "synthetic-no-defensible-parent",
       "parent_keys": ["nist-backup", "nist-incident", "nist-data-at-rest"],
       "expected_parent_keys": []
+    },
+    {
+      "id": "negated-network-default",
+      "family": "negated-network-default",
+      "split": "test",
+      "child_key": "synthetic-negated-network",
+      "parent_keys": ["nist-default-deny", "nist-incident", "nist-configuration"],
+      "expected_parent_keys": []
+    },
+    {
+      "id": "conditional-interface-boundary",
+      "family": "conditional-interface-boundary",
+      "split": "test",
+      "child_key": "synthetic-conditional-boundary",
+      "parent_keys": ["nist-boundary", "nist-incident", "nist-account"],
+      "expected_parent_keys": []
+    },
+    {
+      "id": "misleading-shared-mechanism",
+      "family": "misleading-shared-mechanism",
+      "split": "test",
+      "child_key": "synthetic-shared-mechanism",
+      "parent_keys": ["nist-ddos", "nist-data-at-rest", "nist-backup"],
+      "expected_parent_keys": ["nist-data-at-rest"]
+    },
+    {
+      "id": "carried-backup-parent",
+      "family": "carried-backup-parent",
+      "split": "validation",
+      "child_key": "azure-backup",
+      "parent_keys": ["nist-backup", "nist-least-privilege", "nist-segmentation"],
+      "expected_parent_keys": ["nist-backup"],
+      "carried_parent_keys": ["nist-backup"]
     }
   ]
 }

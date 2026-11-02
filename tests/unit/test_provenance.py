@@ -31,7 +31,11 @@ from ekb.domain.traceability import (
     TraceabilitySelection,
     TraceabilityVerification,
 )
-from ekb.evaluation.provenance import evaluate_provenance, load_provenance_dataset
+from ekb.evaluation.provenance import (
+    evaluate_provenance,
+    evaluate_provenance_production,
+    load_provenance_dataset,
+)
 from ekb.ports import UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.stages import _check_cache_key
@@ -270,24 +274,101 @@ class EvaluationMapper(Mapper):
     fingerprint = "evaluation-mapper-test"
 
     async def map(self, child, parents):
-        if "Network Security Perimeter" in child.statement and not any(
-            "Deny network communications traffic by default" in parent.statement
-            for parent in parents
-        ):
-            return TraceabilityVerification(
-                selection=TraceabilitySelection(
-                    unresolved_reason="No supplied parent governs this control."
-                ),
-                method="test",
-            )
-        return await super().map(child, parents)
+        if child.statement.startswith("Do not deny") or child.statement.startswith("Only when"):
+            return self._unresolved()
+        targets = {
+            "Establish secure identity": "Create, enable, modify",
+            "Protect privileged access": "Apply least privilege",
+            "Enable detection": "Implement an incident handling capability",
+            "All Azure virtual networks": "Implement subnetworks",
+            "Use virtual network peering": "communications at external managed interfaces",
+            "Enable DDoS": "Mechanisms protect against",
+            "Data and configuration backups": "Conduct backups",
+            "Use endpoint detection": "Implement malicious code protection",
+            "Discover, classify": "organization-defined information at rest",
+            "Use Azure Security Center": (
+                "Establish and document restrictive configuration settings"
+            ),
+            "Use Network Security Perimeter": "Deny network communications traffic by default",
+            "Mechanisms protect confidential": "organization-defined information at rest",
+        }
+        target = next(
+            (value for prefix, value in targets.items() if child.statement.startswith(prefix)),
+            None,
+        )
+        parent = next(
+            (p for p in parents if target and target.casefold() in p.statement.casefold()),
+            None,
+        )
+        if parent is None:
+            return self._unresolved()
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(
+                links=(
+                    ParentSelection(
+                        parent_concept_id=parent.concept_id,
+                        confidence=0.91,
+                        rationale="The supplied parent expresses the same control objective.",
+                        child_excerpt=child.excerpt,
+                        parent_excerpt=parent.excerpt,
+                    ),
+                )
+            ),
+            method="test",
+            model_id="test-model",
+            model_calls=1,
+            usage=Usage(input_tokens=10, output_tokens=5, latency_ms=2, cost=0),
+        )
+
+    @staticmethod
+    def _unresolved():
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(
+                unresolved_reason="No supplied parent governs this control."
+            ),
+            method="test",
+        )
+
+
+class ManyParentMapper(Mapper):
+    fingerprint = "many-parent-test"
+
+    def __init__(self, confidences: tuple[float, ...]):
+        self.confidences = confidences
+
+    async def map(self, child, parents):
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(
+                links=tuple(
+                    ParentSelection(
+                        parent_concept_id=parent.concept_id,
+                        confidence=confidence,
+                        rationale="Synthetic threshold and limit test.",
+                        child_excerpt=child.excerpt,
+                        parent_excerpt=parent.excerpt,
+                    )
+                    for parent, confidence in zip(parents, self.confidences, strict=False)
+                )
+            ),
+            method="test",
+            model_id="test-model",
+            model_calls=1,
+            usage=Usage(input_tokens=10, output_tokens=5, latency_ms=2, cost=None),
+        )
 
 
 class FailingNegativeMapper(EvaluationMapper):
     async def map(self, child, parents):
-        if "Network Security Perimeter" in child.statement and not any(
-            "Deny network communications traffic by default" in parent.statement
-            for parent in parents
+        if (
+            child.statement.startswith("Do not deny")
+            or child.statement.startswith("Only when")
+            or (
+                "Network Security Perimeter" in child.statement
+                and not any(
+                    "Deny network communications traffic by default" in parent.statement
+                    for parent in parents
+                )
+            )
         ):
             raise ConnectionError("Synthetic provider failure")
         return await super().map(child, parents)
@@ -393,10 +474,10 @@ async def test_traceability_cardinality_enforces_only_required_parent_directions
 
 
 async def test_provenance_dataset_runs_through_pydantic_evals(tmp_path):
-    dataset_path = Path("evals") / "provenance-v1.json"
+    dataset_path = Path("evals") / "provenance-v2.json"
     raw, dataset = load_provenance_dataset(dataset_path)
     assert raw
-    assert len(dataset.cases) == 12
+    assert len(dataset.cases) == 16
 
     report = await evaluate_provenance(
         dataset_path,
@@ -409,12 +490,12 @@ async def test_provenance_dataset_runs_through_pydantic_evals(tmp_path):
     assert report["passed"] is True
     assert report["precision"] == 1
     assert report["recall"] == 1
-    assert report["exact_cases"] == 12
+    assert report["exact_cases"] == 16
 
 
 async def test_provenance_evaluation_fails_when_negative_case_execution_fails(tmp_path):
     report = await evaluate_provenance(
-        Path("evals") / "provenance-v1.json",
+        Path("evals") / "provenance-v2.json",
         tmp_path / "report.json",
         FailingNegativeMapper(),
         split="test",
@@ -423,6 +504,77 @@ async def test_provenance_evaluation_fails_when_negative_case_execution_fails(tm
 
     assert report["passed"] is False
     assert "no-defensible-parent" in report["failures"]
+
+
+async def test_production_provenance_qualifies_retrieval_and_reports_false_links(tmp_path):
+    report = await evaluate_provenance_production(
+        Path("evals") / "provenance-v2.json",
+        tmp_path / "production.json",
+        EvaluationMapper(),
+        None,
+        split="all",
+        history_dir=tmp_path / "history",
+    )
+
+    assert report["evaluation_kind"] == "production_end_to_end_retrieval_selection"
+    assert report["passed"] is False
+    assert report["qualified"] is False
+    assert report["review_status"] == "provisional"
+    assert report["authority_status"] == "review_only_no_automatic_approval"
+    assert report["outcome_link_counts"]["deterministic"] == 0
+    assert report["outcome_link_counts"]["carried"] == 1
+    assert report["outcome_case_counts"]["unresolved"] >= 2
+    assert report["selection_policy_fingerprint"]
+    assert report["provider_fingerprint"]
+    assert report["evaluator_fingerprint"]
+
+    negative = next(
+        case for case in report["case_results"] if case["id"] == "no-defensible-parent"
+    )
+    assert negative["expected"] == []
+    assert negative["model_selected"] == ["nist-default-deny"]
+    assert negative["predicted_evidence"][0]["excerpt"] == (
+        "Deny network communications traffic by default and allow network communications traffic "
+        "by exception [unresolved OSCAL parameter: sc-07.05_odp.01]."
+    )
+
+
+async def test_production_threshold_and_parent_limit_preserve_unknown_pricing(tmp_path):
+    report = await evaluate_provenance_production(
+        Path("evals") / "provenance-v2.json",
+        tmp_path / "production.json",
+        ManyParentMapper((0.93, 0.95, 0.91)),
+        None,
+        split="all",
+        max_cases=1,
+        confidence_threshold=0.9,
+        max_parents=1,
+        history_dir=tmp_path / "history",
+    )
+
+    selected = report["case_results"][0]["model_selected"]
+    assert len(selected) == 1
+    assert report["confidence_threshold"] == 0.9
+    assert report["max_parents"] == 1
+    assert report["usage"]["cost"] is None
+    assert report["performance_gates"]["priced_cost"] is False
+    assert report["qualified"] is False
+
+
+async def test_production_confidence_threshold_can_leave_case_unresolved(tmp_path):
+    report = await evaluate_provenance_production(
+        Path("evals") / "provenance-v2.json",
+        tmp_path / "production.json",
+        ManyParentMapper((0.71, 0.85, 0.89)),
+        None,
+        split="all",
+        max_cases=1,
+        confidence_threshold=0.9,
+        history_dir=tmp_path / "history",
+    )
+
+    assert report["case_results"][0]["model_selected"] == []
+    assert report["case_results"][0]["unresolved"] is True
 
 
 def test_ordered_check_cache_depends_on_prior_output_revisions():

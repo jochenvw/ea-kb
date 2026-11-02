@@ -140,16 +140,20 @@ neither reservations nor post-run quality/cost gates are a provider billing cap.
 
 ```powershell
 uv run ekb eval provenance --live --split validation
-uv run ekb eval provenance --live --split test
+uv run ekb eval provenance-production --live --split test
 ```
 
-`evals\provenance-v1.json` contains 12 provisional, source-attributed control-parent cases across
-train, validation and held-out test splits. It includes the Network Security Perimeter to NIST
-deny-by-default relationship, unrelated-parent negatives and ten organization principles.
-The mapper receives only the child and bounded candidate parents; expected IDs remain evaluator
-metadata. Pydantic Evals reports exact cases plus parent-selection precision and recall, while EKB
-retains immutable reports under `data\evaluation-history`. A pass qualifies this provisional
-relationship task only; links remain inferred proposals pending enterprise governance.
+`evals\provenance-v2.json` contains 16 source-attributed control-parent cases across train,
+validation and held-out test splits, including strict no-parent, negation, conditional-scope,
+misleading shared-mechanism and carried-parent cases. `eval provenance` evaluates the frozen-pool
+mapper component and does not qualify production. `eval provenance-production` invokes the production
+platform-alignment check over the complete dataset requirement corpus, including retrieval,
+carry-forward, confidence filtering and parent limit. Its report separates deterministic,
+model-selected, carried and unresolved outcomes; records exact source excerpts and
+selection/provider/evaluator fingerprints; and applies precision, recall, p95 latency and priced-cost
+gates. Unknown pricing remains unknown and prevents qualification. Both evaluations use Pydantic
+Evals and retain immutable reports under `data\evaluation-history`; inferred links remain review-only
+proposals and are never automatically approved.
 
 Reports distinguish observed requests and retries from estimated rate-limit reservations.
 `retry_count` sums explicitly measured retry attempts, not additional model calls: one skill may

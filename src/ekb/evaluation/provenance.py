@@ -2,28 +2,50 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, cast
+from uuid import UUID
 
 from pydantic import Field, model_validator
 from pydantic_evals import Case as EvalCase
 from pydantic_evals import Dataset as EvalDataset
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext
 
+from ekb.domain.execution import CheckOptions
 from ekb.domain.models import (
+    Candidate,
+    ConceptDetail,
+    ConceptVersion,
     Model,
+    Occurrence,
+    Relationship,
+    RelationshipKind,
     Scope,
     SemanticType,
     Usage,
     content_hash,
+    fingerprint,
     stable_id,
     total_usage,
 )
+from ekb.domain.reconciliation import EmbeddingResult
+from ekb.domain.resolution import KnowledgeSnapshot
 from ekb.domain.traceability import TraceabilityAssertion, TraceabilitySelection
 from ekb.evaluation.dataset import Split
-from ekb.ports import TraceabilityMapper
+from ekb.ports import EmbeddingPort, TraceabilityMapper, UnitOfWorkFactory
+from ekb.ports.workflow import CheckContext, CheckResult
+from ekb.stages.enrichment import Check
+from ekb.stages.provenance import (
+    ControlMappingOptions,
+    _rank_parents,
+    assertion,
+    platform_alignment_check,
+)
 
 type ProvenanceSplit = Split | Literal["all"]
 
@@ -47,6 +69,7 @@ class ProvenanceCase(Model):
     child_key: str = Field(min_length=1)
     parent_keys: tuple[str, ...] = Field(min_length=2, max_length=10)
     expected_parent_keys: tuple[str, ...] = Field(max_length=3)
+    carried_parent_keys: tuple[str, ...] = Field(default=(), max_length=3)
 
 
 class ProvenanceDataset(Model):
@@ -71,6 +94,8 @@ class ProvenanceDataset(Model):
                 raise ValueError("Parent keys must be unique within a provenance case")
             if not set(case.expected_parent_keys) <= set(case.parent_keys):
                 raise ValueError("Expected provenance parents must be supplied candidates")
+            if not set(case.carried_parent_keys) <= set(case.parent_keys):
+                raise ValueError("Carried provenance parents must be supplied candidates")
             if case.family in families and families[case.family] != case.split:
                 raise ValueError("Provenance families cannot cross dataset splits")
             families[case.family] = case.split
@@ -86,6 +111,27 @@ class ProvenanceExecution(Model):
     usage: Usage = Field(default_factory=Usage)
     model_calls: int = 0
     error: str | None = None
+
+
+class ProductionExecution(Model):
+    deterministic_parent_keys: tuple[str, ...] = ()
+    model_selected_parent_keys: tuple[str, ...] = ()
+    carried_parent_keys: tuple[str, ...] = ()
+    candidate_parent_keys: tuple[str, ...] = ()
+    unresolved: bool = False
+    usage: Usage = Field(default_factory=Usage)
+    model_calls: int = 0
+    embedding_calls: int = 0
+    latency_ms: float = 0
+    error: str | None = None
+
+
+class ProvenanceGates(Model):
+    version: str
+    minimum_precision: float = Field(ge=0, le=1)
+    minimum_recall: float = Field(ge=0, le=1)
+    maximum_p95_ms: float = Field(gt=0)
+    maximum_estimated_cost: float = Field(gt=0)
 
 
 @dataclass
@@ -115,6 +161,500 @@ class ProvenanceQuality(Evaluator[str, ProvenanceExecution, ProvenanceCase]):
             "fp": len(predicted - expected),
             "fn": len(expected - predicted),
         }
+
+
+@dataclass
+class ProductionProvenanceQuality(Evaluator[str, ProductionExecution, ProvenanceCase]):
+    def get_evaluator_version(self) -> str:
+        return "production-provenance-quality-v1"
+
+    def evaluate(
+        self, ctx: EvaluatorContext[str, ProductionExecution, ProvenanceCase]
+    ) -> dict[str, bool | int]:
+        if ctx.metadata is None:
+            return {"exact": False, "tp": 0, "fp": 0, "fn": 0}
+        case = ctx.metadata
+        execution = ctx.output
+        predicted = (
+            set(execution.deterministic_parent_keys)
+            | set(execution.model_selected_parent_keys)
+            | set(execution.carried_parent_keys)
+        )
+        expected = set(case.expected_parent_keys)
+        return {
+            "exact": not execution.error and predicted == expected,
+            "tp": len(predicted & expected),
+            "fp": len(predicted - expected),
+            "fn": len(expected - predicted),
+        }
+
+
+class _EvaluationStore:
+    def __init__(self) -> None:
+        self.workflow = self
+        self._entries: dict[str, object] = {}
+
+    def __call__(self) -> _EvaluationStore:
+        return self
+
+    async def __aenter__(self) -> _EvaluationStore:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def commit(self) -> None:
+        return None
+
+    async def semantic_cache(self, keys: list[str]) -> dict[str, object]:
+        return {key: self._entries[key] for key in keys if key in self._entries}
+
+    async def save_semantic_cache(self, entries: dict[str, object]) -> None:
+        self._entries.update(entries)
+
+
+class _CapturedEmbeddings:
+    def __init__(self, provider: EmbeddingPort) -> None:
+        self._provider = provider
+        self.fingerprint = provider.fingerprint
+        self.model_id = provider.model_id
+        self.vectors: dict[str, tuple[float, ...]] = {}
+
+    async def embed(self, texts: list[str]) -> EmbeddingResult:
+        result = await self._provider.embed(texts)
+        self.vectors.update(zip(texts, result.vectors, strict=True))
+        return result
+
+
+def _production_context(
+    case: ProvenanceCase,
+    dataset: ProvenanceDataset,
+    corpus_keys: tuple[str, ...],
+    options: ControlMappingOptions,
+    embedding_neighbors: int,
+) -> tuple[
+    CheckContext,
+    dict[UUID, str],
+    TraceabilityAssertion,
+    tuple[TraceabilityAssertion, ...],
+]:
+    keys = tuple(sorted({case.child_key, *corpus_keys}))
+    concepts: dict[str, ConceptDetail] = {}
+    versions: dict[str, ConceptVersion] = {}
+    occurrences: dict[str, Occurrence] = {}
+    for key in keys:
+        value = dataset.assertions[key]
+        concept_id = stable_id("provenance-eval", case.id, key)
+        version_id = stable_id("provenance-eval-version", case.id, key)
+        occurrence_id = stable_id("provenance-eval-occurrence", case.id, key)
+        segment_id = stable_id("provenance-eval-segment", case.id, key)
+        version = ConceptVersion(
+            id=version_id,
+            concept_id=concept_id,
+            candidate=Candidate(
+                statement=value.statement,
+                excerpt=value.excerpt,
+                semantic_type=value.semantic_type,
+                scope=(
+                    Scope(platform="Azure")
+                    if value.semantic_type is SemanticType.PLATFORM_REQUIREMENT
+                    else Scope()
+                ),
+            ),
+        )
+        occurrence = Occurrence(
+            id=occurrence_id,
+            concept_version_id=version_id,
+            segment_id=segment_id,
+            excerpt=value.excerpt,
+            start=0,
+            end=len(value.excerpt),
+        )
+        versions[key] = version
+        occurrences[key] = occurrence
+        concepts[key] = ConceptDetail(
+            id=concept_id,
+            versions=[version],
+            occurrences=[occurrence],
+            relationships=[],
+        )
+
+    child = concepts[case.child_key]
+    for parent_key in case.carried_parent_keys:
+        child.relationships.append(
+            Relationship(
+                id=stable_id("provenance-eval-carried", case.id, parent_key),
+                from_concept_id=child.id,
+                to_concept_id=concepts[parent_key].id,
+                kind=RelationshipKind.REFINES,
+                occurrence_id=occurrences[case.child_key].id,
+            )
+        )
+
+    all_concepts = tuple(concepts.values())
+    snapshot = KnowledgeSnapshot(
+        revision=dataset.version,
+        governance_revision=dataset.version,
+        concepts=all_concepts,
+        current_version_ids=frozenset(version.id for version in versions.values()),
+    )
+    context = CheckContext(
+        run_id=stable_id("provenance-eval-run", case.id),
+        input_revision=content_hash(
+            json.dumps([dataset.version, case.id], separators=(",", ":")).encode()
+        ),
+        snapshot=snapshot,
+        options=CheckOptions(
+            embedding_neighbors=embedding_neighbors,
+            parameters=options.model_dump(mode="json"),
+        ),
+    )
+    parent_by_id = {concepts[key].id: key for key in corpus_keys}
+    return (
+        context,
+        parent_by_id,
+        assertion(child, versions[case.child_key]),
+        tuple(assertion(concepts[key], versions[key]) for key in corpus_keys),
+    )
+
+
+async def _run_production_case(
+    case_id: str,
+    *,
+    cases: dict[str, ProvenanceCase],
+    dataset: ProvenanceDataset,
+    corpus_keys: tuple[str, ...],
+    check: Check,
+    options: ControlMappingOptions,
+    embedding_neighbors: int,
+    captured_embeddings: _CapturedEmbeddings | None,
+    completed: dict[str, ProductionExecution],
+) -> ProductionExecution:
+    case = cases[case_id]
+    started = time.perf_counter()
+    try:
+        context, parent_by_id, child, parents = _production_context(
+            case, dataset, corpus_keys, options, embedding_neighbors
+        )
+        result: CheckResult = await check.evaluate(context)
+        ranked = (
+            _rank_parents(
+                child,
+                list(parents),
+                captured_embeddings.vectors if captured_embeddings else {},
+                embedding_neighbors,
+            )
+            if not case.carried_parent_keys
+            else ()
+        )
+        candidate_keys = tuple(parent_by_id[parent.concept_id] for parent in ranked)
+        def parent_keys(*, deterministic_only: bool) -> tuple[str, ...]:
+            return tuple(
+                parent_by_id[finding.concept_ids[1]]
+                for finding in result.findings
+                if finding.deterministic is deterministic_only
+                and len(finding.concept_ids) > 1
+                and finding.concept_ids[1] in parent_by_id
+            )
+
+        deterministic = parent_keys(deterministic_only=True)
+        model_selected = parent_keys(deterministic_only=False)
+        carried = case.carried_parent_keys
+        execution = ProductionExecution(
+            deterministic_parent_keys=deterministic,
+            model_selected_parent_keys=model_selected,
+            carried_parent_keys=carried,
+            candidate_parent_keys=candidate_keys,
+            unresolved=not (deterministic or model_selected or carried),
+            usage=result.usage,
+            model_calls=result.model_calls,
+            embedding_calls=result.embedding_calls,
+            latency_ms=(time.perf_counter() - started) * 1000,
+        )
+    except Exception as error:
+        execution = ProductionExecution(
+            carried_parent_keys=case.carried_parent_keys,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            error=type(error).__name__,
+        )
+    completed[case_id] = execution
+    return execution
+
+
+async def evaluate_provenance_production(
+    dataset_path: Path,
+    output: Path,
+    mapper: TraceabilityMapper,
+    embedding_provider: EmbeddingPort | None,
+    *,
+    split: ProvenanceSplit = "test",
+    max_cases: int = 100,
+    max_concurrency: int = 4,
+    confidence_threshold: float = 0.72,
+    max_parents: int = 3,
+    embedding_neighbors: int = 5,
+    gates_path: Path = Path("evals") / "gates.json",
+    history_dir: Path = Path("data") / "evaluation-history",
+) -> dict[str, Any]:
+    if not 1 <= max_cases <= 1000:
+        raise ValueError("Production provenance evaluation supports 1 to 1000 cases")
+    if not 1 <= max_concurrency <= 16:
+        raise ValueError("Production provenance evaluation supports concurrency from 1 to 16")
+    CheckOptions(embedding_neighbors=embedding_neighbors)
+    dataset_raw, dataset = await asyncio.to_thread(load_provenance_dataset, dataset_path)
+    gates_raw = await asyncio.to_thread(gates_path.read_bytes)
+    gates_data = json.loads(gates_raw)
+    gates = ProvenanceGates.model_validate(
+        {
+            key: gates_data[key]
+            for key in (
+                "version",
+                "minimum_precision",
+                "minimum_recall",
+                "maximum_p95_ms",
+                "maximum_estimated_cost",
+            )
+        }
+    )
+    cases = [case for case in dataset.cases if split == "all" or case.split == split][:max_cases]
+    if not cases:
+        raise ValueError("No provenance evaluation cases match the selected split")
+    options = ControlMappingOptions(
+        confidence_threshold=confidence_threshold,
+        max_parents=max_parents,
+    )
+    corpus_keys = tuple(
+        sorted(
+            key
+            for key, value in dataset.assertions.items()
+            if value.semantic_type
+            in {SemanticType.CONCEPTUAL_REQUIREMENT, SemanticType.TECHNICAL_REQUIREMENT}
+        )
+    )
+    captured_embeddings = (
+        _CapturedEmbeddings(embedding_provider) if embedding_provider is not None else None
+    )
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, _EvaluationStore()),
+        mapper,
+        captured_embeddings,
+        concurrency=max_concurrency,
+    )
+    cases_by_id = {case.id: case for case in cases}
+    completed: dict[str, ProductionExecution] = {}
+    evaluator = ProductionProvenanceQuality()
+    eval_dataset = EvalDataset[str, ProductionExecution, ProvenanceCase](
+        name=f"control-traceability-production-{dataset.version}-{split}",
+        cases=[
+            EvalCase(
+                name=case.id,
+                inputs=case.id,
+                metadata=case,
+                evaluators=[evaluator],
+            )
+            for case in cases
+        ],
+    )
+    provider_fingerprint = fingerprint(
+        mapper=mapper.fingerprint,
+        embeddings=embedding_provider.fingerprint if embedding_provider else None,
+        retrieval="production-lexical" if embedding_provider is None else "production-embeddings",
+    )
+    selection_policy_fingerprint = fingerprint(
+        check_version=check.spec.version,
+        confidence_threshold=options.confidence_threshold,
+        max_parents=options.max_parents,
+        embedding_neighbors=embedding_neighbors,
+        candidate_universe="all-dataset-requirements",
+    )
+    evaluator_fingerprint = fingerprint(
+        evaluator=evaluator.get_evaluator_version(),
+        runner="pydantic-evals",
+        runner_version=version("pydantic-evals"),
+    )
+    framework = await eval_dataset.evaluate(
+        lambda case_id: _run_production_case(
+            case_id,
+            cases=cases_by_id,
+            dataset=dataset,
+            corpus_keys=corpus_keys,
+            check=check,
+            options=options,
+            embedding_neighbors=embedding_neighbors,
+            captured_embeddings=captured_embeddings,
+            completed=completed,
+        ),
+        max_concurrency=max_concurrency,
+        progress=False,
+        task_name="ekb-control-traceability-production",
+        metadata={
+            "dataset_version": dataset.version,
+            "dataset_sha256": content_hash(dataset_raw),
+            "evaluator_fingerprint": evaluator_fingerprint,
+            "selection_policy_fingerprint": selection_policy_fingerprint,
+            "provider_fingerprint": provider_fingerprint,
+            "split": split,
+        },
+    )
+    failures = {failure.name for failure in framework.failures}
+    failures.update(case.name for case in framework.cases if case.evaluator_failures)
+    tp = fp = fn = exact = 0
+    retrieval_hits = retrieval_total = 0
+    case_reports: list[dict[str, Any]] = []
+    outcome_case_counts = {
+        "deterministic": 0,
+        "model_selected": 0,
+        "carried": 0,
+        "unresolved": 0,
+        "failed": 0,
+    }
+    outcome_link_counts = {"deterministic": 0, "model_selected": 0, "carried": 0}
+    for case in cases:
+        execution = completed.get(case.id, ProductionExecution(error="missing_result"))
+        if execution.error is not None:
+            failures.add(case.id)
+        predicted = (
+            set(execution.deterministic_parent_keys)
+            | set(execution.model_selected_parent_keys)
+            | set(execution.carried_parent_keys)
+        )
+        expected = set(case.expected_parent_keys)
+        tp += len(predicted & expected)
+        fp += len(predicted - expected)
+        fn += len(expected - predicted)
+        exact += predicted == expected and execution.error is None and case.id not in failures
+        if not case.carried_parent_keys:
+            for key in case.expected_parent_keys:
+                retrieval_total += 1
+                retrieval_hits += key in execution.candidate_parent_keys
+        for category, keys in (
+            ("deterministic", execution.deterministic_parent_keys),
+            ("model_selected", execution.model_selected_parent_keys),
+            ("carried", execution.carried_parent_keys),
+        ):
+            outcome_link_counts[category] += len(keys)
+            outcome_case_counts[category] += bool(keys)
+        outcome_case_counts["unresolved"] += execution.unresolved
+        outcome_case_counts["failed"] += execution.error is not None
+
+        def evidence(keys: set[str]) -> list[dict[str, str]]:
+            return [
+                {
+                    "key": key,
+                    "statement": dataset.assertions[key].statement,
+                    "excerpt": dataset.assertions[key].excerpt,
+                    "source_name": dataset.assertions[key].source.name,
+                    "source_location": dataset.assertions[key].source.location,
+                }
+                for key in sorted(keys)
+            ]
+
+        case_reports.append(
+            {
+                "id": case.id,
+                "expected": sorted(expected),
+                "predicted": sorted(predicted),
+                "deterministic": list(execution.deterministic_parent_keys),
+                "model_selected": list(execution.model_selected_parent_keys),
+                "carried": list(execution.carried_parent_keys),
+                "unresolved": execution.unresolved,
+                "retrieved_candidates": list(execution.candidate_parent_keys),
+                "expected_evidence": evidence(expected),
+                "predicted_evidence": evidence(predicted),
+                "child_evidence": evidence({case.child_key}),
+                "error": execution.error,
+                "latency_ms": execution.latency_ms,
+            }
+        )
+    precision = tp / (tp + fp) if tp + fp else 1.0
+    recall = tp / (tp + fn) if tp + fn else 1.0
+    executions = list(completed.values())
+    usage = total_usage([execution.usage for execution in executions])
+    case_costs = [
+        execution.usage.cost
+        if execution.error or execution.model_calls or execution.embedding_calls
+        else 0.0
+        for execution in executions
+    ]
+    usage = usage.model_copy(
+        update={
+            "model_calls": sum(execution.model_calls for execution in executions),
+            "cost": (
+                sum(cost for cost in case_costs if cost is not None)
+                if all(cost is not None for cost in case_costs)
+                else None
+            ),
+        }
+    )
+    latencies = sorted(execution.latency_ms for execution in completed.values())
+    p95_latency = latencies[math.ceil(len(latencies) * 0.95) - 1] if latencies else None
+    quality_gates = {
+        "precision": precision >= gates.minimum_precision,
+        "recall": recall >= gates.minimum_recall,
+    }
+    model_calls = sum(execution.model_calls for execution in executions)
+    performance_gates = {
+        "latency": p95_latency is not None and p95_latency <= gates.maximum_p95_ms,
+        "priced_cost": usage.cost is not None and usage.cost <= gates.maximum_estimated_cost,
+    }
+    passed = (
+        not failures
+        and all(quality_gates.values())
+        and all(performance_gates.values())
+    )
+    report: dict[str, Any] = {
+        "evaluation_kind": "production_end_to_end_retrieval_selection",
+        "passed": passed,
+        "qualified": passed and model_calls > 0,
+        "model_backed": model_calls > 0,
+        "dataset_version": dataset.version,
+        "dataset_sha256": content_hash(dataset_raw),
+        "dataset_fingerprint": content_hash(dataset_raw),
+        "review_status": dataset.review_status,
+        "authority_status": "review_only_no_automatic_approval",
+        "split": split,
+        "cases": len(cases),
+        "exact_cases": exact,
+        "precision": precision,
+        "recall": recall,
+        "retrieval_recall_at_k": retrieval_hits / retrieval_total if retrieval_total else 1.0,
+        "retrieval_k": embedding_neighbors,
+        "retrieval_scope": "all_dataset_requirements",
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "failures": sorted(failures),
+        "case_results": case_reports,
+        "outcome_case_counts": outcome_case_counts,
+        "outcome_link_counts": outcome_link_counts,
+        "confidence_threshold": options.confidence_threshold,
+        "max_parents": options.max_parents,
+        "selection_policy_fingerprint": selection_policy_fingerprint,
+        "provider_fingerprint": provider_fingerprint,
+        "mapper_fingerprint": mapper.fingerprint,
+        "embedding_fingerprint": embedding_provider.fingerprint if embedding_provider else None,
+        "evaluator_fingerprint": evaluator_fingerprint,
+        "pydantic_evals_version": version("pydantic-evals"),
+        "quality_gates": quality_gates,
+        "performance_gates": performance_gates,
+        "gates_version": gates.version,
+        "gates_sha256": content_hash(gates_raw),
+        "p95_latency_ms": p95_latency,
+        "model_calls": model_calls,
+        "embedding_calls": sum(execution.embedding_calls for execution in completed.values()),
+        "usage": usage.model_dump(mode="json"),
+    }
+    serialized = json.dumps(report, indent=2) + "\n"
+    await asyncio.to_thread(output.parent.mkdir, parents=True, exist_ok=True)
+    await asyncio.to_thread(output.write_text, serialized, encoding="utf-8")
+    await asyncio.to_thread(history_dir.mkdir, parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    history = history_dir / (
+        f"provenance-production-{stamp}-{content_hash(serialized.encode())[:8]}.json"
+    )
+    await asyncio.to_thread(history.write_text, serialized, encoding="utf-8")
+    report["history"] = str(history)
+    return report
 
 
 def load_provenance_dataset(path: Path) -> tuple[bytes, ProvenanceDataset]:
@@ -187,6 +727,14 @@ async def evaluate_provenance(
         raise ValueError("No provenance evaluation cases match the selected split")
     by_id = {case.id: case for case in cases}
     completed: dict[str, ProvenanceExecution] = {}
+    evaluator = ProvenanceQuality()
+    evaluator_fingerprint = fingerprint(
+        evaluator=evaluator.get_evaluator_version(),
+        runner="pydantic-evals",
+        runner_version=version("pydantic-evals"),
+    )
+    provider_fingerprint = fingerprint(mapper=mapper.fingerprint)
+    selection_policy_fingerprint = fingerprint(kind="frozen-candidate-pool-mapper-component-v1")
     eval_dataset = EvalDataset[str, ProvenanceExecution, ProvenanceCase](
         name=f"control-traceability-{dataset.version}-{split}",
         cases=[
@@ -194,7 +742,7 @@ async def evaluate_provenance(
                 name=case.id,
                 inputs=case.id,
                 metadata=case,
-                evaluators=[ProvenanceQuality()],
+                evaluators=[evaluator],
             )
             for case in cases
         ],
@@ -213,7 +761,9 @@ async def evaluate_provenance(
         metadata={
             "dataset_version": dataset.version,
             "dataset_sha256": content_hash(raw),
-            "mapper_fingerprint": mapper.fingerprint,
+            "evaluator_fingerprint": evaluator_fingerprint,
+            "selection_policy_fingerprint": selection_policy_fingerprint,
+            "provider_fingerprint": provider_fingerprint,
             "split": split,
         },
     )
@@ -252,9 +802,13 @@ async def evaluate_provenance(
     model_calls = sum(execution.model_calls for execution in completed.values())
     usage = total_usage([execution.usage for execution in completed.values()])
     report: dict[str, Any] = {
+        "evaluation_kind": "frozen_pool_mapper_component",
+        "qualification_scope": "mapper_component_only",
+        "production_path_qualified": False,
         "passed": not failures and precision >= 0.9 and recall >= 0.9,
         "dataset_version": dataset.version,
         "dataset_sha256": content_hash(raw),
+        "dataset_fingerprint": content_hash(raw),
         "review_status": dataset.review_status,
         "split": split,
         "cases": len(cases),
@@ -267,6 +821,10 @@ async def evaluate_provenance(
         "failures": sorted(failures),
         "case_results": case_reports,
         "mapper_fingerprint": mapper.fingerprint,
+        "provider_fingerprint": provider_fingerprint,
+        "selection_policy_fingerprint": selection_policy_fingerprint,
+        "evaluator_fingerprint": evaluator_fingerprint,
+        "pydantic_evals_version": version("pydantic-evals"),
         "model_calls": model_calls,
         "usage": usage.model_dump(mode="json"),
     }
