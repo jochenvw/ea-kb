@@ -210,5 +210,9 @@ visible; current-candidate projection does not distinguish every parser generati
 bytes. Explicit canonical decisions prevent parser recency from becoming authority.
 
 The default deviation repository returns no approved exceptions. A typed detector and synthetic
-input demonstrate counting, not a production exception approval/storage workflow. No automatic
-policy compliance, autonomous governance, enterprise authorization or live Azure deployment is claimed.
+input demonstrate counting, not a production portfolio workflow. Registered solution-architecture
+exceptions are not yet projected into this detector. Counts with applicable-population denominators,
+aggregate risk/standards review and owner-directed standard-change impact remain product goals; see
+[the application feedback loop](architecture.md#application-goals-and-feedback-loop).
+No automatic policy compliance, autonomous governance, enterprise authorization or live Azure
+deployment is claimed.

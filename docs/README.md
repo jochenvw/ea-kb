@@ -1,7 +1,8 @@
 # Design documentation
 
 - `usage.md`: setup, configuration, interfaces, corpus downloads, verification and deployment.
-- `architecture.md`: implemented components, flows, persistence, concurrency and deployment.
+- `architecture.md`: explicit application goals and feedback loop, then implemented components,
+  flows, persistence, concurrency and deployment; planned capabilities are marked separately.
 - `plugins.md`: connector/provider contracts and rules for future adapters.
 - `phase3.md`: durable plugins, reconciliation/resolution contracts and actual-corpus demonstration.
 - `evaluation.md`: source-grounded teacher datasets, distillation, model gates and combined suite.

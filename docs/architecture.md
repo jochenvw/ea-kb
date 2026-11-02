@@ -13,16 +13,83 @@ Development initialization uses current ORM metadata, not migration history; see
 
 ## Scope and design drivers
 
-This describes implemented ingestion and governed reconciliation, not every planned
-capability. The system extracts strategic-goal and ontology requirement candidates while retaining
-the evidence needed to inspect each interpretation. Documents, interpretations and enterprise
-approval are separate concerns.
+Except for the explicitly planned application goals below, this describes implemented ingestion,
+governed reconciliation and declared-evidence assessment. The system extracts strategic-goal and
+ontology requirement candidates while retaining the evidence needed to inspect each interpretation.
+Documents, interpretations and enterprise approval are separate concerns.
 
 The design favors recoverable incremental processing, bounded resource use and explicit
 infrastructure boundaries over exhaustive graph construction or autonomous agent execution.
 `docs\codebase` maps the canonical guides, manifests and test entry points without duplicating them.
 Coding rules live in `AGENTS.md`; extension contracts live in
 `docs\plugins.md`.
+
+## Application goals and feedback loop
+
+The product goal is an evidence-grounded connection from enterprise goals and obligations through
+platform-independent requirements and platform implementation choices to versioned solution
+decisions and code/deployment observations. The same provenance must support upward explanation
+and downward impact analysis. Classification, semantic refinement, enterprise adoption, solution
+decisions and implementation evidence remain distinct; a graph path alone proves neither
+applicability nor compliance.
+
+### Assess solutions against applicable intent
+
+Architects, coding agents and CI jobs should use one shared assessment service. It must establish
+the applicable approved baseline independently of the solution author's checklist, compare the
+design with that baseline, and compare implementation observations with the authorized design and
+requirements. A documented omission is not automatically an approved exception. A permitted
+alternative is not a deviation, and missing context, evidence or a supported verifier remains
+unknown rather than passing. This process is control-family-neutral; networking, encryption,
+backup, retention, identity and resilience are examples, not separate assessment workflows.
+
+### Review accumulated risk and improve standards
+
+Individually accepted exceptions can accumulate into a portfolio concern. Show absolute numbers,
+rates and trends by requirement/version, domain, business goal, owner and relevant workload scope.
+A rate needs a declared population of applicable solutions and a time window; unknown applicability
+or incomplete assessment coverage must remain visible. Count distinct affected solutions and
+active exceptions without inflating totals through renewals, repeated scans or architecture
+revisions. Keep violations, approved exceptions, permitted alternatives and unknowns separate.
+
+Frequency alone is not a risk verdict: criticality, exposure, duration, concentration and shared
+failure modes also matter. Even a single exception can warrant review. Recurrent reasons may
+indicate accumulated risk, inadequate implementation guidance, an impractical standard or a
+legitimate alternative. Surface evidence for human risk and standards review; do not automatically
+accept aggregate risk, weaken requirements or infer business-goal failure from a count.
+
+### Trace standard changes to solutions and owners
+
+Distinguish a publisher's new release from an enterprise proposal and an approved, effective
+baseline change. Compare selected versions and explain potentially affected requirements,
+solution decisions, exceptions and implementation checks. A published update alone does not
+create a mandatory migration or silently replace pinned authority. New requirements may affect
+solutions without an existing link, so impact analysis must also reconsider applicability.
+
+Return affected solution/revision IDs, repository and responsible team references, the reason for
+impact, the required review or update, and any approved effective date. Missing owners, uncertain
+semantic changes and incomplete traceability are explicit gaps, not evidence of no impact.
+Preserve the historical assessment basis while evaluating the proposed replacement. Prepare
+owner-directed GitHub work items or CI artifacts; sending notifications or opening work items is
+an explicit caller/operator action, not autonomous outreach.
+
+### Current status and lean delivery
+
+These feedback-loop capabilities are intended outcomes tracked in
+[the assessment backlog](https://github.com/jochenvw/ea-kb/issues/25). Existing foundations include
+exact evidence, immutable interpretations and architecture revisions, scoped authority, explicit
+architecture exceptions and bounded lineage inspection. Current assessment checks declared
+evidence only for registered controls; it does not establish complete applicability or verify code.
+The `excessive_deviations` detector counts supplied active approved deviations, but its default
+repository returns none and is not connected to registered architecture exceptions. Portfolio
+rates, risk/standards review and owner-directed standard-change impact are not implemented.
+
+Retain the stable solution, owner/repository, requirement-version and decision/evidence bindings
+needed for both assessment and feedback. Derive bounded views from existing authoritative records;
+extend domain storage only for a concrete durable fact, not for duplicate graph projections,
+per-scan work tracking or a separate risk platform. Keep implementation planning and remediation
+work in GitHub. Preserve immutable input references in assessment artifacts so later trend and
+impact queries do not depend on whichever interpretation happens to be latest.
 
 ## Boundaries
 
@@ -172,11 +239,12 @@ approval time and optional expiry. Deterministic assessment classifies each refe
 as `conforms`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
 platform-agnostic to control chain. The current basis is deliberately `declared_evidence`: EKB does
 not claim to inspect or verify Bicep, application code or deployed resources. It also does not infer
-that every traceable implementation is required. Architecture authors select applicable controls
-from exposure, risk treatment and workload scope; an unselected control is out of scope, not an
-exception. An exception applies only after an architecture selected the control as required. A
-future analyzer may implement that replaceable boundary without changing registry, provenance or
-assessment contracts.
+that every traceable implementation is required. Architecture authors currently select controls
+from exposure, risk treatment and workload scope. An unselected control is outside this declared
+assessment, not proof that the enterprise baseline makes it inapplicable. Exceptions record
+departures from selected requirements; omission alone records neither an exception nor approval.
+The planned general assessment must independently establish applicable coverage and verify
+implementation evidence while preserving registry history and provenance.
 
 Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
 retry classification and backoff; the pipeline handles provider-independent outcomes.

@@ -15,6 +15,26 @@ Model Context Protocol (MCP) server.
 Durable indexing, enrichment and issue stages support audited reconciliation and strict scoped
 canonical resolution without automatically approving candidates.
 
+## Application goals
+
+EKB's goal is to connect enterprise intent and approved standards to solution decisions and
+implementation evidence, then use that provenance in both directions:
+
+- Assess designs and implementations against the complete applicable baseline, including forgotten
+  requirements. Distinguish permitted alternatives, approved exceptions, violations and unknowns.
+- Expose accumulating exception risk through scoped counts, rates and trends, with affected goals,
+  requirements and solutions visible rather than judging each exception in isolation.
+- Identify recurring deviations that warrant reviewing a standard or its implementation guidance,
+  without automatically weakening policy or treating every deviation as a defective standard.
+- Trace proposed or adopted standard changes to affected solutions, repositories and responsible
+  teams so they can review and plan updates.
+
+These are product goals, not claims of completed verification or portfolio analytics. The current
+MVP preserves evidence and governance and assesses declared evidence for registered architecture
+controls; it does not independently verify code or detect every omitted applicable requirement.
+See [goal boundaries and current status](docs/architecture.md#application-goals-and-feedback-loop)
+and the [implementation backlog](https://github.com/jochenvw/ea-kb/issues/25).
+
 ## Quick start
 
 Requires Python 3.13, [uv](https://docs.astral.sh/uv/), Git and Docker with a running Linux engine.
