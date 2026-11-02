@@ -170,6 +170,19 @@ async def test_ten_curated_principles_connect_all_layers_with_provenance(databas
         controls = await uow.knowledge.search(level=KnowledgeLevel.PLATFORM_SPECIFIC, limit=20)
         assert len(controls) == 10
         for control in controls:
+            traceability = await uow.inspection.traceability(control.id)
+            assert traceability is not None
+            assert {node.level for node in traceability.nodes} == {
+                KnowledgeLevel.COMPANY,
+                KnowledgeLevel.PLATFORM_AGNOSTIC,
+                KnowledgeLevel.PLATFORM_SPECIFIC,
+            }
+            assert {edge.kind for edge in traceability.edges} == {
+                "refines",
+                "inDomain",
+                "supports",
+            }
+            assert not traceability.truncated
             graph = await uow.inspection.graph(control.id)
             assert graph is not None
             levels = {node.level for node in graph.nodes if node.kind != "source"}

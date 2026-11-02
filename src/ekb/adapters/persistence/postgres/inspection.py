@@ -443,3 +443,142 @@ class Inspection:
                 len(relations) > 12 or len(findings) > 12 or len(source_rows) > 12 or truncated
             ),
         )
+
+    async def traceability(self, concept_id: UUID) -> KnowledgeGraph | None:
+        if await self.session.get(ConceptRow, concept_id) is None:
+            return None
+        lineage_kinds = ("refines", "supports", "inDomain")
+        active_findings = await self._active()
+        known = {concept_id}
+        frontier = {concept_id}
+        edges: list[GraphEdge] = []
+        seen: set[tuple[UUID, UUID, str]] = set()
+        truncated = False
+        for _ in range(8):
+            if not frontier:
+                break
+            relations = list(
+                await self.session.scalars(
+                    select(RelationshipRow)
+                    .where(
+                        RelationshipRow.from_id.in_(frontier),
+                        RelationshipRow.kind.in_(lineage_kinds),
+                    )
+                    .order_by(RelationshipRow.id)
+                )
+            )
+            finding_rows = list(
+                await self.session.scalars(
+                    select(FindingRow)
+                    .where(
+                        FindingRow.id.in_(active_findings),
+                        FindingRow.check_id.in_(("company_alignment", "platform_alignment")),
+                        or_(
+                            *(
+                                FindingRow.payload["concept_ids"].contains([str(identity)])
+                                for identity in frontier
+                            )
+                        ),
+                    )
+                    .order_by(FindingRow.id)
+                )
+            )
+            next_frontier: set[UUID] = set()
+            for row in relations:
+                key = (row.from_id, row.to_id, row.kind)
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append(
+                    GraphEdge(
+                        source=row.from_id,
+                        target=row.to_id,
+                        kind=row.kind,
+                        status=row.payload.get("status", "asserted"),
+                        href=f"/concepts/{row.from_id}",
+                    )
+                )
+                next_frontier.add(row.to_id)
+            for row in finding_rows:
+                finding = Finding.model_validate(row.payload)
+                if (
+                    finding.action != "relationship"
+                    or len(finding.concept_ids) < 2
+                    or finding.concept_ids[0] not in frontier
+                    or finding.relationship is None
+                    or finding.relationship.value not in lineage_kinds
+                ):
+                    continue
+                for target in finding.concept_ids[1:]:
+                    key = (
+                        finding.concept_ids[0],
+                        target,
+                        finding.relationship.value,
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    edges.append(
+                        GraphEdge(
+                            source=finding.concept_ids[0],
+                            target=target,
+                            kind=finding.relationship.value,
+                            status="inferred",
+                            href=f"/review?finding_id={finding.id}",
+                            note=finding.explanation,
+                        )
+                    )
+                    next_frontier.add(target)
+            if len(edges) > 64 or len(known | next_frontier) > 64:
+                truncated = True
+                edges = edges[:64]
+                break
+            next_frontier -= known
+            known.update(next_frontier)
+            frontier = next_frontier
+        else:
+            truncated = bool(frontier)
+
+        ranked = (
+            select(
+                VersionRow.id,
+                func.row_number()
+                .over(
+                    partition_by=VersionRow.concept_id,
+                    order_by=(
+                        VersionRow.payload["recorded_at"].astext.desc(),
+                        VersionRow.id.desc(),
+                    ),
+                )
+                .label("rank"),
+            )
+            .where(VersionRow.concept_id.in_(known))
+            .subquery()
+        )
+        versions = await self.session.scalars(
+            select(VersionRow)
+            .where(VersionRow.id.in_(select(ranked.c.id).where(ranked.c.rank == 1)))
+            .order_by(VersionRow.concept_id)
+        )
+        nodes = [
+            GraphNode(
+                id=version.concept_id,
+                label=(version.assertion.text if version.assertion else None)
+                or version.candidate.statement,
+                kind=version.candidate.semantic_type or "unclassified",
+                href=f"/concepts/{version.concept_id}",
+                level=knowledge_level(version.candidate),
+            )
+            for version in (row.to_domain() for row in versions)
+        ]
+        retained_ids = {node.id for node in nodes}
+        return KnowledgeGraph(
+            root=concept_id,
+            nodes=nodes,
+            edges=[
+                edge
+                for edge in edges
+                if edge.source in retained_ids and edge.target in retained_ids
+            ],
+            truncated=truncated,
+        )

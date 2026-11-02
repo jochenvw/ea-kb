@@ -21,6 +21,13 @@ import type { Concept, KnowledgeGraph } from "@/types";
 
 const lineageKinds = new Set(["refines", "inDomain", "supports"]);
 
+export interface GraphResource {
+  data: KnowledgeGraph | null;
+  error: string | null;
+  loading: boolean;
+  reload: () => void;
+}
+
 function lineage(graph: KnowledgeGraph) {
   const edges = graph.edges.filter(
     (edge) =>
@@ -98,83 +105,118 @@ function TraceabilityLayer({
   );
 }
 
-export function CompactTraceability({
+function TraceabilityChain({
   id,
   level,
+  graph,
+  full = false,
 }: {
   id: string;
   level: string;
+  graph: KnowledgeGraph;
+  full?: boolean;
 }) {
-  const resource = useResource<KnowledgeGraph>(
-    `/api/concepts/${encodeURIComponent(id)}/graph`,
-  );
-  const graph = resource.data;
-  const path = graph ? lineage(graph) : null;
+  const path = lineage(graph);
   const needsImplementation = level === "platform_specific";
   const complete =
-    !!path?.company.length &&
+    !!path.company.length &&
     !!path.architecture.length &&
     (!needsImplementation || !!path.implementation.length);
+  return (
+    <div
+      className={`compact-traceability${full ? " full-traceability" : ""}`}
+      role="region"
+      aria-label={full ? "Full traceability chain" : "Traceability chain"}
+    >
+      <div className="traceability-state">
+        <GitBranch size={15} />
+        <span>{complete ? "Complete recorded path" : "Path gap recorded"}</span>
+      </div>
+      <TraceabilityLayer
+        title="Company intent"
+        empty="No adopted company intent is recorded for this path."
+        nodes={path.company}
+        root={graph.root}
+      />
+      <ArrowDown className="traceability-arrow" aria-hidden="true" />
+      <TraceabilityLayer
+        title="Platform-agnostic architecture"
+        empty="No platform-independent parent is recorded."
+        nodes={path.architecture}
+        root={graph.root}
+      />
+      {needsImplementation && (
+        <>
+          <ArrowDown className="traceability-arrow" aria-hidden="true" />
+          <TraceabilityLayer
+            title="Platform implementation"
+            empty="The selected control is not present in this traceability chain."
+            nodes={path.implementation}
+            root={graph.root}
+          />
+        </>
+      )}
+      {path.inferred && (
+        <p className="traceability-note">
+          Includes inferred links awaiting governance review.
+        </p>
+      )}
+      {graph.truncated && (
+        <p className="traceability-note">
+          This path exceeded the safety bound; inspect the relationship ledger
+          before relying on it.
+        </p>
+      )}
+      <Button variant="outline" size="sm" asChild>
+        <a href={`/explore?concept=${id}`}>
+          Open full relationship map
+          <ArrowUpRight />
+        </a>
+      </Button>
+    </div>
+  );
+}
+
+export function CompactTraceability({
+  id,
+  level,
+  resource,
+}: {
+  id: string;
+  level: string;
+  resource: GraphResource;
+}) {
+  const graph = resource.data;
   return (
     <Panel
       title="Traceability"
       description="Why this concept exists, from adopted company intent down to architecture and implementation."
     >
       <LoadState resource={resource}>
-        {graph && path && (
-          <div
-            className="compact-traceability"
-            role="region"
-            aria-label="Traceability chain"
-          >
-            <div className="traceability-state">
-              <GitBranch size={15} />
-              <span>
-                {complete ? "Complete recorded path" : "Path gap recorded"}
-              </span>
-            </div>
-            <TraceabilityLayer
-              title="Company intent"
-              empty="No adopted company intent is recorded for this path."
-              nodes={path.company}
-              root={graph.root}
-            />
-            <ArrowDown className="traceability-arrow" aria-hidden="true" />
-            <TraceabilityLayer
-              title="Platform-agnostic architecture"
-              empty="No platform-independent parent is recorded."
-              nodes={path.architecture}
-              root={graph.root}
-            />
-            {needsImplementation && (
-              <>
-                <ArrowDown className="traceability-arrow" aria-hidden="true" />
-                <TraceabilityLayer
-                  title="Platform implementation"
-                  empty="The selected control is not present in this bounded graph."
-                  nodes={path.implementation}
-                  root={graph.root}
-                />
-              </>
-            )}
-            {path.inferred && (
-              <p className="traceability-note">
-                Includes inferred links awaiting governance review.
-              </p>
-            )}
-            {graph.truncated && (
-              <p className="traceability-note">
-                This compact view is bounded; open the full map for additional
-                relationships.
-              </p>
-            )}
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/explore?concept=${id}`}>
-                Open full relationship map
-                <ArrowUpRight />
-              </a>
-            </Button>
-          </div>
+        {graph && <TraceabilityChain id={id} level={level} graph={graph} />}
+      </LoadState>
+    </Panel>
+  );
+}
+
+export function TraceabilityDiagram({
+  id,
+  level,
+  resource,
+}: {
+  id: string;
+  level: string;
+  resource: GraphResource;
+}) {
+  const graph = resource.data;
+  return (
+    <Panel
+      title="Traceability chain"
+      description="The same active company-to-architecture chain shown in the compact panel, with more room for the complete statements."
+    >
+      <LoadState resource={resource}>
+        {graph && (
+          <TraceabilityChain id={id} level={level} graph={graph} full />
         )}
       </LoadState>
     </Panel>

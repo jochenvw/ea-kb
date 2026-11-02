@@ -469,6 +469,9 @@ universal applicability. Source, text, semantic-type and level filters constrain
 before paging. Original payloads stay intact. Graphs keep source evidence separate and show only
 persisted, evidenced ontology relationships and review proposals; missing or ambiguous links are
 not drawn. Relationships do not establish equivalence, compliance or company-goal alignment.
+Concept details use a separate active traceability projection that follows only upward `refines`,
+`inDomain` and `supports` paths. The full and compact diagrams share one response, while the bounded
+relationship explorer remains a broader neighborhood that may include sources and sibling links.
 
 All interfaces share `KnowledgeService`. No web server is required for CLI or TUI operations.
 Ingestion runs through CLI commands, including the independent `ekb worker`; web startup and

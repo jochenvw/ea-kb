@@ -369,6 +369,9 @@ async def test_backlog_tracks_latest_decisions_and_graph_preserves_proposal_dire
                     await client.get("/api/reconciliation/backlog?status=rejected")
                 ).status_code == 422
                 assert (await client.get(f"/api/concepts/{uuid4()}/graph")).status_code == 404
+                assert (
+                    await client.get(f"/api/concepts/{uuid4()}/traceability")
+                ).status_code == 404
     finally:
         await runtime.__aexit__()
 

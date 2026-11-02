@@ -7,7 +7,8 @@ From this folder: `npm ci`, `npm run build`, `npm run check`, `npm run format:ch
 `npm run dev` optionally proxies the local backend on port 8000 for UI development.
 The Microsoft npm upstream is configured in `.npmrc`; dependency maintenance is in `scripts\README.md`.
 Built assets are committed under `src\ekb\interfaces\web\static\ui` so Python users need no Node runtime.
-Concept details keep a compact company-to-architecture-to-control trace visible beside tabbed evidence.
+Concept details fetch one active company-to-architecture-to-control chain and render identical full
+and compact diagrams beside tabbed evidence; broader evidence neighborhoods remain in the explorer.
 The solution registry browses immutable artefact revisions, canonical pointers, requirements and exceptions.
 The ontology's Mermaid renderer is loaded locally on demand; its bundled dependencies retain licenses.
 Rebuild after source/configuration changes; the Python suite detects stale generated assets.

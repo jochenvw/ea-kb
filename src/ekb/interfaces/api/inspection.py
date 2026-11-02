@@ -40,6 +40,14 @@ def register(app: FastAPI, active: Callable[[Request], Runtime]) -> None:
             raise HTTPException(404, "Concept not found")
         return result
 
+    @app.get("/api/concepts/{concept_id}/traceability", response_model=KnowledgeGraph)
+    async def traceability(request: Request, concept_id: UUID):
+        async with active(request).database() as uow:
+            result = await uow.inspection.traceability(concept_id)
+        if result is None:
+            raise HTTPException(404, "Concept not found")
+        return result
+
     @app.get("/api/reconciliation/backlog", response_model=BacklogPage)
     async def backlog(
         request: Request,

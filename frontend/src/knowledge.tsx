@@ -38,8 +38,14 @@ import {
   useDebounced,
   useResource,
 } from "@/lib/api";
-import type { Concept, Provenance, Source, Version } from "@/types";
-import { CompactTraceability, RelationshipGraph } from "@/network";
+import type {
+  Concept,
+  KnowledgeGraph,
+  Provenance,
+  Source,
+  Version,
+} from "@/types";
+import { CompactTraceability, TraceabilityDiagram } from "@/network";
 import { OntologyBadge, OntologyDefinition } from "@/ontology";
 
 type KnowledgeView = "company" | "architecture" | "platforms" | "all";
@@ -351,6 +357,9 @@ export function ConceptPage({
   const provenance = useResource<Provenance[]>(
     `/api/concepts/${encodeURIComponent(id)}/provenance`,
   );
+  const traceability = useResource<KnowledgeGraph>(
+    `/api/concepts/${encodeURIComponent(id)}/traceability`,
+  );
   const requested = new URLSearchParams(location.search).get("version_id");
   const sourceId = new URLSearchParams(location.search).get("source_id");
   const view = new URLSearchParams(location.search).get("view");
@@ -510,7 +519,11 @@ export function ConceptPage({
                   </Panel>
                 </TabsContent>
                 <TabsContent value="validation">
-                  <RelationshipGraph id={id} />
+                  <TraceabilityDiagram
+                    id={id}
+                    level={concept.data.levels?.[version.id] ?? "unclassified"}
+                    resource={traceability}
+                  />
                 </TabsContent>
                 <TabsContent value="governance">
                   <div className="two-column">
@@ -638,6 +651,7 @@ export function ConceptPage({
                 <CompactTraceability
                   id={id}
                   level={concept.data.levels?.[version.id] ?? "unclassified"}
+                  resource={traceability}
                 />
               </aside>
             )}

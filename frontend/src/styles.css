@@ -961,6 +961,25 @@ td > strong {
 .traceability-note {
   margin: 0;
 }
+.full-traceability {
+  gap: 16px;
+}
+.full-traceability .traceability-nodes {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.full-traceability .traceability-nodes a,
+.full-traceability .traceability-gap {
+  padding: 16px;
+}
+.full-traceability .traceability-nodes strong {
+  font-size: 14px;
+}
+.full-traceability .traceability-nodes small,
+.full-traceability .traceability-gap,
+.full-traceability .traceability-note {
+  font-size: 11px;
+}
 .callout,
 .read-only {
   padding: 16px;

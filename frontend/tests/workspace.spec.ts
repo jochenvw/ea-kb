@@ -221,6 +221,7 @@ async function fixture(page: Page, governance = false) {
     else if (path === `/api/concepts/${id}`) data = concept;
     else if (
       path === `/api/concepts/${id}/graph` ||
+      path === `/api/concepts/${id}/traceability` ||
       path === `/api/concepts/${relatedId}/graph`
     )
       data = {
@@ -690,6 +691,7 @@ test("search, exact evidence and scoped authority remain distinct", async ({
   ).toHaveCount(0);
   const traceability = page.getByRole("region", {
     name: "Traceability chain",
+    exact: true,
   });
   await expect(traceability).toBeVisible();
   await expect(traceability).toContainText("Company intent");
@@ -709,8 +711,9 @@ test("search, exact evidence and scoped authority remain distinct", async ({
     .getByRole("tab", { name: "Visual validation", exact: true })
     .click();
   await expect(
-    page.getByRole("group", {
-      name: "Navigable evidence and relationship map",
+    page.getByRole("region", {
+      name: "Full traceability chain",
+      exact: true,
     }),
   ).toBeVisible();
   await page.getByRole("tab", { name: "Source evidence", exact: true }).click();
@@ -1748,7 +1751,7 @@ test("configured principles show the complete evidence-backed architecture chain
       },
     }),
   );
-  await page.route(`**/api/concepts/${id}/graph`, (route) =>
+  await page.route(`**/api/concepts/${id}/traceability`, (route) =>
     route.fulfill({
       json: {
         root: id,
@@ -1864,6 +1867,7 @@ test("configured principles show the complete evidence-backed architecture chain
 
   const traceability = page.getByRole("region", {
     name: "Traceability chain",
+    exact: true,
   });
   await expect(traceability).toBeVisible();
   await expect(traceability).toContainText(
@@ -1881,40 +1885,23 @@ test("configured principles show the complete evidence-backed architecture chain
     .getByRole("tab", { name: "Visual validation", exact: true })
     .click();
 
-  const laneTitles = page.locator("svg .graph-lane-title");
-  await expect(laneTitles).toContainText([
-    "Company intent",
-    "Platform-agnostic architecture",
-    "Platform-specific controls",
-  ]);
-  await expect(
-    page.getByRole("link", {
-      name: /Explore Control communications at external managed interfaces/,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /Explore Network security/ }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", {
-      name: /Explore Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline/,
-    }),
-  ).toBeVisible();
-  await expect(page.locator(".graph-links")).toContainText("Refines");
-  await expect(page.locator(".graph-links")).toContainText("In Domain");
-  await expect(page.locator(".graph-links")).toContainText("Supports");
-  await expect(page.locator(".graph-links")).toContainText("Configured");
-  const refinement = page.locator(".graph-record").first();
-  await refinement.getByText("Link basis & evidence").click();
-  await expect(refinement.locator("blockquote")).toHaveText(rationale);
-  for (const name of [
-    "Azure Security Benchmark v2",
-    "NIST SP 800-53 Revision 5",
-    "Organization architecture curation",
-  ])
-    await expect(
-      page.getByRole("link", { name: `Browse source ${name}` }),
-    ).toBeVisible();
+  const full = page.getByRole("region", {
+    name: "Full traceability chain",
+    exact: true,
+  });
+  await expect(full).toBeVisible();
+  for (const text of [
+    "Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.",
+    "Network security",
+    "Control communications at external managed interfaces.",
+    "Azure · NS-2: Use virtual network peering.",
+  ]) {
+    await expect(traceability).toContainText(text);
+    await expect(full).toContainText(text);
+  }
+  await expect(traceability.locator(".traceability-nodes a")).toHaveCount(4);
+  await expect(full.locator(".traceability-nodes a")).toHaveCount(4);
+  await expect(full).toContainText("Complete recorded path");
 });
 
 test("work backlog is separate from the reference reconciliation ledger", async ({
