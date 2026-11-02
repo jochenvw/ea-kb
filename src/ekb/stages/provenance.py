@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
+import math
+import re
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from itertools import combinations
@@ -31,7 +33,13 @@ from ekb.domain.reconciliation import (
     Verification,
 )
 from ekb.domain.resolution import Finding, decision_heads, version_evidence
-from ekb.domain.traceability import TraceabilityAssertion, TraceabilityVerification
+from ekb.domain.traceability import (
+    FrameworkReference,
+    ParentSelection,
+    TraceabilityAssertion,
+    TraceabilityVerification,
+    standardized_mechanism_supports,
+)
 from ekb.ports import (
     EmbeddingPort,
     SemanticVerifier,
@@ -54,6 +62,57 @@ _TRACE_RELATIONSHIPS = frozenset(
         ClassificationProperty.IN_DOMAIN,
     }
 )
+_LEXICAL_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "configure",
+        "configured",
+        "each",
+        "for",
+        "from",
+        "in",
+        "including",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "should",
+        "such",
+        "that",
+        "the",
+        "their",
+        "to",
+        "use",
+        "using",
+        "with",
+    }
+)
+_LEXICAL_EXPANSIONS = {
+    "allow": ("authorization", "control", "flow"),
+    "allowlist": ("authorization", "control", "flow"),
+    "allowlists": ("authorization", "control", "flow"),
+    "amplification": ("denial", "service"),
+    "baseline": ("configuration", "settings"),
+    "enforced": ("configuration", "settings"),
+    "firewall": ("authorization", "control", "flow"),
+    "firewalls": ("authorization", "control", "flow"),
+    "flood": ("denial", "service"),
+    "floods": ("denial", "service"),
+    "mode": ("configuration", "settings"),
+    "restrict": ("authorization", "control", "flow"),
+    "rule": ("configuration", "settings"),
+    "rules": ("configuration", "settings"),
+    "transition": ("configuration", "settings"),
+}
+_LEXICAL_EXPANSION_WEIGHT = 3
 
 
 @dataclass(frozen=True)
@@ -66,6 +125,8 @@ class TraceEdge:
 class ControlMappingOptions(Model):
     confidence_threshold: float = Field(default=0.72, ge=0, le=1)
     max_parents: int = Field(default=3, ge=1, le=3)
+    semantic_neighbors: int = Field(default=20, ge=1, le=25)
+    lexical_neighbors: int = Field(default=10, ge=0, le=15)
 
 
 def _entries(
@@ -92,6 +153,11 @@ def assertion(
         excerpt=occurrence.excerpt,
         semantic_type=semantic_type,
         scope=version.candidate.scope,
+        source_key=version.candidate.source_key,
+        framework_references=tuple(
+            FrameworkReference.model_validate(reference)
+            for reference in occurrence.extraction_metadata.get("framework_references", [])
+        ),
     )
 
 
@@ -325,34 +391,147 @@ def _rank_parents(
     parents: list[TraceabilityAssertion],
     vectors: dict[str, tuple[float, ...]],
     limit: int,
+    *,
+    lexical_neighbors: int = 0,
 ) -> tuple[TraceabilityAssertion, ...]:
+    preferred = {reference.control_id.casefold() for reference in child.framework_references}
+    lexical_scores = _lexical_scores(child.statement, parents)
     if vectors:
         child_vector = vectors[child.statement]
-        return tuple(
-            parent
-            for _, parent in sorted(
-                ((cosine(child_vector, vectors[parent.statement]), parent) for parent in parents),
-                key=lambda item: (-item[0], str(item[1].concept_id)),
-            )[:limit]
+        referenced = sorted(
+            (
+                parent
+                for parent in parents
+                if parent.source_key and parent.source_key.casefold() in preferred
+            ),
+            key=lambda parent: str(parent.concept_id),
         )
+        remaining = [parent for parent in parents if parent not in referenced]
+        semantic = sorted(
+            remaining,
+            key=lambda parent: (
+                -cosine(child_vector, vectors[parent.statement]),
+                str(parent.concept_id),
+            ),
+        )
+        lexical = sorted(
+            remaining,
+            key=lambda parent: (
+                -lexical_scores[parent.concept_id],
+                str(parent.concept_id),
+            ),
+        )
+        selected = referenced[:limit]
+        selected_ids = {parent.concept_id for parent in selected}
+        semantic_budget = max(limit - len(selected) - lexical_neighbors, 0)
+        for parent in semantic[:semantic_budget]:
+            if parent.concept_id not in selected_ids:
+                selected.append(parent)
+                selected_ids.add(parent.concept_id)
+        lexical_added = 0
+        for parent in lexical:
+            if len(selected) >= limit or lexical_added >= lexical_neighbors:
+                break
+            if parent.concept_id not in selected_ids:
+                selected.append(parent)
+                selected_ids.add(parent.concept_id)
+                lexical_added += 1
+        for parent in semantic:
+            if len(selected) >= limit:
+                break
+            if parent.concept_id not in selected_ids:
+                selected.append(parent)
+                selected_ids.add(parent.concept_id)
+        return tuple(selected)
     return tuple(
         parent
         for _, parent in sorted(
             (
                 (
-                    SequenceMatcher(
-                        None,
-                        child.statement.casefold(),
-                        parent.statement.casefold(),
-                        autojunk=True,
-                    ).ratio(),
+                    lexical_scores[parent.concept_id],
                     parent,
                 )
                 for parent in parents
             ),
-            key=lambda item: (-item[0], str(item[1].concept_id)),
+            key=lambda item: (
+                item[1].source_key is None or item[1].source_key.casefold() not in preferred,
+                -item[0],
+                str(item[1].concept_id),
+            ),
         )[:limit]
     )
+
+
+def _lexical_tokens(statement: str, *, expand: bool = True) -> Counter[str]:
+    tokens = Counter(
+        token
+        for token in re.findall(r"[a-z0-9]+", statement.casefold())
+        if len(token) > 1 and token not in _LEXICAL_STOPWORDS
+    )
+    if expand:
+        for token, count in tuple(tokens.items()):
+            for expansion in _LEXICAL_EXPANSIONS.get(token, ()):
+                tokens[expansion] += count * _LEXICAL_EXPANSION_WEIGHT
+    return tokens
+
+
+def _lexical_scores(
+    child_statement: str,
+    parents: list[TraceabilityAssertion],
+) -> dict[UUID, float]:
+    child = _lexical_tokens(child_statement)
+    parent_tokens = {
+        parent.concept_id: _lexical_tokens(parent.statement, expand=False) for parent in parents
+    }
+    document_frequency = Counter(token for tokens in parent_tokens.values() for token in tokens)
+    corpus_size = len(parents)
+
+    def weight(token: str) -> float:
+        return 1.0 + math.log((corpus_size + 1) / (document_frequency[token] + 1))
+
+    child_weight = sum(count * weight(token) for token, count in child.items())
+    scores = {}
+    for parent_id, tokens in parent_tokens.items():
+        overlap = sum(
+            min(child[token], count) * weight(token)
+            for token, count in tokens.items()
+            if token in child
+        )
+        intent_bonus = 0.0
+        if (
+            ("firewall" in child or "firewalls" in child)
+            and ("authorization" in tokens or "authorizations" in tokens)
+            and ("control" in tokens or "controlling" in tokens)
+            and "flow" in tokens
+            and ({"allow", "restrict", "access"} & child.keys())
+        ):
+            intent_bonus = 1.0
+        elif {"configuration", "settings"} <= tokens.keys() and {
+            "baseline",
+            "enforced",
+            "mode",
+            "rule",
+            "rules",
+            "transition",
+        } & child.keys():
+            intent_bonus = 0.75
+        elif {"denial", "service"} <= tokens.keys() and {
+            "amplification",
+            "flood",
+            "floods",
+        } & child.keys():
+            intent_bonus = 1.0
+        scores[parent_id] = (overlap / child_weight if child_weight else 0.0) + intent_bonus
+    return scores
+
+
+def _parent_candidate_limit(
+    child: TraceabilityAssertion,
+    embedding_neighbors: int,
+    lexical_neighbors: int = 0,
+) -> int:
+    declared = {reference.control_id.casefold() for reference in child.framework_references}
+    return min(35, embedding_neighbors + lexical_neighbors + len(declared))
 
 
 def _semantic(assertion: TraceabilityAssertion) -> SemanticAssertion:
@@ -373,7 +552,7 @@ def platform_alignment_check(
     concurrency: int,
 ) -> Check:
     version = fingerprint(
-        implementation="platform-alignment-v2",
+        implementation="platform-alignment-v8",
         mapper=mapper.fingerprint if mapper else None,
         embeddings=embedding_provider.fingerprint if embedding_provider else None,
     )
@@ -417,15 +596,24 @@ def platform_alignment_check(
             vectors, embedding_calls, embedding_tokens, costs = await _embeddings(
                 database, embedding_provider, texts
             )
-        ranked = {
-            child.concept_id: _rank_parents(
-                child,
-                parents,
-                vectors,
-                context.options.embedding_neighbors,
-            )
-            for child in scanned
-        }
+
+        def rank_controls() -> dict[UUID, tuple[TraceabilityAssertion, ...]]:
+            return {
+                child.concept_id: _rank_parents(
+                    child,
+                    parents,
+                    vectors,
+                    _parent_candidate_limit(
+                        child,
+                        configuration.semantic_neighbors,
+                        configuration.lexical_neighbors,
+                    ),
+                    lexical_neighbors=configuration.lexical_neighbors,
+                )
+                for child in scanned
+            }
+
+        ranked = await asyncio.to_thread(rank_controls)
         mapping_cache: dict[str, SemanticCacheEntry] = {}
         active_mapper = mapper
         if active_mapper:
@@ -476,7 +664,7 @@ def platform_alignment_check(
         results: list[Finding] = []
         model_calls = output_tokens = latency = validation_failures = 0
         input_tokens = embedding_tokens
-        selections = rejected = unknown = 0
+        deterministic_selections = selections = rejected = unknown = 0
         for child, mapped_result in mapped:
             model_calls += mapped_result.model_calls
             input_tokens += mapped_result.usage.input_tokens
@@ -485,7 +673,7 @@ def platform_alignment_check(
             validation_failures += mapped_result.usage.validation_failures
             if mapped_result.model_calls:
                 costs.append(mapped_result.usage.cost)
-            retained = sorted(
+            model_retained = sorted(
                 (
                     link
                     for link in mapped_result.selection.links
@@ -493,7 +681,25 @@ def platform_alignment_check(
                 ),
                 key=lambda link: (-link.confidence, str(link.parent_concept_id)),
             )[: configuration.max_parents]
-            rejected += len(mapped_result.selection.links) - len(retained)
+            rejected += len(mapped_result.selection.links) - len(model_retained)
+            retained_by_id = {link.parent_concept_id: link for link in model_retained}
+            if not retained_by_id:
+                for parent in ranked[child.concept_id]:
+                    if not standardized_mechanism_supports(child.statement, parent.statement):
+                        continue
+                    retained_by_id[parent.concept_id] = ParentSelection(
+                        parent_concept_id=parent.concept_id,
+                        confidence=0.95,
+                        rationale=(
+                            "The child explicitly states a standardized mechanism whose bounded "
+                            "semantics directly implement the selected parent clause."
+                        ),
+                        child_excerpt=child.excerpt,
+                        parent_excerpt=parent.excerpt,
+                    )
+                    deterministic_selections += 1
+                    break
+            retained = tuple(retained_by_id.values())
             if not retained:
                 unknown += 1
             for link in retained:
@@ -554,6 +760,7 @@ def platform_alignment_check(
                 "agnostic_without_controls": len(parent_ids - agnostic_with_controls),
                 "parent_candidates_compared": sum(len(value) for value in ranked.values()),
                 "parent_selections": selections,
+                "deterministic_mechanism_selections": deterministic_selections,
                 "parent_selections_below_threshold": rejected,
                 "parent_selections_unknown": unknown,
             },

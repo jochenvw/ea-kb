@@ -4,6 +4,8 @@
 - `concept_versions.semantic_type` and relationship kinds are SQL-constrained to OWL identifiers;
   type projections must match payloads. Unknown stays null; succession is lifecycle metadata.
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
+- `architectures.py` stores immutable solution-architecture revisions and requirement dispositions;
+  artefact bytes remain in the configured content-addressed artifact store.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters and text search match the same evidenced version, not an unrelated latest one.
 - Level filters use that same evidenced version; graph edges require retained evidence or proposals.
@@ -23,6 +25,8 @@
 - Publication assessments are immutable; semantic versions may be unknown and authority is scoped.
 - `workflow.py` fences stage/check runs and atomically applies decisions/authority; alias edges derive
   from immutable findings and accepted decision heads, not a separately persisted projection.
+- Complete snapshots group versions, occurrences, relationships and authority records by identity
+  before assembling concepts, keeping large-corpus snapshot construction linear and lease-safe.
 - Its `semantic_replay_cache` uses one content-derived primary key and typed embedding/judgment
   payloads. Invalid payloads are cache misses and valid replacements are committed independently.
 - `initialize` creates this table if absent without resetting existing checkpoints or originals.

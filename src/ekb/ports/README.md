@@ -12,6 +12,8 @@ providers reserve each actual request, including retries, by deployment and rese
 Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.
 Knowledge repositories match configured selectors against exact current-revision provenance and
 persist configured concept links without moving source or curation behavior into the domain.
+`SolutionArchitectureRepository` stores immutable architecture revisions and their explicit
+requirement dispositions; artifact bytes remain behind the shared `ArtifactStore`.
 `AssertionWriter` rephrases a version against its exact evidence; original candidates stay immutable.
 Knowledge counts provide typed workspace totals; `PipelineProgress` observes scan/stage results.
 Processing task inspection is bounded and uses exclusive UUID cursors in stable order.

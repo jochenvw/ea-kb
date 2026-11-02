@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
 
+from ekb.adapters.inference.traceability import (
+    OpenAITraceabilityMapper,
+    _explicit_mechanism_supports,
+)
+from ekb.adapters.inference.traceability import (
+    _input as traceability_input,
+)
+from ekb.config import Settings
 from ekb.domain.execution import CheckOptions
 from ekb.domain.models import (
     Candidate,
@@ -27,9 +36,12 @@ from ekb.domain.reconciliation import (
 )
 from ekb.domain.resolution import Finding, KnowledgeSnapshot
 from ekb.domain.traceability import (
+    FrameworkReference,
     ParentSelection,
+    TraceabilityAssertion,
     TraceabilitySelection,
     TraceabilityVerification,
+    standardized_mechanism_supports,
 )
 from ekb.evaluation.provenance import evaluate_provenance, load_provenance_dataset
 from ekb.ports import UnitOfWorkFactory
@@ -38,6 +50,10 @@ from ekb.stages import _check_cache_key
 from ekb.stages.enrichment import Check
 from ekb.stages.issues import traceability_cardinality
 from ekb.stages.provenance import (
+    ControlMappingOptions,
+    _lexical_tokens,
+    _parent_candidate_limit,
+    _rank_parents,
     company_alignment,
     platform_alignment_check,
     sibling_comparison_check,
@@ -146,6 +162,370 @@ def proposed_parent(child: ConceptDetail, parent: ConceptDetail) -> Finding:
         confidence=0.9,
         explanation="The control specializes the broader requirement.",
     )
+
+
+async def test_traceability_mapper_batches_and_explicitly_assesses_every_candidate(monkeypatch):
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Restrict network traffic using platform rules.",
+        excerpt="Restrict network traffic using platform rules.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+        scope=Scope(platform="Platform"),
+    )
+    parents = tuple(
+        TraceabilityAssertion(
+            concept_id=uuid4(),
+            version_id=uuid4(),
+            occurrence_id=uuid4(),
+            statement=f"Parent requirement {index}.",
+            excerpt=f"Parent requirement {index}.",
+            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+        )
+        for index in range(21)
+    )
+    calls: list[int] = []
+
+    async def complete(messages, schema):
+        payload = json.loads(messages[-1]["content"])
+        candidates = payload["candidate_parents"]
+        calls.append(len(candidates))
+        if payload.get("phase") == "adversarial_critique":
+            return (
+                json.dumps(
+                    {
+                        "assessments": [
+                            {
+                                "parent_concept_id": parent["concept_id"],
+                                "verdict": "refines",
+                                "confidence": 0.99,
+                                "rationale": "The selected parent survives adversarial review.",
+                                "child_excerpt": payload["child"]["excerpt"],
+                                "parent_excerpt": parent["excerpt"],
+                            }
+                            for parent in candidates
+                        ]
+                    }
+                ),
+                10,
+                5,
+            )
+        if "candidate_assessments" in payload:
+            parent = candidates[0]
+            return (
+                json.dumps(
+                    {
+                        "links": [
+                            {
+                                "parent_concept_id": parent["concept_id"],
+                                "confidence": 0.99,
+                                "rationale": "This is the closest direct parent.",
+                                "child_excerpt": payload["child"]["excerpt"],
+                                "parent_excerpt": parent["excerpt"],
+                            }
+                        ]
+                    }
+                ),
+                10,
+                5,
+            )
+        return (
+            json.dumps(
+                {
+                    "assessments": [
+                        {
+                            "parent_concept_id": parent["concept_id"],
+                            "verdict": "refines" if index == 0 else "not_refines",
+                            "confidence": 0.95 if index == 0 else 0.9,
+                            "rationale": "The child directly implements this requirement.",
+                            "child_excerpt": payload["child"]["excerpt"],
+                            "parent_excerpt": parent["excerpt"],
+                        }
+                        for index, parent in enumerate(candidates)
+                    ],
+                }
+            ),
+            10,
+            5,
+        )
+
+    mapper = OpenAITraceabilityMapper(
+        Settings(model_id="test", reconciliation_model_id="test", model_retries=0)
+    )
+    monkeypatch.setattr(mapper.chat, "_complete", complete)
+    try:
+        result = await mapper.map(child, parents)
+    finally:
+        await mapper.close()
+
+    assert calls == [10, 10, 1, 3, 1]
+    assert [link.parent_concept_id for link in result.selection.links] == [
+        parents[0].concept_id,
+    ]
+    assert result.completed and result.method == "small_model_batched"
+    assert result.model_calls == result.usage.model_calls == 5
+    assert result.usage.input_tokens == 50 and result.usage.output_tokens == 25
+
+
+def test_declared_framework_references_prioritize_matching_parent_control_ids():
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Use a platform perimeter for resource isolation.",
+        excerpt="Use a platform perimeter for resource isolation.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+        scope=Scope(platform="Platform"),
+        framework_references=(
+            FrameworkReference(
+                namespace="nist-sp-800-53",
+                revision="5",
+                control_id="sc-7.5",
+                evidence_segment_id=uuid4(),
+                evidence_excerpt="NIST SP 800-53 Rev.5: SC-7(5)",
+            ),
+        ),
+    )
+    referenced = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Deny network traffic by default.",
+        excerpt="Deny network traffic by default.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+        source_key="sc-7.5",
+    )
+    lexical_match = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Use a platform perimeter for isolation.",
+        excerpt="Use a platform perimeter for isolation.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+        source_key="ac-1",
+    )
+
+    ranked = _rank_parents(child, [lexical_match, referenced], {}, 1)
+
+    assert ranked == (referenced,)
+
+
+def test_lexical_retrieval_expands_equivalent_control_language():
+    firewall = _lexical_tokens("Configure service firewalls to restrict access.")
+    configuration = _lexical_tokens("Transition to enforced mode with baseline rules.")
+    denial_of_service = _lexical_tokens("Mitigate DNS amplification attacks and floods.")
+
+    assert {"authorization", "control", "flow"} <= firewall.keys()
+    assert {"configuration", "settings"} <= configuration.keys()
+    assert {"denial", "service"} <= denial_of_service.keys()
+
+
+def test_explicit_standardized_mechanisms_survive_adversarial_review():
+    assert _explicit_mechanism_supports(
+        "Use Private Link for secure and private access to hosted services.",
+        "Separate information flows logically or physically.",
+    )
+    assert _explicit_mechanism_supports(
+        "Deploy a host-based IDS endpoint for host-level detection.",
+        "Implement host-based monitoring mechanisms.",
+    )
+    assert not _explicit_mechanism_supports(
+        "Use a private high-performance connection.",
+        "Network integrity is protected through segmentation.",
+    )
+
+
+def test_platform_alignment_recognizes_bounded_standardized_mechanisms():
+    supported = (
+        (
+            "Use network security group rules to allow or deny traffic.",
+            "Enforce approved authorizations for controlling the flow of information.",
+        ),
+        (
+            "Establish network segmentation boundaries between internal resources.",
+            "Network integrity is protected through network segmentation.",
+        ),
+        (
+            "Use managed identities and service principals for applications.",
+            "Identity providers manage identities and credentials.",
+        ),
+        (
+            "Run static application security testing before deployment.",
+            "Require static code analysis to identify common flaws.",
+        ),
+        (
+            "Scan for vulnerabilities and manage remediation.",
+            "Monitor and scan for vulnerabilities in the system.",
+        ),
+        (
+            "Enable DDoS protection against denial-of-service attacks.",
+            "Protect against or limit the effects of denial-of-service attacks.",
+        ),
+        (
+            "Collect diagnostic logs in a central workspace.",
+            "Generate and centrally review audit log records.",
+        ),
+        (
+            "Deploy endpoint detection and response and anti-malware.",
+            "Implement malicious code protection mechanisms.",
+        ),
+        (
+            "Use encryption to protect data in transit.",
+            "Apply cryptographic mechanisms to preserve confidentiality.",
+        ),
+        (
+            "Back up workloads to a recovery vault.",
+            "Conduct backups and recover system data.",
+        ),
+    )
+    assert all(standardized_mechanism_supports(child, parent) for child, parent in supported)
+    assert not standardized_mechanism_supports(
+        "Prepare network infrastructure for Azure Firewall deployment.",
+        "Enforce information flow control policies.",
+    )
+    assert not standardized_mechanism_supports(
+        "Manage DDoS Protection through the portal.",
+        "Manage capacity and bandwidth to limit denial-of-service attacks.",
+    )
+
+
+def test_traceability_model_receives_source_keys_and_declared_framework_references():
+    reference = FrameworkReference(
+        namespace="nist-sp-800-53",
+        revision="5",
+        control_id="sc-7.5",
+        evidence_segment_id=uuid4(),
+        evidence_excerpt="NIST SP 800-53 Rev.5: SC-7(5)",
+    )
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Deny platform network traffic by default.",
+        excerpt="Deny platform network traffic by default.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+        source_key="NS-1",
+        framework_references=(reference,),
+    )
+
+    payload = traceability_input(child)
+
+    assert payload["source_key"] == "NS-1"
+    assert payload["framework_references"] == [reference.model_dump(mode="json")]
+
+
+def test_declared_framework_references_augment_semantic_neighbor_budget():
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Use trusted DNS services.",
+        excerpt="Use trusted DNS services.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+        framework_references=tuple(
+            FrameworkReference(
+                namespace="nist-sp-800-53",
+                revision="5",
+                control_id=control_id,
+                evidence_segment_id=uuid4(),
+                evidence_excerpt=control_id,
+            )
+            for control_id in ("sc-7", "si-4", "si-4.4", "si-4.5")
+        ),
+    )
+
+    assert _parent_candidate_limit(child, 5) == 9
+    assert _parent_candidate_limit(child, 20) == 24
+    assert _parent_candidate_limit(child, 25, 15) == 35
+
+
+def test_embedding_ranking_reserves_independent_lexical_neighbors():
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Encrypt network traffic in transit.",
+        excerpt="Encrypt network traffic in transit.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+    )
+    semantic = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Manage external interfaces.",
+        excerpt="Manage external interfaces.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    lexical = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Protect network traffic in transit.",
+        excerpt="Protect network traffic in transit.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    vectors = {
+        child.statement: (1.0, 0.0),
+        semantic.statement: (1.0, 0.0),
+        lexical.statement: (0.0, 1.0),
+    }
+
+    ranked = _rank_parents(
+        child,
+        [semantic, lexical],
+        vectors,
+        2,
+        lexical_neighbors=1,
+    )
+
+    assert ranked == (semantic, lexical)
+
+
+def test_lexical_ranking_uses_weighted_terms_instead_of_whole_sentence_shape():
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Restrict inbound and outbound internet traffic through a gateway.",
+        excerpt="Restrict inbound and outbound internet traffic through a gateway.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+    )
+    short_distractor = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Restrict application settings through a portal.",
+        excerpt="Restrict application settings through a portal.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    long_parent = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement=(
+            "Establish a traffic flow policy for each managed external interface; "
+            "filter unauthorized inbound and outbound traffic from external networks; "
+            "document exceptions and review them periodically."
+        ),
+        excerpt=(
+            "Establish a traffic flow policy for each managed external interface; "
+            "filter unauthorized inbound and outbound traffic from external networks; "
+            "document exceptions and review them periodically."
+        ),
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+
+    ranked = _rank_parents(child, [short_distractor, long_parent], {}, 1)
+
+    assert ranked == (long_parent,)
+
+
+def test_platform_mapping_uses_hybrid_neighbors_by_default():
+    options = ControlMappingOptions()
+
+    assert options.semantic_neighbors == 20
+    assert options.lexical_neighbors == 10
 
 
 async def test_company_alignment_uses_explicit_source_adoption_and_allows_leaf_company_intent():
@@ -270,10 +650,14 @@ class EvaluationMapper(Mapper):
     fingerprint = "evaluation-mapper-test"
 
     async def map(self, child, parents):
-        if "Network Security Perimeter" in child.statement and not any(
-            "Deny network communications traffic by default" in parent.statement
-            for parent in parents
-        ):
+        expected_positive = (
+            "detection, investigation, and remediation",
+            "DDoS standard protection",
+            "backups at the different service tiers",
+            "endpoint detection and response",
+            "Adaptive Network Hardening",
+        )
+        if not any(value in child.statement for value in expected_positive):
             return TraceabilityVerification(
                 selection=TraceabilitySelection(
                     unresolved_reason="No supplied parent governs this control."
@@ -291,6 +675,20 @@ class FailingNegativeMapper(EvaluationMapper):
         ):
             raise ConnectionError("Synthetic provider failure")
         return await super().map(child, parents)
+
+
+class CapturingMapper:
+    fingerprint = "capturing-mapper-test"
+
+    def __init__(self):
+        self.calls = []
+
+    async def map(self, child, parents):
+        self.calls.append((child, parents))
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(unresolved_reason="Captured evaluator input."),
+            method="test",
+        )
 
 
 async def test_platform_alignment_maps_controls_to_bounded_agnostic_parents():
@@ -412,6 +810,53 @@ async def test_provenance_dataset_runs_through_pydantic_evals(tmp_path):
     assert report["exact_cases"] == 12
 
 
+async def test_provenance_evaluator_forwards_source_keys_and_framework_references(tmp_path):
+    source = json.loads((Path("evals") / "provenance-v1.json").read_text(encoding="utf-8"))
+    reference = {
+        "namespace": "nist-sp-800-53",
+        "revision": "5",
+        "control_id": "ir-4",
+        "evidence_segment_id": str(uuid4()),
+        "evidence_excerpt": "NIST SP 800-53 Rev.5: IR-4",
+    }
+    source["assertions"]["azure-incident"]["source_key"] = "IM-1"
+    source["assertions"]["azure-incident"]["framework_references"] = [reference]
+    source["assertions"]["nist-incident"]["source_key"] = "ir-4"
+    dataset = tmp_path / "provenance-input-fields.json"
+    dataset.write_text(json.dumps(source), encoding="utf-8")
+    mapper = CapturingMapper()
+
+    await evaluate_provenance(
+        dataset,
+        tmp_path / "report.json",
+        mapper,
+        split="all",
+        history_dir=tmp_path / "history",
+    )
+
+    child, parents = next(
+        call for call in mapper.calls if call[0].statement.startswith("Enable detection")
+    )
+    assert child.source_key == "IM-1"
+    assert child.framework_references[0].control_id == "ir-4"
+    assert any(parent.source_key == "ir-4" for parent in parents)
+
+
+def test_complete_provenance_dataset_covers_every_reviewed_control():
+    _, dataset = load_provenance_dataset(Path("evals") / "provenance-complete-v1.json")
+    nat_gateway = next(
+        case for case in dataset.cases if case.child_key == "c5172e66-dc4c-5cb4-aa2f-251f5e183002"
+    )
+
+    assert dataset.review_status == "independently_reviewed"
+    assert len(dataset.cases) == 385
+    assert sum(not case.expected_parent_keys for case in dataset.cases) == 117
+    assert set(nat_gateway.expected_parent_keys) == {
+        "3051e9bf-453c-57ae-89a0-f9f5b5be4b6c",
+        "63c2e21d-2d43-59d7-84f1-272f5c694e32",
+    }
+
+
 async def test_provenance_evaluation_fails_when_negative_case_execution_fails(tmp_path):
     report = await evaluate_provenance(
         Path("evals") / "provenance-v1.json",
@@ -423,6 +868,27 @@ async def test_provenance_evaluation_fails_when_negative_case_execution_fails(tm
 
     assert report["passed"] is False
     assert "no-defensible-parent" in report["failures"]
+
+
+async def test_provenance_evaluation_reports_expected_parent_missing_from_candidates(tmp_path):
+    source = json.loads((Path("evals") / "provenance-v1.json").read_text(encoding="utf-8"))
+    case = next(item for item in source["cases"] if item["id"] == "no-defensible-parent")
+    case["expected_parent_keys"] = ["nist-default-deny"]
+    dataset = tmp_path / "retrieval-miss.json"
+    dataset.write_text(json.dumps(source), encoding="utf-8")
+
+    report = await evaluate_provenance(
+        dataset,
+        tmp_path / "report.json",
+        EvaluationMapper(),
+        split="test",
+        history_dir=tmp_path / "history",
+    )
+
+    result = next(item for item in report["case_results"] if item["id"] == case["id"])
+    assert report["passed"] is False
+    assert report["retrieval_recall"] < 1
+    assert result["missing_candidates"] == ["nist-default-deny"]
 
 
 def test_ordered_check_cache_depends_on_prior_output_revisions():

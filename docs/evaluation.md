@@ -141,15 +141,40 @@ neither reservations nor post-run quality/cost gates are a provider billing cap.
 ```powershell
 uv run ekb eval provenance --live --split validation
 uv run ekb eval provenance --live --split test
+uv run ekb eval provenance --live --split test --dataset evals\provenance-complete-v1.json
 ```
 
 `evals\provenance-v1.json` contains 12 provisional, source-attributed control-parent cases across
-train, validation and held-out test splits. It includes the Network Security Perimeter to NIST
-deny-by-default relationship, unrelated-parent negatives and ten organization principles.
+train, validation and held-out test splits. It includes strict negatives where related security
+topics do not establish semantic refinement. `evals\provenance-complete-v1.json` contains one
+multi-pass reviewed case for each of the 385 platform controls in its review snapshot, including
+117 controls for which the adopted platform-independent corpus has no defensible parent. The
+current live parse has 384 controls; concept IDs or wording from the reviewed snapshot must not be
+silently treated as labels for materially changed controls.
+
 The mapper receives only the child and bounded candidate parents; expected IDs remain evaluator
-metadata. Pydantic Evals reports exact cases plus parent-selection precision and recall, while EKB
-retains immutable reports under `data\evaluation-history`. A pass qualifies this provisional
+metadata. Multiple reviewed parents are acceptable alternatives: a parented case passes when the
+mapper selects at least one reviewed parent and no unreviewed parent, rather than requiring every
+possible valid chain. Retrieval recall similarly measures whether at least one reviewed parent was
+available. Pydantic Evals reports exact cases plus parent-selection precision and control-level
+recall, while EKB retains immutable reports under `data\evaluation-history`. A pass qualifies this
 relationship task only; links remain inferred proposals pending enterprise governance.
+
+The independently adjudicated held-out split currently qualifies the v6 mapper: 67 controls,
+61 exact cases, 0.904 parent-selection precision, 0.959 control-level recall and 0.959 retrieval
+recall (47 true-positive selections, five false positives and two false negatives). The immutable
+dataset hash is
+`429090edf0c07d750334a9b65552969e4011208e2939d7465ce4d39f7fb9b683`.
+The mapper explicitly assesses every candidate in batches, globally arbitrates the accepted set,
+then adversarially critiques selected links. The qualified run made 311 model calls for 67 cases;
+this higher call and token cost is intentional and must be considered when changing concurrency or
+running the complete corpus.
+
+The latest qualified live `platform-alignment-v8` execution scanned all 384 current platform
+controls: 256 received a platform-independent parent, 128 remained explicitly orphaned, 14 had
+multiple defensible parents and 22 otherwise-unparented controls received one bounded
+standardized-mechanism rescue. All 1,230 adopted platform-independent requirements retain a company
+parent, and the issue scan reported no provenance-gap defects.
 
 Reports distinguish observed requests and retries from estimated rate-limit reservations.
 `retry_count` sums explicitly measured retry attempts, not additional model calls: one skill may

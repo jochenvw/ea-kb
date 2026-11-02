@@ -26,6 +26,7 @@ from ekb.domain.models import (
     SourceRecord,
 )
 from ekb.domain.ontology import OntologyCatalog
+from ekb.interfaces.api.architectures import register as register_architectures
 from ekb.interfaces.api.governance import register as register_governance
 from ekb.interfaces.api.inspection import register as register_inspection
 from ekb.runtime import Runtime
@@ -77,6 +78,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     register_governance(app, active, shell)
     register_inspection(app, active)
+    register_architectures(app, active)
 
     @app.get("/api/ontology", response_model=OntologyCatalog)
     async def ontology() -> OntologyCatalog:
@@ -146,6 +148,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/data", response_class=HTMLResponse)
     @app.get("/logs", response_class=HTMLResponse)
     @app.get("/ontology", response_class=HTMLResponse)
+    @app.get("/solutions", response_class=HTMLResponse)
     def workspace() -> FileResponse:
         return FileResponse(shell)
 
@@ -160,6 +163,12 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/concepts/{concept_id}", response_class=HTMLResponse)
     async def concept_page(request: Request, concept_id: UUID):
         await concept(request, concept_id)
+        return FileResponse(shell)
+
+    @app.get("/solutions/{architecture_id}", response_class=HTMLResponse)
+    async def architecture_page(request: Request, architecture_id: UUID):
+        if await active(request).architectures.get(architecture_id) is None:
+            raise HTTPException(404, "Solution architecture not found")
         return FileResponse(shell)
 
     FastAPIInstrumentor.instrument_app(app, excluded_urls="health")

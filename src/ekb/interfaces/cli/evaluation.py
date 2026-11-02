@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 from ekb.adapters.inference import OpenAIInference, RulesInference
 from ekb.config import Settings
 from ekb.domain.models import content_hash
+from ekb.evaluation.architectures import evaluate_architectures
 from ekb.evaluation.dataset import Split, load_dataset
 from ekb.evaluation.distillation import export_training
 from ekb.evaluation.frugal import qualify
@@ -18,7 +19,7 @@ from ekb.evaluation.goals import completed_strategies, evaluate_goals, report_la
 from ekb.evaluation.history import HISTORY, list_skill_catalog, skill_history
 from ekb.evaluation.limits import DeploymentRateLimiter
 from ekb.evaluation.nist import evaluate_nist
-from ekb.evaluation.provenance import evaluate_provenance
+from ekb.evaluation.provenance import ProvenanceSplit, evaluate_provenance
 from ekb.evaluation.skills import (
     SkillSelection,
     compare_skill_concurrency,
@@ -110,6 +111,19 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
             return await qualify(
                 dataset, GATES, output, RulesInference(), split=selected, max_cases=max_cases
             )
+
+        execute(operation)
+
+    @evaluations.command("architectures")
+    def architectures(
+        dataset: Annotated[Path, typer.Option()] = Path("evals")
+        / "architecture-assessment-v1.json",
+        output: Annotated[Path, typer.Option()] = Path("data") / "architecture-assessment.json",
+    ):
+        """Evaluate deterministic requirement, evidence and exception outcomes."""
+
+        async def operation():
+            return await evaluate_architectures(dataset, output)
 
         execute(operation)
 
@@ -231,7 +245,11 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         dataset: Annotated[Path, typer.Option()] = Path("evals") / "provenance-v1.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "provenance-evaluation.json",
         history_dir: Annotated[Path, typer.Option()] = HISTORY,
-        max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 100,
+        config: Annotated[
+            Path | None,
+            typer.Option(help="Runtime profile containing the reconciliation model."),
+        ] = None,
+        max_cases: Annotated[int, typer.Option(min=1, max=1000)] = 1000,
         max_concurrency: Annotated[int, typer.Option(min=1, max=16)] = 4,
     ):
         """Evaluate grounded platform-control parent selection with Pydantic Evals."""
@@ -239,8 +257,9 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
         async def operation():
             if not live:
                 raise ValueError("Provenance model evaluation requires explicit --live")
-            selected = TypeAdapter(Split).validate_python(split)
-            async with Runtime() as runtime:
+            selected = TypeAdapter(ProvenanceSplit).validate_python(split)
+            settings = Settings(config_file=config) if config else Settings()
+            async with Runtime(settings) as runtime:
                 if runtime.traceability_mapper is None:
                     raise ValueError("Configure a reconciliation model for provenance evaluation")
                 return await evaluate_provenance(

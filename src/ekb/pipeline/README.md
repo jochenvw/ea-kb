@@ -8,6 +8,9 @@
 - `_execute` reuses parsing/extraction checkpoints and commits exact knowledge/evidence atomically.
 - All scans finish inventory/acquisition before labeling and scoped extraction; labels checkpoint
   independently so extractor failures/prompt changes do not repay unchanged labeling.
+- Normative structured framework controls bypass model extraction: one exact-evidence requirement
+  is persisted per control. Native CSF outcomes are conceptual and SP 800-53 controls are technical
+  by configured catalog contract; unknown structured catalogs still require qualified labeling.
 - Live providers defer every strategic-goal level and strategic requirement until bounded
   source-level reconciliation produces a compact company set, deduplicates lower goals and safely
   reclassifies overpromoted requirements when exact evidence supports another ontology class.
@@ -15,6 +18,8 @@
   goals from corroborating publications; changing the flag invalidates processing checkpoints.
 - Explicit `platform_scope` policy removes platform-source domains and projects every lower-layer
   requirement into `PlatformRequirement`, preserving a more specific evidenced platform when present.
+- Platform-independent requirements are retained only from sources with an explicit
+  `enterprise_requirement`; unadopted external obligations remain source evidence, not adopted knowledge.
 - `organization.py` persists manifest-curated strategic requirements/domains and configured,
   evidence-backed cross-source principle links after every successful corpus scan.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.

@@ -21,7 +21,11 @@ from ekb.domain.models import (
     stable_id,
     total_usage,
 )
-from ekb.domain.traceability import TraceabilityAssertion, TraceabilitySelection
+from ekb.domain.traceability import (
+    FrameworkReference,
+    TraceabilityAssertion,
+    TraceabilitySelection,
+)
 from ekb.evaluation.dataset import Split
 from ekb.ports import TraceabilityMapper
 
@@ -37,6 +41,8 @@ class ProvenanceAssertion(Model):
     statement: str = Field(min_length=1)
     excerpt: str = Field(min_length=1)
     semantic_type: SemanticType
+    source_key: str | None = None
+    framework_references: tuple[FrameworkReference, ...] = ()
     source: ProvenanceSource
 
 
@@ -45,8 +51,8 @@ class ProvenanceCase(Model):
     family: str = Field(min_length=1)
     split: Split
     child_key: str = Field(min_length=1)
-    parent_keys: tuple[str, ...] = Field(min_length=2, max_length=10)
-    expected_parent_keys: tuple[str, ...] = Field(max_length=3)
+    parent_keys: tuple[str, ...] = Field(min_length=2, max_length=35)
+    expected_parent_keys: tuple[str, ...] = Field(max_length=5)
 
 
 class ProvenanceDataset(Model):
@@ -62,15 +68,15 @@ class ProvenanceDataset(Model):
         families: dict[str, Split] = {}
         texts: dict[str, Split] = {}
         for case in self.cases:
-            if (
-                case.child_key not in self.assertions
-                or not set(case.parent_keys) <= self.assertions.keys()
-            ):
+            referenced = {
+                case.child_key,
+                *case.parent_keys,
+                *case.expected_parent_keys,
+            }
+            if not referenced <= self.assertions.keys():
                 raise ValueError("Provenance case references an unknown assertion")
             if len(set(case.parent_keys)) != len(case.parent_keys):
                 raise ValueError("Parent keys must be unique within a provenance case")
-            if not set(case.expected_parent_keys) <= set(case.parent_keys):
-                raise ValueError("Expected provenance parents must be supplied candidates")
             if case.family in families and families[case.family] != case.split:
                 raise ValueError("Provenance families cannot cross dataset splits")
             families[case.family] = case.split
@@ -109,11 +115,16 @@ class ProvenanceQuality(Evaluator[str, ProvenanceExecution, ProvenanceCase]):
             if link.parent_concept_id in by_id
         }
         expected = set(case.expected_parent_keys)
+        valid = predicted & expected
         return {
-            "exact": not ctx.output.error and predicted == expected,
-            "tp": len(predicted & expected),
+            "exact": (
+                not ctx.output.error
+                and not (predicted - expected)
+                and bool(predicted) == bool(expected)
+            ),
+            "tp": int(bool(valid)),
             "fp": len(predicted - expected),
-            "fn": len(expected - predicted),
+            "fn": int(bool(expected) and not valid),
         }
 
 
@@ -139,6 +150,8 @@ def _assertion(
             if value.semantic_type is SemanticType.PLATFORM_REQUIREMENT
             else Scope()
         ),
+        source_key=value.source_key,
+        framework_references=value.framework_references,
     )
 
 
@@ -177,7 +190,7 @@ async def evaluate_provenance(
     mapper: TraceabilityMapper,
     *,
     split: ProvenanceSplit = "test",
-    max_cases: int = 100,
+    max_cases: int = 1000,
     max_concurrency: int = 4,
     history_dir: Path = Path("data") / "evaluation-history",
 ) -> dict[str, Any]:
@@ -219,7 +232,7 @@ async def evaluate_provenance(
     )
     failures = {failure.name for failure in framework.failures}
     failures.update(case.name for case in framework.cases if case.evaluator_failures)
-    tp = fp = fn = exact = 0
+    tp = fp = fn = exact = retrieval_expected = retrieval_available = 0
     case_reports = []
     for case in cases:
         execution = completed.get(case.id, ProvenanceExecution(error="missing_result"))
@@ -235,15 +248,33 @@ async def evaluate_provenance(
             if link.parent_concept_id in by_parent
         }
         expected = set(case.expected_parent_keys)
-        tp += len(predicted & expected)
+        available = expected & set(case.parent_keys)
+        valid = predicted & expected
+        retrieval_expected += int(bool(expected))
+        retrieval_available += int(bool(available))
+        tp += int(bool(valid))
         fp += len(predicted - expected)
-        fn += len(expected - predicted)
-        exact += predicted == expected and execution.error is None and case.id not in failures
+        fn += int(bool(expected) and not valid)
+        exact += (
+            not (predicted - expected)
+            and bool(predicted) == bool(expected)
+            and execution.error is None
+            and case.id not in failures
+        )
         case_reports.append(
             {
                 "id": case.id,
                 "expected": sorted(expected),
                 "predicted": sorted(predicted),
+                "missing_candidates": sorted(expected - set(case.parent_keys)),
+                "unresolved_reason": (
+                    execution.selection.unresolved_reason if execution.selection else None
+                ),
+                "rationales": {
+                    by_parent[link.parent_concept_id]: link.rationale
+                    for link in (execution.selection.links if execution.selection else ())
+                    if link.parent_concept_id in by_parent
+                },
                 "error": execution.error,
             }
         )
@@ -261,6 +292,11 @@ async def evaluate_provenance(
         "exact_cases": exact,
         "precision": precision,
         "recall": recall,
+        "retrieval_recall": (
+            retrieval_available / retrieval_expected if retrieval_expected else 1.0
+        ),
+        "retrieval_expected": retrieval_expected,
+        "retrieval_available": retrieval_available,
         "tp": tp,
         "fp": fp,
         "fn": fn,

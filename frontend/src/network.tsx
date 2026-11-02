@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowDown, ArrowUpRight, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Heading,
@@ -18,6 +18,168 @@ import {
   useResource,
 } from "@/lib/api";
 import type { Concept, KnowledgeGraph } from "@/types";
+
+const lineageKinds = new Set(["refines", "inDomain", "supports"]);
+
+function lineage(graph: KnowledgeGraph) {
+  const edges = graph.edges.filter(
+    (edge) =>
+      lineageKinds.has(edge.kind) &&
+      !["proposal", "proposed"].includes(edge.status),
+  );
+  const distance = new Map([[graph.root, 0]]);
+  const queue = [graph.root];
+  while (queue.length) {
+    const child = queue.shift()!;
+    const nextDistance = (distance.get(child) ?? 0) + 1;
+    for (const edge of edges.filter((item) => item.source === child)) {
+      if (distance.has(edge.target)) continue;
+      distance.set(edge.target, nextDistance);
+      queue.push(edge.target);
+    }
+  }
+  const nodes = graph.nodes.filter(
+    (node) => node.kind !== "source" && distance.has(node.id),
+  );
+  const sort = (left: (typeof nodes)[number], right: (typeof nodes)[number]) =>
+    (distance.get(right.id) ?? 0) - (distance.get(left.id) ?? 0) ||
+    left.label.localeCompare(right.label);
+  return {
+    company: nodes.filter((node) => node.level === "company").sort(sort),
+    architecture: nodes
+      .filter((node) => node.level === "platform_agnostic")
+      .sort(sort),
+    implementation: nodes
+      .filter((node) => node.level === "platform_specific")
+      .sort(sort),
+    inferred: edges.some(
+      (edge) =>
+        edge.status === "inferred" &&
+        distance.has(edge.source) &&
+        distance.has(edge.target),
+    ),
+  };
+}
+
+function TraceabilityLayer({
+  title,
+  empty,
+  nodes,
+  root,
+}: {
+  title: string;
+  empty: string;
+  nodes: KnowledgeGraph["nodes"];
+  root: string;
+}) {
+  return (
+    <section className="traceability-layer">
+      <p className="eyebrow">{title}</p>
+      {nodes.length ? (
+        <div className="traceability-nodes">
+          {nodes.map((node) => (
+            <a
+              key={node.id}
+              href={node.href}
+              aria-current={node.id === root ? "true" : undefined}
+            >
+              <span>
+                <strong>{node.label}</strong>
+                <small>{label(node.kind)}</small>
+              </span>
+              {node.id !== root && <ArrowUpRight size={14} />}
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="traceability-gap">{empty}</p>
+      )}
+    </section>
+  );
+}
+
+export function CompactTraceability({
+  id,
+  level,
+}: {
+  id: string;
+  level: string;
+}) {
+  const resource = useResource<KnowledgeGraph>(
+    `/api/concepts/${encodeURIComponent(id)}/graph`,
+  );
+  const graph = resource.data;
+  const path = graph ? lineage(graph) : null;
+  const needsImplementation = level === "platform_specific";
+  const complete =
+    !!path?.company.length &&
+    !!path.architecture.length &&
+    (!needsImplementation || !!path.implementation.length);
+  return (
+    <Panel
+      title="Traceability"
+      description="Why this concept exists, from adopted company intent down to architecture and implementation."
+    >
+      <LoadState resource={resource}>
+        {graph && path && (
+          <div
+            className="compact-traceability"
+            role="region"
+            aria-label="Traceability chain"
+          >
+            <div className="traceability-state">
+              <GitBranch size={15} />
+              <span>
+                {complete ? "Complete recorded path" : "Path gap recorded"}
+              </span>
+            </div>
+            <TraceabilityLayer
+              title="Company intent"
+              empty="No adopted company intent is recorded for this path."
+              nodes={path.company}
+              root={graph.root}
+            />
+            <ArrowDown className="traceability-arrow" aria-hidden="true" />
+            <TraceabilityLayer
+              title="Platform-agnostic architecture"
+              empty="No platform-independent parent is recorded."
+              nodes={path.architecture}
+              root={graph.root}
+            />
+            {needsImplementation && (
+              <>
+                <ArrowDown className="traceability-arrow" aria-hidden="true" />
+                <TraceabilityLayer
+                  title="Platform implementation"
+                  empty="The selected control is not present in this bounded graph."
+                  nodes={path.implementation}
+                  root={graph.root}
+                />
+              </>
+            )}
+            {path.inferred && (
+              <p className="traceability-note">
+                Includes inferred links awaiting governance review.
+              </p>
+            )}
+            {graph.truncated && (
+              <p className="traceability-note">
+                This compact view is bounded; open the full map for additional
+                relationships.
+              </p>
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/explore?concept=${id}`}>
+                Open full relationship map
+                <ArrowUpRight />
+              </a>
+            </Button>
+          </div>
+        )}
+      </LoadState>
+    </Panel>
+  );
+}
 
 export function Explorer() {
   const [level, setLevel] = useState("");

@@ -23,6 +23,8 @@ from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.services.retrieval import cosine, vector_pairs
 from ekb.stages.enrichment import Check, current, evidence, finding, pairs, semantic_duplicates
 
+EMBEDDING_BATCH_SIZE = 128
+
 
 async def _embeddings(
     database: UnitOfWorkFactory, provider: EmbeddingPort, texts: list[str]
@@ -73,7 +75,11 @@ async def _embeddings(
 
     missing = [text for text in texts if text not in vectors]
     if missing:
-        fresh = await request(missing)
+        fresh: dict[str, CachedEmbedding] = {}
+        for start in range(0, len(missing), EMBEDDING_BATCH_SIZE):
+            fresh.update(await request(missing[start : start + EMBEDDING_BATCH_SIZE]))
+        if len({len(entry.vector) for entry in fresh.values()}) != 1:
+            raise ValueError("Embedding provider changed vector dimensions between batches")
         dimensions = len(next(iter(fresh.values())).vector)
         mismatched = [text for text, vector in vectors.items() if len(vector) != dimensions]
         if mismatched:

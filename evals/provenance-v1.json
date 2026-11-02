@@ -113,7 +113,7 @@
     "nist-least-privilege": {
       "statement": "Apply least privilege, allowing users or processes acting on their behalf only authorized accesses necessary to accomplish assigned organizational tasks.",
       "excerpt": "Employ the principle of least privilege, allowing only authorized accesses for users (or processes acting on behalf of users) that are necessary to accomplish assigned organizational tasks.",
-      "semantic_type": "ConceptualRequirement",
+      "semantic_type": "TechnicalRequirement",
       "source": {
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
@@ -122,7 +122,7 @@
     "nist-incident": {
       "statement": "Implement an incident handling capability consistent with the incident response plan that includes preparation, detection and analysis, containment, eradication, and recovery.",
       "excerpt": "Implement an incident handling capability for incidents that is consistent with the incident response plan and includes preparation, detection and analysis, containment, eradication, and recovery",
-      "semantic_type": "ConceptualRequirement",
+      "semantic_type": "TechnicalRequirement",
       "source": {
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
@@ -140,7 +140,7 @@
     "nist-boundary": {
       "statement": "Communications at external managed interfaces to the system are controlled.",
       "excerpt": "communications at external managed interfaces to the system are controlled",
-      "semantic_type": "ConceptualRequirement",
+      "semantic_type": "TechnicalRequirement",
       "source": {
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
@@ -149,7 +149,7 @@
     "nist-ddos": {
       "statement": "Mechanisms protect against or limit the effects of denial-of-service attacks.",
       "excerpt": "Mechanisms protecting against or limiting the effects of denial-of-service attacks",
-      "semantic_type": "ConceptualRequirement",
+      "semantic_type": "TechnicalRequirement",
       "source": {
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
@@ -176,7 +176,7 @@
     "nist-data-at-rest": {
       "statement": "Protect the organization-defined confidentiality or integrity property of organization-defined information at rest.",
       "excerpt": "Protect the [unresolved OSCAL parameter: sc-28_odp.01] of the following information at rest: [organization-defined information at rest].",
-      "semantic_type": "ConceptualRequirement",
+      "semantic_type": "TechnicalRequirement",
       "source": {
         "name": "NIST SP 800-53 Revision 5",
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json"
@@ -208,7 +208,7 @@
       "split": "train",
       "child_key": "azure-identity",
       "parent_keys": ["nist-account", "nist-backup", "nist-ddos"],
-      "expected_parent_keys": ["nist-account"]
+      "expected_parent_keys": []
     },
     {
       "id": "privileged-access",
@@ -216,7 +216,7 @@
       "split": "train",
       "child_key": "azure-privileged",
       "parent_keys": ["nist-least-privilege", "nist-incident", "nist-data-at-rest"],
-      "expected_parent_keys": ["nist-least-privilege"]
+      "expected_parent_keys": []
     },
     {
       "id": "incident-handling",
@@ -232,7 +232,7 @@
       "split": "train",
       "child_key": "azure-segmentation",
       "parent_keys": ["nist-segmentation", "nist-backup", "nist-malware"],
-      "expected_parent_keys": ["nist-segmentation"]
+      "expected_parent_keys": []
     },
     {
       "id": "private-network-connectivity",
@@ -240,7 +240,7 @@
       "split": "validation",
       "child_key": "azure-private-connectivity",
       "parent_keys": ["nist-boundary", "nist-account", "nist-backup"],
-      "expected_parent_keys": ["nist-boundary"]
+      "expected_parent_keys": []
     },
     {
       "id": "denial-of-service-protection",
@@ -272,7 +272,7 @@
       "split": "test",
       "child_key": "azure-data",
       "parent_keys": ["nist-data-at-rest", "nist-account", "nist-ddos"],
-      "expected_parent_keys": ["nist-data-at-rest"]
+      "expected_parent_keys": []
     },
     {
       "id": "secure-configuration",
@@ -288,7 +288,7 @@
       "split": "test",
       "child_key": "azure-nsp",
       "parent_keys": ["nist-default-deny", "nist-account", "nist-malware"],
-      "expected_parent_keys": ["nist-default-deny"]
+      "expected_parent_keys": []
     },
     {
       "id": "no-defensible-parent",

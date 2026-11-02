@@ -431,7 +431,14 @@ async def test_real_cli_status_fencing_web_shutdown_replay_and_resume(
     document = Document()
     document.add_paragraph("Administrators must review audit logs.")
     document.save(broken)
-    resume = await asyncio.to_thread(cli, "pipeline", "resume", failed["run"]["id"])
+    resume = await asyncio.to_thread(
+        cli,
+        "pipeline",
+        "resume",
+        failed["run"]["id"],
+        "--config",
+        str(profile),
+    )
     assert resume.returncode == 0, resume.stderr
     resumed = json.loads(resume.stdout)
     assert resumed["run"]["id"] == failed["run"]["id"]

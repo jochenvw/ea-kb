@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, timedelta
 from uuid import UUID
 
@@ -242,23 +243,40 @@ class ResolutionStore:
                 "release_candidate",
             }
         }
+        versions_by_concept: dict[UUID, list[ConceptVersion]] = defaultdict(list)
+        occurrences_by_version: dict[UUID, list[Occurrence]] = defaultdict(list)
+        relationships_by_concept: dict[UUID, list[Relationship]] = defaultdict(list)
+        authority_by_version: dict[UUID, list[AuthorityEvent]] = defaultdict(list)
+        for version in versions:
+            versions_by_concept[version.concept_id].append(version)
+        for occurrence in occurrences:
+            occurrences_by_version[occurrence.concept_version_id].append(occurrence)
+        for relationship in relationships:
+            relationships_by_concept[relationship.from_concept_id].append(relationship)
+            if relationship.to_concept_id != relationship.from_concept_id:
+                relationships_by_concept[relationship.to_concept_id].append(relationship)
+        for event in authority:
+            authority_by_version[event.concept_version_id].append(event)
         concepts = []
-        for cid in sorted({v.concept_id for v in versions}, key=str):
+        for cid in sorted(versions_by_concept, key=str):
             own_versions = sorted(
-                [v for v in versions if v.concept_id == cid],
+                versions_by_concept[cid],
                 key=lambda v: (v.recorded_at, str(v.id)),
             )
-            ids = {v.id for v in own_versions}
             concepts.append(
                 ConceptDetail(
                     id=cid,
                     versions=own_versions,
-                    occurrences=[o for o in occurrences if o.concept_version_id in ids],
-                    relationships=[
-                        r for r in relationships if cid in {r.from_concept_id, r.to_concept_id}
+                    occurrences=[
+                        occurrence
+                        for version in own_versions
+                        for occurrence in occurrences_by_version[version.id]
                     ],
+                    relationships=relationships_by_concept[cid],
                     authority_events=[
-                        e.model_dump(mode="json") for e in authority if e.concept_version_id in ids
+                        event.model_dump(mode="json")
+                        for version in own_versions
+                        for event in authority_by_version[version.id]
                     ],
                 )
             )

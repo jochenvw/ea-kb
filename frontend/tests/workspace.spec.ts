@@ -4,6 +4,7 @@ const id = "11111111-1111-4111-8111-111111111111";
 const findingId = "22222222-2222-4222-8222-222222222222";
 const relatedId = "33333333-3333-4333-8333-333333333333";
 const sourceId = "44444444-4444-4444-8444-444444444444";
+const architectureId = "99999999-9999-4999-8999-999999999999";
 const timestamp = "2026-01-01T10:00:00Z";
 const scope = { environment: "test", organization: null };
 const publication = {
@@ -198,6 +199,7 @@ async function fixture(page: Page, governance = false) {
     if (path === "/api/ui/config") data = { governance_enabled: governance };
     else if (path === "/api/ontology") data = ontology;
     else if (path === "/api/sources") data = [source];
+    else if (path === "/api/architectures") data = [];
     else if (path === `/api/sources/${sourceId}`)
       data = {
         source,
@@ -252,6 +254,13 @@ async function fixture(page: Page, governance = false) {
             kind: "evidence",
             status: "provenance",
             href: `/sources/${sourceId}`,
+          },
+          {
+            source: id,
+            target: relatedId,
+            kind: "supports",
+            status: "configured",
+            href: `/concepts/${relatedId}`,
           },
           {
             source: id,
@@ -679,6 +688,13 @@ test("search, exact evidence and scoped authority remain distinct", async ({
       name: "Navigable evidence and relationship map",
     }),
   ).toHaveCount(0);
+  const traceability = page.getByRole("region", {
+    name: "Traceability chain",
+  });
+  await expect(traceability).toBeVisible();
+  await expect(traceability).toContainText("Company intent");
+  await expect(traceability).toContainText("An associated security objective.");
+  await expect(traceability).toContainText(statement);
   await expect(page.locator("blockquote")).toHaveText(excerpt);
   await expect(page.locator("blockquote em")).toHaveCount(0);
   await expect(page.locator(".source-context")).toContainText(
@@ -1556,6 +1572,89 @@ test("knowledge workspaces separate company, architecture, and platform concepts
   await expect(page.locator("tbody")).toContainText("Platform-specific");
 });
 
+test("solution registry keeps canonical artefacts, requirements, and exceptions together", async ({
+  page,
+}) => {
+  const revision = {
+    id: findingId,
+    architecture_id: architectureId,
+    name: "Public files",
+    description: "Publishes approved public downloads.",
+    owner: "Web team",
+    canonical_source: "https://example.com/architectures/public-files",
+    version: "1",
+    scope,
+    artifact_key: "artifact-key",
+    artifact_name: "public-files.pdf",
+    media_type: "application/pdf",
+    content_hash: "a".repeat(64),
+    controls: [
+      {
+        concept_id: id,
+        concept_version_id: id,
+        disposition: "exception",
+        rationale:
+          "The storage account intentionally serves approved public downloads.",
+        approved_by: "Architecture board",
+        approved_at: timestamp,
+        expires_on: "2027-01-01",
+      },
+    ],
+    recorded_at: timestamp,
+  };
+  await page.route("**/api/architectures", (route) =>
+    route.fulfill({
+      json: [{ id: architectureId, revisions: [revision] }],
+    }),
+  );
+  await page.route(`**/api/architectures/${architectureId}`, (route) =>
+    route.fulfill({
+      json: { id: architectureId, revisions: [revision] },
+    }),
+  );
+  await page.route(
+    `**/api/architectures/${architectureId}/requirements`,
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            control: revision.controls[0],
+            concept,
+          },
+        ],
+      }),
+  );
+
+  await page.goto("/solutions");
+  await expect(
+    page.getByRole("heading", {
+      name: "Register solution architecture decisions.",
+    }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Public files", exact: true }).click();
+  await expect(page).toHaveURL(`/solutions/${architectureId}`);
+  await expect(
+    page.getByRole("heading", { name: "Public files", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The storage account intentionally serves approved public downloads.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Approved exception", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: `Download ${revision.artifact_name}` }),
+  ).toHaveAttribute(
+    "href",
+    `/api/architectures/${architectureId}/revisions/${findingId}/artifact`,
+  );
+  await expect(
+    page.getByRole("link", { name: statement, exact: true }),
+  ).toHaveAttribute("href", `/concepts/${id}?view=architecture`);
+});
+
 test("relationship maps retain generic occurrence evidence without inventing alignments", async ({
   page,
 }) => {
@@ -1630,6 +1729,25 @@ test("configured principles show the complete evidence-backed architecture chain
   const curationSourceId = "88888888-8888-4888-8888-888888888888";
   const rationale =
     "Azure virtual-network peering refines NIST boundary protection within Network security in support of the NIST control baseline.";
+  await page.route(`**/api/concepts/${id}`, (route) =>
+    route.fulfill({
+      json: {
+        ...concept,
+        levels: { [id]: "platform_specific" },
+        versions: [
+          {
+            ...concept.versions[0],
+            candidate: {
+              ...concept.versions[0].candidate,
+              semantic_type: "PlatformRequirement",
+              statement: "Azure · NS-2: Use virtual network peering.",
+              scope: { ...scope, platform: "Azure" },
+            },
+          },
+        ],
+      },
+    }),
+  );
   await page.route(`**/api/concepts/${id}/graph`, (route) =>
     route.fulfill({
       json: {
@@ -1742,7 +1860,26 @@ test("configured principles show the complete evidence-backed architecture chain
     }),
   );
 
-  await page.goto(`/explore?concept=${id}`);
+  await page.goto(`/concepts/${id}`);
+
+  const traceability = page.getByRole("region", {
+    name: "Traceability chain",
+  });
+  await expect(traceability).toBeVisible();
+  await expect(traceability).toContainText(
+    "Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.",
+  );
+  await expect(traceability).toContainText("Network security");
+  await expect(traceability).toContainText(
+    "Control communications at external managed interfaces.",
+  );
+  await expect(traceability).toContainText(
+    "Azure · NS-2: Use virtual network peering.",
+  );
+  await expect(traceability).toContainText("Complete recorded path");
+  await page
+    .getByRole("tab", { name: "Visual validation", exact: true })
+    .click();
 
   const laneTitles = page.locator("svg .graph-lane-title");
   await expect(laneTitles).toContainText([

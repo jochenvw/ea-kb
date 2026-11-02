@@ -185,9 +185,18 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         execute(operation)
 
     @pipeline.command("resume")
-    def resume(run_id: UUID) -> None:
+    def resume(
+        run_id: UUID,
+        config: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+    ) -> None:
+        try:
+            settings = Settings(config_file=config) if config else Settings()
+        except ValidationError as error:
+            messages = "; ".join(detail["msg"] for detail in error.errors(include_input=False))
+            raise typer.BadParameter(messages) from None
+
         async def operation():
-            async with Runtime() as runtime:
+            async with Runtime(settings) as runtime:
                 return await runtime.orchestrator().run(resume=run_id)
 
         execute(operation)

@@ -13,6 +13,8 @@
   Cached vectors are finite, nonzero and bounded; judgments require source-grounding checks on use.
   Verification status is separate from adapter-defined methods and from an `unknown` judgment.
 - `traceability.py` types bounded control-to-requirement selections with exact evidence on both ends.
+- `architectures.py` types immutable solution-architecture revisions, explicit control exceptions,
+  declared implementation evidence and deterministic coverage outcomes.
 - `execution.py`, `resolution.py`, `issues.py` define durable runs, audit and issue lifecycle;
   alias edges derive from findings and effective decision heads.
 - `inspection.py` types source-bound extraction pages, graphs, backlog and read-only diagnostics.

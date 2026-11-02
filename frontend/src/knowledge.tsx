@@ -39,7 +39,7 @@ import {
   useResource,
 } from "@/lib/api";
 import type { Concept, Provenance, Source, Version } from "@/types";
-import { RelationshipGraph } from "@/network";
+import { CompactTraceability, RelationshipGraph } from "@/network";
 import { OntologyBadge, OntologyDefinition } from "@/ontology";
 
 type KnowledgeView = "company" | "architecture" | "platforms" | "all";
@@ -397,216 +397,251 @@ export function ConceptPage({
           />
         )}
         {concept.data && version && (
-          <>
-            <Panel
-              title="Assertion"
-              description="Source-grounded assertion; verify against the original quote and context."
-            >
-              <p className="concept-statement">{assertionText(version)}</p>
-              {!version.assertion?.text && (
-                <p className="table-note">
-                  {version.assertion?.uncertainty ??
-                    "Original wording shown; concise rephrasing has not run."}
-                </p>
-              )}
-              {version.assertion?.text && (
-                <details className="technical">
-                  <summary>Original extracted wording</summary>
-                  <p>{version.candidate.statement}</p>
+          <div
+            className={
+              ["platform_agnostic", "platform_specific"].includes(
+                concept.data.levels?.[version.id] ?? "",
+              )
+                ? "concept-detail-layout"
+                : "concept-detail-layout without-traceability"
+            }
+          >
+            <div className="concept-detail-main">
+              <Panel
+                title="Assertion"
+                description="Source-grounded assertion; verify against the original quote and context."
+              >
+                <p className="concept-statement">{assertionText(version)}</p>
+                {!version.assertion?.text && (
                   <p className="table-note">
-                    Assertion phrasing: {version.assertion.model_id} ·{" "}
-                    {version.assertion.prompt_version}. Not enterprise approval.
+                    {version.assertion?.uncertainty ??
+                      "Original wording shown; concise rephrasing has not run."}
                   </p>
-                </details>
-              )}
-              {version.assertion?.text && version.assertion.uncertainty && (
-                <p className="callout">{version.assertion.uncertainty}</p>
-              )}
-              {requested && (
-                <p className="table-note">
-                  Viewing source-linked version recorded{" "}
-                  {date(version.recorded_at)}. Other interpretations remain in
-                  version history.
-                </p>
-              )}
-              <Button variant="outline" size="sm" asChild>
-                <a href={`/explore?concept=${id}`}>
-                  Explore visual relationships
-                  <ArrowUpRight />
-                </a>
-              </Button>
-              <div className="tag-row">
-                <Badge variant="outline">
-                  {levelLabel(concept.data.levels?.[version.id])}
-                  {concept.data.levels?.[version.id] === "platform_specific" &&
-                  version.candidate.scope.platform
-                    ? ` · ${version.candidate.scope.platform}`
-                    : ""}
-                </Badge>
-                <OntologyBadge name={version.candidate.semantic_type} />
-                {version.candidate.semantic_type === "StrategicGoal" && (
-                  <Badge variant="outline">
-                    {goalLevelLabel(version.candidate.goal_level)}
-                  </Badge>
                 )}
-                <Badge variant="secondary">
-                  {label(version.candidate.modality)}
-                </Badge>
-                <Badge variant="outline">
-                  {Math.round(version.candidate.confidence * 100)}% extraction
-                  confidence
-                </Badge>
-                <Badge variant="outline">
-                  Publisher: {label(version.publication.publication_status)}
-                </Badge>
-              </div>
-              {version.candidate.uncertainty && (
-                <p className="callout">{version.candidate.uncertainty}</p>
-              )}
-              <OntologyDefinition name={version.candidate.semantic_type} />
-            </Panel>
-            <Tabs defaultValue="evidence" className="detail-tabs">
-              <TabsList aria-label="Concept information">
-                <TabsTrigger value="evidence">Source evidence</TabsTrigger>
-                <TabsTrigger value="validation">Visual validation</TabsTrigger>
-                <TabsTrigger value="governance">Scope & governance</TabsTrigger>
-                <TabsTrigger value="history">
-                  Versions & relationships
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="evidence">
-                <Panel
-                  title="Exact evidence and provenance"
-                  description="Original quotations are not summaries. Offsets refer to the retained segment."
-                >
-                  <LoadState resource={provenance}>
-                    {evidence?.length === 0 ? (
-                      <Empty
-                        title="No evidence recorded for this version"
-                        description="No passage from another version or source has been substituted. Check the version history before relying on this interpretation."
-                      />
-                    ) : (
-                      <div className="evidence-list">
-                        {evidence?.map((item) => (
-                          <Evidence key={item.occurrence.id} item={item} />
-                        ))}
-                      </div>
-                    )}
-                  </LoadState>
-                </Panel>
-              </TabsContent>
-              <TabsContent value="validation">
-                <RelationshipGraph id={id} />
-              </TabsContent>
-              <TabsContent value="governance">
-                <div className="two-column">
-                  <Panel title="Candidate scope">
-                    <ScopeInfo scope={version.candidate.scope} />
+                {version.assertion?.text && (
+                  <details className="technical">
+                    <summary>Original extracted wording</summary>
+                    <p>{version.candidate.statement}</p>
                     <p className="table-note">
-                      Missing scope does not mean universally applicable.
+                      Assertion phrasing: {version.assertion.model_id} ·{" "}
+                      {version.assertion.prompt_version}. Not enterprise
+                      approval.
                     </p>
-                  </Panel>
+                  </details>
+                )}
+                {version.assertion?.text && version.assertion.uncertainty && (
+                  <p className="callout">{version.assertion.uncertainty}</p>
+                )}
+                {requested && (
+                  <p className="table-note">
+                    Viewing source-linked version recorded{" "}
+                    {date(version.recorded_at)}. Other interpretations remain in
+                    version history.
+                  </p>
+                )}
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/explore?concept=${id}`}>
+                    Explore visual relationships
+                    <ArrowUpRight />
+                  </a>
+                </Button>
+                <div className="tag-row">
+                  <Badge variant="outline">
+                    {levelLabel(concept.data.levels?.[version.id])}
+                    {concept.data.levels?.[version.id] ===
+                      "platform_specific" && version.candidate.scope.platform
+                      ? ` · ${version.candidate.scope.platform}`
+                      : ""}
+                  </Badge>
+                  <OntologyBadge name={version.candidate.semantic_type} />
+                  {version.candidate.semantic_type === "StrategicGoal" && (
+                    <Badge variant="outline">
+                      {goalLevelLabel(version.candidate.goal_level)}
+                    </Badge>
+                  )}
+                  <Badge variant="secondary">
+                    {label(version.candidate.modality)}
+                  </Badge>
+                  <Badge variant="outline">
+                    {Math.round(version.candidate.confidence * 100)}% extraction
+                    confidence
+                  </Badge>
+                  <Badge variant="outline">
+                    Publisher: {label(version.publication.publication_status)}
+                  </Badge>
+                </div>
+                {version.candidate.uncertainty && (
+                  <p className="callout">{version.candidate.uncertainty}</p>
+                )}
+                <OntologyDefinition name={version.candidate.semantic_type} />
+              </Panel>
+              <Tabs defaultValue="evidence" className="detail-tabs">
+                <TabsList aria-label="Concept information">
+                  <TabsTrigger value="evidence">Source evidence</TabsTrigger>
+                  <TabsTrigger value="validation">
+                    Visual validation
+                  </TabsTrigger>
+                  <TabsTrigger value="governance">
+                    Scope & governance
+                  </TabsTrigger>
+                  <TabsTrigger value="history">
+                    Versions & relationships
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="evidence">
                   <Panel
-                    title="Scoped authority"
-                    description="Publication maturity, approval and canonical adoption are separate, scoped decisions."
+                    title="Exact evidence and provenance"
+                    description="Original quotations are not summaries. Offsets refer to the retained segment."
                   >
-                    {concept.data.authority_states.some(
-                      (state) => state.concept_version_id === version.id,
-                    ) ? (
-                      concept.data.authority_states
-                        .filter(
-                          (state) => state.concept_version_id === version.id,
-                        )
-                        .map((state, index) => (
-                          <div key={index} className="record-block">
-                            <div className="tag-row">
-                              <Badge variant="outline">
-                                Governance: {label(state.governance_status)}
-                              </Badge>
-                              <Badge variant="outline">
-                                Canonical: {label(state.canonical_status)}
-                              </Badge>
+                    <LoadState resource={provenance}>
+                      {evidence?.length === 0 ? (
+                        <Empty
+                          title="No evidence recorded for this version"
+                          description="No passage from another version or source has been substituted. Check the version history before relying on this interpretation."
+                        />
+                      ) : (
+                        <div className="evidence-list">
+                          {evidence?.map((item) => (
+                            <Evidence key={item.occurrence.id} item={item} />
+                          ))}
+                        </div>
+                      )}
+                    </LoadState>
+                  </Panel>
+                </TabsContent>
+                <TabsContent value="validation">
+                  <RelationshipGraph id={id} />
+                </TabsContent>
+                <TabsContent value="governance">
+                  <div className="two-column">
+                    <Panel title="Candidate scope">
+                      <ScopeInfo scope={version.candidate.scope} />
+                      <p className="table-note">
+                        Missing scope does not mean universally applicable.
+                      </p>
+                    </Panel>
+                    <Panel
+                      title="Scoped authority"
+                      description="Publication maturity, approval and canonical adoption are separate, scoped decisions."
+                    >
+                      {concept.data.authority_states.some(
+                        (state) => state.concept_version_id === version.id,
+                      ) ? (
+                        concept.data.authority_states
+                          .filter(
+                            (state) => state.concept_version_id === version.id,
+                          )
+                          .map((state, index) => (
+                            <div key={index} className="record-block">
+                              <div className="tag-row">
+                                <Badge variant="outline">
+                                  Governance: {label(state.governance_status)}
+                                </Badge>
+                                <Badge variant="outline">
+                                  Canonical: {label(state.canonical_status)}
+                                </Badge>
+                              </div>
+                              <ScopeInfo scope={state.scope} />
+                              <p className="table-note">
+                                Effective period:{" "}
+                                {state.effective_from ?? "Unspecified"} to{" "}
+                                {state.effective_until ?? "Unspecified"}.
+                              </p>
+                              <Technical
+                                value={{ version_id: state.concept_version_id }}
+                                title="Version reference"
+                              />
                             </div>
-                            <ScopeInfo scope={state.scope} />
-                            <p className="table-note">
-                              Effective period:{" "}
-                              {state.effective_from ?? "Unspecified"} to{" "}
-                              {state.effective_until ?? "Unspecified"}.
-                            </p>
-                            <Technical
-                              value={{ version_id: state.concept_version_id }}
-                              title="Version reference"
-                            />
+                          ))
+                      ) : (
+                        <Empty
+                          title="No authority recorded"
+                          description="No enterprise approval or canonical adoption has been established for this version."
+                        />
+                      )}
+                      <Technical
+                        value={concept.data.authority_events}
+                        title="Authority event history"
+                      />
+                    </Panel>
+                  </div>
+                  <CanonicalProposal
+                    concept={concept.data}
+                    versionId={version.id}
+                    governance={governance}
+                  />
+                </TabsContent>
+                <TabsContent value="history">
+                  <Panel
+                    title="Version history"
+                    description="Publisher edition labels are not invented semantic versions."
+                  >
+                    {concept.data.versions.map((item) => (
+                      <div className="record-block" key={item.id}>
+                        <div className="tag-row">
+                          <Badge variant="outline">
+                            SemVer: {semanticVersion(item.semantic_version)}
+                          </Badge>
+                          <Badge variant="secondary">
+                            Publisher version:{" "}
+                            {item.publication.publisher_version ?? "Unknown"}
+                          </Badge>
+                          <span className="muted">
+                            {date(item.recorded_at)}
+                          </span>
+                        </div>
+                        <p>{assertionText(item)}</p>
+                        <Technical value={item} title="Version details" />
+                      </div>
+                    ))}
+                  </Panel>
+                  <Panel title="Relationships">
+                    {concept.data.relationships.length ? (
+                      concept.data.relationships.map((edge, index) => (
+                        <div className="record-block" key={index}>
+                          <div className="tag-row">
+                            <Badge variant="secondary">
+                              {label(edge.kind)}
+                            </Badge>
+                            <Status value={edge.status} />
                           </div>
-                        ))
+                          <a
+                            href={`/concepts/${edge.from_concept_id === id ? edge.to_concept_id : edge.from_concept_id}`}
+                          >
+                            Inspect related concept
+                            <ArrowUpRight size={14} />
+                          </a>
+                        </div>
+                      ))
                     ) : (
                       <Empty
-                        title="No authority recorded"
-                        description="No enterprise approval or canonical adoption has been established for this version."
+                        title="No relationships recorded"
+                        description="No relationship has been asserted for this concept."
                       />
                     )}
-                    <Technical
-                      value={concept.data.authority_events}
-                      title="Authority event history"
-                    />
                   </Panel>
-                </div>
-                <CanonicalProposal
-                  concept={concept.data}
-                  versionId={version.id}
-                  governance={governance}
+                  <ConceptLineage id={id} />
+                </TabsContent>
+              </Tabs>
+              <Technical
+                value={{ concept_id: id }}
+                title="Concept identifier"
+              />
+            </div>
+            {["platform_agnostic", "platform_specific"].includes(
+              concept.data.levels?.[version.id] ?? "",
+            ) && (
+              <aside
+                className="concept-traceability"
+                aria-label="Concept traceability"
+              >
+                <CompactTraceability
+                  id={id}
+                  level={concept.data.levels?.[version.id] ?? "unclassified"}
                 />
-              </TabsContent>
-              <TabsContent value="history">
-                <Panel
-                  title="Version history"
-                  description="Publisher edition labels are not invented semantic versions."
-                >
-                  {concept.data.versions.map((item) => (
-                    <div className="record-block" key={item.id}>
-                      <div className="tag-row">
-                        <Badge variant="outline">
-                          SemVer: {semanticVersion(item.semantic_version)}
-                        </Badge>
-                        <Badge variant="secondary">
-                          Publisher version:{" "}
-                          {item.publication.publisher_version ?? "Unknown"}
-                        </Badge>
-                        <span className="muted">{date(item.recorded_at)}</span>
-                      </div>
-                      <p>{assertionText(item)}</p>
-                      <Technical value={item} title="Version details" />
-                    </div>
-                  ))}
-                </Panel>
-                <Panel title="Relationships">
-                  {concept.data.relationships.length ? (
-                    concept.data.relationships.map((edge, index) => (
-                      <div className="record-block" key={index}>
-                        <div className="tag-row">
-                          <Badge variant="secondary">{label(edge.kind)}</Badge>
-                          <Status value={edge.status} />
-                        </div>
-                        <a
-                          href={`/concepts/${edge.from_concept_id === id ? edge.to_concept_id : edge.from_concept_id}`}
-                        >
-                          Inspect related concept
-                          <ArrowUpRight size={14} />
-                        </a>
-                      </div>
-                    ))
-                  ) : (
-                    <Empty
-                      title="No relationships recorded"
-                      description="No relationship has been asserted for this concept."
-                    />
-                  )}
-                </Panel>
-                <ConceptLineage id={id} />
-              </TabsContent>
-            </Tabs>
-            <Technical value={{ concept_id: id }} title="Concept identifier" />
-          </>
+              </aside>
+            )}
+          </div>
         )}
       </LoadState>
     </>

@@ -119,6 +119,43 @@ export interface Concept {
   }[];
 }
 
+export interface ArchitectureControl {
+  concept_id: string;
+  concept_version_id: string | null;
+  disposition: "required" | "exception";
+  rationale: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  expires_on: string | null;
+}
+
+export interface SolutionArchitectureRevision {
+  id: string;
+  architecture_id: string;
+  name: string;
+  description: string;
+  owner: string;
+  canonical_source: string;
+  version: string;
+  scope: Scope;
+  artifact_key: string;
+  artifact_name: string;
+  media_type: string;
+  content_hash: string;
+  controls: ArchitectureControl[];
+  recorded_at: string;
+}
+
+export interface SolutionArchitecture {
+  id: string;
+  revisions: SolutionArchitectureRevision[];
+}
+
+export interface ArchitectureRequirementDetail {
+  control: ArchitectureControl;
+  concept: Concept;
+}
+
 export interface Provenance {
   context_before?: {
     text: string;

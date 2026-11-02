@@ -871,6 +871,96 @@ td > strong {
   max-width: 85ch;
   font-weight: 450;
 }
+.concept-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+.concept-detail-layout.without-traceability {
+  grid-template-columns: minmax(0, 1fr);
+}
+.concept-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+.concept-traceability {
+  position: sticky;
+  top: 92px;
+  min-width: 0;
+}
+.compact-traceability {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.traceability-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--cp-text-muted);
+  font-size: 11px;
+}
+.traceability-layer {
+  display: grid;
+  gap: 7px;
+}
+.traceability-nodes {
+  display: grid;
+  gap: 6px;
+}
+.traceability-nodes a,
+.traceability-gap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--radius);
+  background: var(--cp-bg-elevated);
+  color: var(--cp-text);
+  text-decoration: none;
+}
+.traceability-nodes a:hover,
+.traceability-nodes a:focus {
+  border-color: var(--cp-accent);
+}
+.traceability-nodes a[aria-current="true"] {
+  border-color: var(--cp-accent);
+  background: var(--cp-accent-soft);
+}
+.traceability-nodes span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.traceability-nodes strong {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.traceability-nodes small,
+.traceability-gap,
+.traceability-note {
+  color: var(--cp-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.traceability-gap {
+  margin: 0;
+  border-style: dashed;
+}
+.traceability-arrow {
+  align-self: center;
+  color: var(--cp-text-muted);
+}
+.traceability-note {
+  margin: 0;
+}
 .callout,
 .read-only {
   padding: 16px;
@@ -1006,6 +1096,34 @@ blockquote {
   gap: 8px;
   align-items: center;
   font-size: 12px;
+}
+.architecture-requirements {
+  display: grid;
+  gap: 8px;
+}
+.architecture-requirements article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--cp-border);
+  border-radius: var(--radius);
+}
+.architecture-requirements article > svg {
+  color: var(--cp-accent);
+  margin-top: 2px;
+}
+.architecture-requirements article a {
+  color: var(--cp-link);
+  font-size: 12px;
+  font-weight: 600;
+}
+.architecture-requirements article p,
+.architecture-requirements article small {
+  color: var(--cp-text-muted);
+  font-size: 10px;
+  margin-top: 4px;
 }
 .two-column {
   display: grid;
@@ -1151,6 +1269,9 @@ blockquote {
   z-index: 100;
 }
 @media (max-width: 1200px) {
+  .concept-detail-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
   .consolidation-journey {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1164,6 +1285,13 @@ blockquote {
   }
 }
 @media (max-width: 900px) {
+  .concept-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .concept-traceability {
+    position: static;
+    grid-row: 1;
+  }
   .sidebar {
     display: none;
     top: 68px;

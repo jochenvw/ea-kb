@@ -12,7 +12,11 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Input, Static, TabbedContent
 
 from ekb.config import Settings
-from ekb.domain.models import AuthorityEvent, Scope, SemanticType
+from ekb.domain.architectures import (
+    ArchitectureControl,
+    ArchitectureManifest,
+)
+from ekb.domain.models import AuthorityEvent, Scope, SemanticType, SemanticVersion, now
 from ekb.interfaces.api import create_app
 from ekb.interfaces.mcp import create_server
 from ekb.interfaces.tui import KnowledgeApp
@@ -30,9 +34,15 @@ async def prepared(database, tmp_path):
     )
     await runtime.database.close()
     runtime.database = database
+    from ekb.services.architectures import ArchitectureService
     from ekb.services.knowledge import KnowledgeService
 
     runtime.knowledge = KnowledgeService(database)
+    runtime.architectures = ArchitectureService(
+        database,
+        runtime.artifacts,
+        max_artifact_bytes=runtime.settings.max_document_bytes,
+    )
     await runtime.pipeline().scan(runtime.connectors(Path("tests/fixtures/local")))
     return runtime
 
@@ -76,7 +86,7 @@ async def test_web_and_api_share_real_persisted_provenance(database, tmp_path):
             }
             assert (await client.get("/api/sources")).status_code == 200
             concepts = (await client.get("/api/concepts")).json()
-            assert len(concepts) == 4
+            assert len(concepts) == 3
             first = (await client.get("/api/concepts?limit=2")).json()
             second = (await client.get(f"/api/concepts?limit=2&after={first[-1]['id']}")).json()
             assert [item["id"] for item in first + second] == [item["id"] for item in concepts]
@@ -204,6 +214,99 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
                 assert (await client.get(f"/api/sources/{uuid4()}")).status_code == 404
                 assert (await client.get(f"/sources/{uuid4()}")).status_code == 404
                 assert (await client.get(f"/api/sources/{source_id}?limit=51")).status_code == 422
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_solution_architecture_api_retains_artifacts_exceptions_and_assessment(
+    database, tmp_path
+):
+    runtime = await prepared(database, tmp_path)
+    concepts = await runtime.knowledge.search("", 20)
+    requirement = next(
+        (
+            concept
+            for concept in concepts
+            if concept.versions[-1].candidate.semantic_type
+            in {
+                SemanticType.CONCEPTUAL_REQUIREMENT,
+                SemanticType.TECHNICAL_REQUIREMENT,
+                SemanticType.PLATFORM_REQUIREMENT,
+            }
+        ),
+        None,
+    )
+    if requirement is None:
+        original = concepts[0]
+        previous = original.versions[-1]
+        classified = previous.model_copy(
+            update={
+                "id": uuid4(),
+                "predecessor_id": previous.id,
+                "semantic_version": SemanticVersion(major=1, minor=0, patch=0),
+                "recorded_at": now(),
+                "candidate": previous.candidate.model_copy(
+                    update={
+                        "semantic_type": SemanticType.TECHNICAL_REQUIREMENT,
+                        "goal_level": None,
+                        "scope": Scope(),
+                    }
+                ),
+            }
+        )
+        async with database() as uow:
+            await uow.knowledge.add_version(classified)
+            await uow.commit()
+        requirement = await runtime.knowledge.get(original.id)
+        assert requirement
+    architecture = await runtime.architectures.register(
+        ArchitectureManifest(
+            name="Public files",
+            description="Publishes approved public downloads.",
+            owner="Web team",
+            canonical_source="https://example.test/architectures/public-files",
+            version="1",
+            controls=(ArchitectureControl(concept_id=requirement.id),),
+        ),
+        "architecture.pdf",
+        "application/pdf",
+        b"synthetic architecture",
+    )
+    app = create_app(runtime)
+    try:
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                listing = (await client.get("/api/architectures")).json()
+                assert [item["id"] for item in listing] == [str(architecture.id)]
+                detail = (await client.get(f"/api/architectures/{architecture.id}")).json()
+                revision = detail["revisions"][0]
+                assert revision["canonical_source"].startswith("https://")
+                artifact = await client.get(
+                    f"/api/architectures/{architecture.id}/revisions/{revision['id']}/artifact"
+                )
+                assert artifact.content == b"synthetic architecture"
+                assert artifact.headers["content-type"] == "application/pdf"
+                assessment = await client.post(
+                    f"/api/architectures/{architecture.id}/assess",
+                    json={
+                        "evidence": [
+                            {
+                                "concept_id": str(requirement.id),
+                                "summary": "Implemented in the deployment template.",
+                                "location": "main.bicep:42",
+                            }
+                        ]
+                    },
+                )
+                assert assessment.status_code == 200
+                result = assessment.json()
+                assert result["conforms"]
+                assert result["controls"][0]["outcome"] == "conforms"
+                assert result["controls"][0]["explanation"].startswith("OK:")
+                assert (await client.get(f"/solutions/{architecture.id}")).status_code == 200
+                assert (await client.get(f"/api/architectures/{uuid4()}")).status_code == 404
     finally:
         await runtime.__aexit__()
 
@@ -342,6 +445,9 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "resolve_requirement",
             "list_knowledge_issues",
             "get_reconciliation_history",
+            "list_solution_architectures",
+            "get_solution_architecture",
+            "assess_solution_architecture",
         }
         assert all(tool.inputSchema and tool.outputSchema for tool in tools.tools)
         result = await session.call_tool("search_concepts", {"query": "logging", "limit": 10})
@@ -362,6 +468,9 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
         assert resolution["provenance"] and resolution["explanation"]
         invalid = await session.call_tool("get_concept", {"concept_id": "not-a-uuid"})
         assert invalid.isError
+        solutions = await session.call_tool("list_solution_architectures", {"limit": 10})
+        assert not solutions.isError
+        assert solutions.structuredContent == {"result": []}
     await runtime.__aexit__()
 
 
@@ -371,7 +480,7 @@ async def test_tui_browses_sources_and_evidence_without_ingestion_controls(datab
     async with app.run_test(size=(140, 50)) as pilot:
         await pilot.pause()
         assert app.query_one("#sources", DataTable).row_count == 3
-        assert app.query_one("#concepts", DataTable).row_count == 4
+        assert app.query_one("#concepts", DataTable).row_count == 3
         for selector in ("#scan", "#scans-pane", "#tasks-pane", "#statistics"):
             assert not app.query(selector)
         assert not hasattr(app, "action_scan")

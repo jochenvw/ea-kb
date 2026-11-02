@@ -5,6 +5,7 @@ from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from typing import Protocol, Self, runtime_checkable
 from uuid import UUID
 
+from ekb.domain.architectures import SolutionArchitecture, SolutionArchitectureRevision
 from ekb.domain.inspection import (
     BacklogPage,
     BacklogStatus,
@@ -226,9 +227,20 @@ class InspectionRepository(Protocol):
     ) -> BacklogPage: ...
 
 
+class SolutionArchitectureRepository(Protocol):
+    async def save(self, revision: SolutionArchitectureRevision) -> SolutionArchitecture: ...
+    async def list(
+        self, limit: int = 50, *, after: UUID | None = None
+    ) -> list[SolutionArchitecture]: ...
+    async def get(self, architecture_id: UUID) -> SolutionArchitecture | None: ...
+    async def revision(self, revision_id: UUID) -> SolutionArchitectureRevision | None: ...
+
+
 class UnitOfWork(Protocol):
     @property
     def inspection(self) -> InspectionRepository: ...
+    @property
+    def architectures(self) -> SolutionArchitectureRepository: ...
     @property
     def workflow(self) -> WorkflowRepository: ...
     @property

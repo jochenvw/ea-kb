@@ -9,6 +9,10 @@ zero lexical overlap does not prevent semantic discovery. Provider/input-keyed v
 judgments replay across changed check versions; changed providers or semantic inputs miss the cache.
 `provenance.py` runs ordered company alignment, control-parent mapping and sibling comparison;
 later checks consume earlier findings from the same stage without treating them as approved policy.
+Control mapping combines twenty semantic and ten weighted lexical neighbors with every
+publisher-declared reference, bounded to thirty-five candidates; the mapper receives source identifiers
+and declared references but must still justify each refinement relationship.
+Large deterministic embedding rankings run off the event loop so lease renewal stays responsive.
 Cache hits incur no calls, tokens or cost. Unpriced or unmetered calls keep total cost unknown.
 Provider calls run outside transactions. Verifier results stay review-only.
 Inject stage/check implementations through `StageRegistry`; each declares versions and contracts.

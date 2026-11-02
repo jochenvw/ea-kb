@@ -78,12 +78,127 @@ def split_text(text: str, max_chars: int) -> list[tuple[int, str]]:
     return pieces
 
 
+def _framework_references(text: str) -> list[dict[str, str]]:
+    references: list[dict[str, str]] = []
+    patterns = (
+        (
+            r"NIST\s+SP\s+800-53\s+Rev\.?\s*(\d+)\s*:\s*([^\n]+)",
+            "nist-sp-800-53",
+            r"\b([A-Z]{2})-0*(\d+)(?:\(0*(\d+)\))?",
+        ),
+        (
+            r"NIST\s+CSF\s+v?(\d+(?:\.\d+)*)\s*:\s*([^\n]+)",
+            "nist-csf",
+            r"\b[A-Z]{2}\.[A-Z]{2}-\d{2}\b",
+        ),
+    )
+    for pattern, namespace, identifier_pattern in patterns:
+        for match in re.finditer(pattern, text, re.I):
+            revision, values = match.groups()
+            for identifier in re.finditer(identifier_pattern, values, re.I):
+                if namespace == "nist-sp-800-53":
+                    family, control, enhancement = identifier.groups()
+                    normalized = f"{family.casefold()}-{int(control)}"
+                    if enhancement is not None:
+                        normalized += f".{int(enhancement)}"
+                else:
+                    normalized = identifier.group().upper()
+                references.append(
+                    {
+                        "namespace": namespace,
+                        "revision": revision,
+                        "control_id": normalized,
+                        "evidence_excerpt": match.group(),
+                    }
+                )
+    return list(
+        {
+            (reference["namespace"], reference["revision"], reference["control_id"]): reference
+            for reference in references
+        }.values()
+    )
+
+
+def _propagate_framework_references(segments: list[Segment]) -> list[Segment]:
+    evidenced = []
+    for segment in segments:
+        references = segment.location.get("framework_references")
+        if not isinstance(references, list):
+            evidenced.append(segment)
+            continue
+        evidenced.append(
+            segment.model_copy(
+                update={
+                    "location": {
+                        **segment.location,
+                        "framework_references": [
+                            {
+                                **reference,
+                                "evidence_segment_id": str(segment.id),
+                            }
+                            for reference in references
+                            if isinstance(reference, dict)
+                        ],
+                    }
+                }
+            )
+        )
+
+    scoped: list[tuple[tuple[str, ...], list[dict[str, str]]]] = []
+    for segment in evidenced:
+        references = segment.location.get("framework_references")
+        scope = segment.location.get("framework_reference_scope")
+        if isinstance(references, list) and isinstance(scope, list) and scope:
+            scoped.append(
+                (
+                    tuple(str(value) for value in scope),
+                    [reference for reference in references if isinstance(reference, dict)],
+                )
+            )
+    if not scoped:
+        return evidenced
+    propagated = []
+    for segment in evidenced:
+        path = tuple(str(value) for value in segment.location.get("heading_path", []))
+        references = [
+            reference
+            for scope, values in scoped
+            if path[: len(scope)] == scope
+            for reference in values
+        ]
+        if references:
+            references = list(
+                {
+                    (
+                        reference["namespace"],
+                        reference["revision"],
+                        reference["control_id"],
+                        reference["evidence_segment_id"],
+                    ): reference
+                    for reference in references
+                }.values()
+            )
+            propagated.append(
+                segment.model_copy(
+                    update={
+                        "location": {
+                            **segment.location,
+                            "framework_references": references,
+                        }
+                    }
+                )
+            )
+        else:
+            propagated.append(segment)
+    return propagated
+
+
 class StructuredParser:
     def __init__(self, *, ocr: bool = False, max_chars: int = 12_000):
         self.ocr = ocr
         self.max_chars = max_chars
         self.version = fingerprint(
-            implementation="structured-v6-oscal-parameter-labels",
+            implementation="structured-v8-oscal-control-statements-crosswalks",
             csf_parser=CSF_PARSER_VERSION,
             ocr=ocr,
             max_chars=max_chars,
@@ -151,7 +266,7 @@ class StructuredParser:
                     )
                     if block.level is not None:
                         parents.append((block.level, segment_id))
-        return segments
+        return _propagate_framework_references(segments)
 
     def _text(self, text: str) -> list[Block]:
         blocks = []
@@ -434,28 +549,35 @@ class StructuredParser:
             )
             return resolved, unresolved
 
-        def visit(
-            node: dict[str, Any], control_id: str | None = None, labels: tuple[str, ...] = ()
-        ) -> None:
-            if node.get("prose") and control_id and (not control_ids or control_id in control_ids):
-                key = node.get("id") or node.get("name", "prose")
-                prose, unresolved = resolve_parameters(node["prose"])
-                blocks.append(
-                    Block(
-                        prose,
-                        control_id,
-                        location={
-                            "control_id": control_id,
-                            "control_labels": list(labels),
-                            "part_id": key,
-                            "structured_control": True,
-                            **({"unresolved_oscal_parameters": unresolved} if unresolved else {}),
-                        },
-                    )
-                )
-            for field_name in ("groups", "parts"):
-                for child in node.get(field_name, []):
-                    visit(child, control_id, labels)
+        def statement_root(part: dict[str, Any]) -> bool:
+            identifier = str(part.get("id", "")).casefold()
+            return (
+                str(part.get("name", "")).casefold() == "statement"
+                or str(part.get("title", "")).casefold() == "statement"
+                or identifier.endswith("_smt")
+            )
+
+        def render(parts: list[dict[str, Any]]) -> tuple[str, list[str], list[str]]:
+            lines: list[str] = []
+            part_ids: list[str] = []
+            unresolved: list[str] = []
+
+            def visit_part(part: dict[str, Any], depth: int) -> None:
+                prose = part.get("prose")
+                if isinstance(prose, str) and prose.strip():
+                    resolved, missing = resolve_parameters(prose)
+                    lines.append(f"{'  ' * depth}{resolved.strip()}")
+                    unresolved.extend(missing)
+                    if isinstance(part.get("id"), str):
+                        part_ids.append(part["id"])
+                for child in part.get("parts", []):
+                    visit_part(child, depth + 1)
+
+            for part in parts:
+                visit_part(part, 0)
+            return "\n".join(lines), part_ids, unresolved
+
+        def visit(node: dict[str, Any]) -> None:
             for child in node.get("controls", []):
                 aliases = tuple(
                     dict.fromkeys(
@@ -464,7 +586,34 @@ class StructuredParser:
                         if prop.get("name") == "label" and isinstance(prop.get("value"), str)
                     )
                 )
-                visit(child, child.get("id"), aliases)
+                control_id = child.get("id")
+                if isinstance(control_id, str) and (not control_ids or control_id in control_ids):
+                    parts = child.get("parts", [])
+                    roots = [part for part in parts if statement_root(part)] or parts
+                    prose, part_ids, unresolved = render(roots)
+                    if prose:
+                        blocks.append(
+                            Block(
+                                prose,
+                                control_id,
+                                location={
+                                    "control_id": control_id,
+                                    "control_labels": list(aliases),
+                                    "control_title": child.get("title"),
+                                    "part_id": part_ids[0] if len(part_ids) == 1 else control_id,
+                                    "part_ids": part_ids,
+                                    "structured_control": True,
+                                    **(
+                                        {"unresolved_oscal_parameters": sorted(set(unresolved))}
+                                        if unresolved
+                                        else {}
+                                    ),
+                                },
+                            )
+                        )
+                visit(child)
+            for group in node.get("groups", []):
+                visit(group)
 
         visit(catalog)
         if not any(block.quality != "document_metadata" for block in blocks):
@@ -524,6 +673,7 @@ class StructuredParser:
             metadata["title"] = soup.title.get_text(" ", strip=True)
         blocks = document_metadata(metadata)
         heading = None
+        heading_path: dict[int, str] = {}
         main = soup.find("main") or soup.find("article") or soup
         for tag in main.find_all(["h1", "h2", "h3", "h4", "p", "li", "tr"]):
             text = tag.get_text(" ", strip=True)
@@ -532,7 +682,22 @@ class StructuredParser:
             level = int(tag.name[1]) if re.fullmatch(r"h[1-4]", tag.name) else None
             if level:
                 heading = text
-            blocks.append(
-                Block(text, heading, level, {"element": len(blocks), "html_id": tag.get("id")})
-            )
+                heading_path = {
+                    path_level: value
+                    for path_level, value in heading_path.items()
+                    if path_level < level
+                }
+                heading_path[level] = text
+            path = [heading_path[path_level] for path_level in sorted(heading_path)]
+            references = _framework_references(text)
+            location: dict[str, Any] = {
+                "element": len(blocks),
+                "html_id": tag.get("id"),
+                "heading_path": path,
+            }
+            if references:
+                location["framework_references"] = references
+                if path and path[-1].casefold() == "control mapping":
+                    location["framework_reference_scope"] = path[:-1]
+            blocks.append(Block(text, heading, level, location))
         return blocks

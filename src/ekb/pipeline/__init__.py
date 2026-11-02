@@ -10,8 +10,11 @@ from uuid import UUID, uuid4
 from ekb.domain.grounding import validate_evidence
 from ekb.domain.models import (
     Candidate,
+    ContentLabel,
+    ContentLabeling,
     Extraction,
     InferenceResult,
+    LabelingResult,
     ProcessingTask,
     ScanReport,
     Segment,
@@ -31,6 +34,7 @@ from ekb.domain.publication import assess_publication, publication_fingerprint
 from ekb.domain.skills import validate_labeling, validate_scoped_extraction
 from ekb.observability import log, tracer
 from ekb.pipeline.organization import (
+    SOURCE_POLICY_VERSION,
     apply_source_policy,
     has_organization_configuration,
     organize_knowledge,
@@ -46,9 +50,89 @@ from ekb.ports import (
     UnitOfWorkFactory,
 )
 
+STRUCTURED_CONTROL_EXTRACTION_VERSION = "structured-control-extraction-v1"
+
 
 class ProcessingIncompleteError(RuntimeError):
     pass
+
+
+def _structured_control_result(
+    item: SourceItem,
+    segment: Segment,
+    labeling: LabelingResult | None = None,
+) -> InferenceResult | None:
+    if not segment.location.get("structured_control"):
+        return None
+    framework_namespace = str(item.metadata.get("framework_namespace") or "").strip()
+    framework_types = {
+        "nist-csf": SemanticType.CONCEPTUAL_REQUIREMENT,
+        "nist-sp-800-53": SemanticType.TECHNICAL_REQUIREMENT,
+    }
+    if framework_namespace in framework_types:
+        semantic_type = framework_types[framework_namespace]
+    elif labeling is None:
+        return None
+    else:
+        supported_types = {
+            label.semantic_type
+            for label in labeling.labeling.labels
+            if label.semantic_type
+            in {
+                SemanticType.CONCEPTUAL_REQUIREMENT,
+                SemanticType.TECHNICAL_REQUIREMENT,
+            }
+        }
+        if len(supported_types) != 1:
+            raise ProcessingIncompleteError(
+                "Structured controls require one conceptual or technical requirement label"
+            )
+        semantic_type = supported_types.pop()
+    statement = " ".join(segment.text.split())
+    normalized_labeling = LabelingResult(
+        labeling=ContentLabeling(
+            labels=[
+                ContentLabel(
+                    semantic_type=semantic_type,
+                    excerpt=segment.text,
+                    uncertainty=(
+                        "Ontology type follows the configured structured framework source."
+                    ),
+                )
+            ]
+        ),
+        model_id=labeling.model_id if labeling else "deterministic-structured-control",
+        prompt_version=labeling.prompt_version
+        if labeling
+        else STRUCTURED_CONTROL_EXTRACTION_VERSION,
+        provider_model_ids=labeling.provider_model_ids if labeling else (),
+        provider_model_identity_complete=(
+            labeling.provider_model_identity_complete if labeling else True
+        ),
+    )
+    return InferenceResult(
+        extraction=Extraction(
+            candidates=[
+                Candidate(
+                    statement=statement,
+                    excerpt=segment.text,
+                    semantic_type=semantic_type,
+                    confidence=1,
+                    source_key=str(
+                        segment.location.get("control_id") or segment.location.get("part_id") or ""
+                    )
+                    or None,
+                    uncertainty=(
+                        "Normative structured control imported directly; applicability and "
+                        "enterprise authority remain separate."
+                    ),
+                )
+            ]
+        ),
+        model_id="deterministic-structured-control",
+        prompt_version=STRUCTURED_CONTROL_EXTRACTION_VERSION,
+        labeling=normalized_labeling,
+    )
 
 
 def _defer_strategic_candidates(extraction: Extraction) -> tuple[Extraction, list[Candidate]]:
@@ -160,6 +244,8 @@ class IngestionPipeline:
                 if isinstance(inference, StrategyReconciliationPort)
                 else None
             ),
+            structured_control=STRUCTURED_CONTROL_EXTRACTION_VERSION,
+            source_policy=SOURCE_POLICY_VERSION,
             config=inference_config,
         )
         self.progress = progress or (lambda item, status: None)
@@ -704,6 +790,24 @@ class IngestionPipeline:
             if segment.quality in {"image_only", "ocr_no_text", "document_metadata"}:
                 log.info("segment_skipped", segment_id=str(segment.id), reason=segment.quality)
                 continue
+            structured_result = _structured_control_result(item, segment)
+            if structured_result is not None:
+                labeling = structured_result.labeling
+                assert labeling is not None
+                validate_scoped_extraction(
+                    structured_result.extraction,
+                    segment,
+                    labeling.labeling,
+                )
+                persisted_structured = structured_result.model_copy(
+                    update={"extraction": apply_source_policy(item, structured_result.extraction)}
+                )
+                async with self.uow() as uow:
+                    await uow.processing.heartbeat(task_id, owner)
+                    ids = await uow.knowledge.persist(segment, persisted_structured)
+                    await uow.commit()
+                count += len(set(ids))
+                continue
             context = dict(
                 source=item.id,
                 text=segment.text,
@@ -745,26 +849,42 @@ class IngestionPipeline:
             async with self.uow() as uow:
                 result = await uow.processing.cached(segment.id, cache_fp)
             if result is None:
-                async with self.model_gate:
-                    self.progress(item, f"extracting segment {segment.ordinal + 1}/{len(segments)}")
-                    with tracer.start_as_current_span(
-                        "semantic.extraction",
-                        attributes={
-                            "segment.id": str(segment.id),
-                            "model.id": self.inference.capabilities.model_id,
-                            "prompt.version": self.inference.prompt_version,
-                        },
-                    ):
-                        result = await self.inference.extract_scoped(segment, labeling.labeling)
-                        result = result.model_copy(update={"labeling": labeling})
+                result = _structured_control_result(item, segment, labeling)
+                if result is None:
+                    async with self.model_gate:
+                        self.progress(
+                            item, f"extracting segment {segment.ordinal + 1}/{len(segments)}"
+                        )
+                        with tracer.start_as_current_span(
+                            "semantic.extraction",
+                            attributes={
+                                "segment.id": str(segment.id),
+                                "model.id": self.inference.capabilities.model_id,
+                                "prompt.version": self.inference.prompt_version,
+                            },
+                        ):
+                            result = await self.inference.extract_scoped(segment, labeling.labeling)
+                            result = result.model_copy(update={"labeling": labeling})
                 with tracer.start_as_current_span("schema.validation"):
-                    validate_scoped_extraction(result.extraction, segment, labeling.labeling)
+                    result_labeling = result.labeling
+                    assert result_labeling is not None
+                    validate_scoped_extraction(
+                        result.extraction,
+                        segment,
+                        result_labeling.labeling,
+                    )
                 usages.append(result.usage)
-                called_model = True
+                called_model = result.usage.model_calls > 0
             else:
                 log.info("segment_replayed", segment_id=str(segment.id))
                 called_model = False
-            validate_scoped_extraction(result.extraction, segment, labeling.labeling)
+            result_labeling = result.labeling
+            assert result_labeling is not None
+            validate_scoped_extraction(
+                result.extraction,
+                segment,
+                result_labeling.labeling,
+            )
             persisted_result = result.model_copy(
                 update={"extraction": apply_source_policy(item, result.extraction)}
             )

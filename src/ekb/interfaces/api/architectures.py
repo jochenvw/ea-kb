@@ -1,0 +1,85 @@
+from collections.abc import Callable
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import Response
+
+from ekb.domain.architectures import (
+    ArchitectureAssessment,
+    ArchitectureAssessmentInput,
+    ArchitectureRequirementDetail,
+    SolutionArchitecture,
+)
+from ekb.runtime import Runtime
+
+
+def register(app: FastAPI, active: Callable[[Request], Runtime]) -> None:
+    @app.get("/api/architectures", response_model=list[SolutionArchitecture])
+    async def architectures(
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+        after: UUID | None = None,
+    ):
+        return await active(request).architectures.list(limit, after=after)
+
+    @app.get(
+        "/api/architectures/{architecture_id}",
+        response_model=SolutionArchitecture,
+    )
+    async def architecture(request: Request, architecture_id: UUID):
+        result = await active(request).architectures.get(architecture_id)
+        if result is None:
+            raise HTTPException(404, "Solution architecture not found")
+        return result
+
+    @app.get("/api/architectures/{architecture_id}/revisions/{revision_id}/artifact")
+    async def architecture_artifact(
+        request: Request, architecture_id: UUID, revision_id: UUID
+    ) -> Response:
+        try:
+            revision, content = await active(request).architectures.artifact(
+                architecture_id, revision_id
+            )
+        except (FileNotFoundError, ValueError):
+            raise HTTPException(404, "Solution architecture artifact not found") from None
+        return Response(
+            content,
+            media_type=revision.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{revision.artifact_name}"'},
+        )
+
+    @app.get(
+        "/api/architectures/{architecture_id}/requirements",
+        response_model=tuple[ArchitectureRequirementDetail, ...],
+    )
+    async def architecture_requirements(
+        request: Request,
+        architecture_id: UUID,
+        version: str | None = None,
+    ):
+        try:
+            return await active(request).architectures.requirements(
+                architecture_id, version=version
+            )
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
+    @app.post(
+        "/api/architectures/{architecture_id}/assess",
+        response_model=ArchitectureAssessment,
+    )
+    async def assess(
+        request: Request,
+        architecture_id: UUID,
+        body: ArchitectureAssessmentInput,
+    ):
+        try:
+            return await active(request).architectures.assess(
+                architecture_id,
+                body.evidence,
+                version=body.version,
+                as_of=body.as_of,
+            )
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None

@@ -73,12 +73,18 @@ assets, independent fingerprints and evaluations. The implemented ingestion skil
 |---|---|---|
 | Inventory/acquire | Deterministic connector discovery, revision checks and bounded retrieval | Source inventory and original revisions; unsupported local formats are metadata-only |
 | Parse | Deterministic parsers/OCR and parse replay | Exact source segments and locations |
+| Import structured controls | Deterministic OSCAL control conversion after ontology typing | One coherent exact-evidence conceptual or technical requirement per normative control/enhancement |
 | Label | `IngestionSkills.label`, `skills\labeling.md` | Evidence-backed, multi-label ontology types and explicit scopes |
 | Extract within labels | `IngestionSkills.extract_scoped`, `skills\extraction.md` | Typed candidates/relationships restricted to the labeled evidence, type and scope |
 | Reconcile strategy | `StrategyReconciliationPort.reconcile_strategy`, `skills\strategy_reconciliation.md` | Compact, deduplicated source-level goals and fundamental requirements with safe lower-layer reclassification |
 | Organize knowledge | Deterministic manifest curation in `pipeline\organization.py` | One company requirement per configured standards document, architecture domains and exact-evidence cross-layer links |
 
 Inventory/acquisition completes before semantic processing starts, including ordinary `scan`.
+Structured framework controls do not require generative extraction: the parser retains one normative
+statement per control and ingestion persists it directly. Native CSF outcomes are conceptual and
+SP 800-53 controls are technical by configured catalog contract; unknown structured catalogs retain
+qualified conceptual-versus-technical labeling. Applicability and enterprise authority remain
+separate.
 The historical `indexing` orchestration stage still wraps the complete ingestion use case; its name
 does not mean all of its internal work is model-free. Parsing and rules remain deterministic; optional
 model-backed skills run only when explicitly configured.
@@ -151,6 +157,23 @@ lifespan; MCP does so in server lifespan. Tests can inject a runtime or knowledg
 `ekb init` creates the current ORM schema during pre-v1 development; `--recreate` explicitly rebuilds
 it after breaking changes. From v1, initialization uses Alembic. Web startup never changes the schema.
 
+### Governed solution architectures
+
+A solution architecture is a governed artefact aggregate, not an ontology class or extracted source
+concept. Each immutable revision retains its canonical-source URI, content-addressed artefact,
+owner, scope, version and references to exact versions of existing conceptual, technical or
+platform requirements. Registration pins omitted requirement versions to the current version, so
+later requirement revisions cannot rewrite historical architecture revisions. Changing the
+artefact, artefact metadata, requirement set or exception creates a new version; registering
+identical content under the same version is idempotent, while conflicting content is rejected.
+
+Approved exceptions are explicit, revision-bound control dispositions with rationale, approver,
+approval time and optional expiry. Deterministic assessment classifies each referenced requirement
+as `conforms`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
+platform-agnostic to control chain. The current basis is deliberately `declared_evidence`: EKB does
+not claim to inspect or verify Bicep, application code or deployed resources. A future analyzer may
+implement that replaceable boundary without changing registry, provenance or assessment contracts.
+
 Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
 retry classification and backoff; the pipeline handles provider-independent outcomes.
 An AST regression test keeps infrastructure imports out of domain, ports and application layers.
@@ -176,15 +199,30 @@ Layered provenance runs as three ordered enrichment checks. `company_alignment` 
 connects platform-independent knowledge to explicit source-adoption requirements, allowing company
 intent with no technical descendants. `platform_alignment` embeds a bounded parent pool and asks the
 configured traceability mapper to select only grounded broader requirements for each platform control.
+Retrieval combines semantic, lexical and publisher-reference evidence in a bounded pool of at most
+35 candidates. The mapper explicitly judges every candidate, globally arbitrates the defensible
+set and adversarially critiques selected links; bounded standardized-mechanism rules make reviewed
+semantics deterministic without turning publisher mappings or product names into automatic links.
 `sibling_control_comparison` then compares controls under the same inferred or configured parent for
 duplicates, adjacency, distinction or tension. Same-stage findings are passed forward in memory and
 persisted only as reviewable findings; no model accepts policy or creates canonical knowledge.
 Downstream check fingerprints include earlier check-output revisions, and a rerun reproduces its own
 active findings instead of treating them as pre-existing authority and silently deactivating them.
+Findings are append-only and their stable IDs do not include the check version. Consumers that need
+the current inferred graph therefore follow the latest successful check execution's
+`output.record_ids`; querying every historical finding for a check would mix superseded runs.
 The issue stage enforces the asymmetric contract: every platform-agnostic concept needs a path to
 company intent, every platform control needs a platform-agnostic requirement parent, while company
 concepts may be leaves and platform-agnostic concepts may have no implementation children. Per-check
 coverage, orphan, multi-parent, candidate, sibling and usage statistics remain in pipeline executions.
+Ingestion retains conceptual and technical requirements in the adopted platform-agnostic layer only
+when their source has an explicit `enterprise_requirement`. Unadopted standards, regulations and
+reported context remain available as source evidence rather than appearing as enterprise architecture.
+Publisher-declared framework mappings retain neutral namespace/revision/control identifiers and an
+exact mapping-segment pointer. The bounded parent shortlist includes every declared reference plus
+independent semantic and lexical neighbors, but mappings never create links directly: the mapper
+must still establish semantic refinement and may reject a mapping that is too broad for the
+implementation.
 `infra\main.bicep` describes minimal Entra-only Foundry model resources, with an optional teacher
 disabled by default. Configuration/deployment does not establish provider quality.
 

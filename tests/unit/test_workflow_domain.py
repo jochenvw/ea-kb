@@ -535,6 +535,20 @@ async def test_embedding_replay_keys_include_provider_and_exact_text():
     assert calls == 1 and provider.batches[-1] == ("First", "Second")
 
 
+async def test_embedding_requests_are_bounded_for_large_parent_pools():
+    store = ReplayStore()
+    provider = ReplayEmbeddings(store)
+    texts = [f"Requirement {index}" for index in range(129)]
+
+    vectors, calls, tokens, costs = await _embeddings(
+        cast(UnitOfWorkFactory, store), provider, texts
+    )
+
+    assert len(vectors) == 129
+    assert calls == 2 and tokens == 129 and costs == [0.25, 0.25]
+    assert [len(batch) for batch in provider.batches] == [128, 1]
+
+
 @pytest.mark.parametrize(
     "vector",
     [(), (0.0, 0.0), (float("nan"), 1.0), (float("inf"), 1.0), (1.0,) * 16385],

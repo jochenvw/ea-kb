@@ -166,7 +166,9 @@ def build(database, tmp_path):
     return pipeline, parser, inference, source
 
 
-async def test_live_ingestion_reconciles_strategy_and_persists_domain(database, tmp_path):
+async def test_live_ingestion_reconciles_strategy_without_adopting_external_taxonomy(
+    database, tmp_path
+):
     source = tmp_path / "source"
     source.mkdir()
     (source / "strategy.md").write_text(
@@ -188,7 +190,7 @@ async def test_live_ingestion_reconciles_strategy_and_persists_domain(database, 
 
     report = await pipeline.scan([FilesystemConnector(source)])
 
-    assert report.processed == 1 and report.failed == 0 and report.concepts == 4
+    assert report.processed == 1 and report.failed == 0 and report.concepts == 3
     async with database() as uow:
         concepts = await uow.knowledge.search()
     assert {
@@ -201,7 +203,6 @@ async def test_live_ingestion_reconciles_strategy_and_persists_domain(database, 
         ("Become a resilient enterprise.", GoalLevel.ENTERPRISE),
         ("Grow recurring revenue by 5% by 2030.", GoalLevel.SUBORDINATE_TARGET),
         ("Teams must protect confidential information.", None),
-        ("Architecture domain: Identity management.", None),
     }
 
 
@@ -378,7 +379,7 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         connector = HTTPConnector([real, nist, synthetic], client=client)
         first = await pipeline.scan([connector])
-        assert first.failed == 0 and first.processed == 3 and first.concepts == 4
+        assert first.failed == 0 and first.processed == 3 and first.concepts == 3
         first_calls = (parser.calls, skills.label_calls, skills.extraction_calls)
         async with database() as uow:
             sources = await uow.sources.list()
@@ -387,9 +388,16 @@ async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_repr
                 c.id: (tuple(v.id for v in c.versions), tuple(o.id for o in c.occurrences))
                 for c in concepts
             }
-            assert len(sources) == 3 and len(concepts) == 4
+            assert len(sources) == 3 and len(concepts) == 3
             by_excerpt = {c.versions[-1].candidate.excerpt: c for c in concepts}
-            for case in examples.values():
+            retained_examples = {
+                case_id: case
+                for case_id, case in examples.items()
+                if case_id != "source-nist-data-protection-conceptual"
+            }
+            excluded = examples["source-nist-data-protection-conceptual"].expected.candidates[0]
+            assert excluded.excerpt not in by_excerpt
+            for case in retained_examples.values():
                 candidate = case.expected.candidates[0]
                 concept = by_excerpt[candidate.excerpt]
                 stored = concept.versions[-1].candidate
@@ -516,13 +524,32 @@ async def test_generic_mappings_retain_evidence_without_resolving_unknown_refere
     source = tmp_path / "source"
     source.mkdir()
     (source / "mapping.txt").write_text(text, encoding="utf-8")
+    connector = FilesystemConnector(source)
+
+    class ScopedFilesystemConnector:
+        name = connector.name
+
+        async def discover(self):
+            async for item in connector.discover():
+                yield item.model_copy(
+                    update={
+                        "metadata": {
+                            **item.metadata,
+                            "platform_scope": "Synthetic platform",
+                        }
+                    }
+                )
+
+        async def fetch(self, item, previous):
+            return await connector.fetch(item, previous)
+
     pipeline = IngestionPipeline(
         database,
         FilesystemArtifactStore(tmp_path / "artifacts"),
         StructuredParser(),
         MappingSkills(),
     )
-    report = await pipeline.scan([FilesystemConnector(source)])
+    report = await pipeline.scan([ScopedFilesystemConnector()])
     assert report.processed == 1 and report.failed == 0
 
     async with database() as uow:

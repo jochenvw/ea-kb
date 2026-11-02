@@ -30,6 +30,7 @@ from ekb.ports import (
     TraceabilityMapper,
 )
 from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
+from ekb.services.architectures import ArchitectureService
 from ekb.services.assertions import AssertionService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
@@ -68,6 +69,11 @@ class Runtime:
             ocr=self.settings.ocr, max_chars=self.settings.segment_max_chars
         )
         self.knowledge = KnowledgeService(self.database)
+        self.architectures = ArchitectureService(
+            self.database,
+            self.artifacts,
+            max_artifact_bytes=self.settings.max_document_bytes,
+        )
         self.verifier: SemanticVerifier | None = (
             OpenAISemanticVerifier(self.settings) if self.settings.reconciliation_model_id else None
         )

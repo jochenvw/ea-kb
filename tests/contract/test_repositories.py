@@ -5,11 +5,19 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select, update
 
+from ekb.adapters.artifacts import FilesystemArtifactStore
 from ekb.adapters.persistence.postgres.models import TaskRow, VersionRow
+from ekb.domain.architectures import (
+    ArchitectureControl,
+    ArchitectureEvidence,
+    ArchitectureManifest,
+    AssessmentOutcome,
+)
 from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
     AuthorityEvent,
     Candidate,
+    ConceptLink,
     ConceptVersion,
     Extraction,
     InferenceResult,
@@ -29,6 +37,7 @@ from ekb.domain.models import (
     now,
     stable_id,
 )
+from ekb.services.architectures import ArchitectureService
 from ekb.services.knowledge import KnowledgeService
 
 pytestmark = pytest.mark.integration
@@ -68,6 +77,188 @@ async def test_unit_of_work_requires_explicit_commit(database):
         await uow.sources.save(SourceRecord(item=item))
     async with database() as uow:
         assert await uow.sources.get(item.id) is None
+
+
+async def test_solution_architecture_revisions_are_immutable_and_assessable(database, tmp_path):
+    source_id, revision_id = uuid4(), uuid4()
+    text = (
+        "Use the NIST baseline. Protect managed network boundaries. "
+        "Configure the platform firewall. Platform control refines technical requirement. "
+        "Technical requirement supports company requirement."
+    )
+    segment = Segment(id=uuid4(), revision_id=revision_id, ordinal=0, text=text)
+    async with database() as uow:
+        await uow.sources.save(
+            SourceRecord(
+                item=SourceItem(
+                    id=source_id,
+                    connector="test",
+                    location="urn:architecture:test",
+                    name="Architecture test",
+                    format="txt",
+                )
+            )
+        )
+        await uow.sources.save_revision(
+            SourceRevision(
+                id=revision_id,
+                source_id=source_id,
+                content_hash=content_hash(text.encode()),
+                artifact_key="architecture-test",
+            )
+        )
+        await uow.sources.save_segments(revision_id, [segment], "parser-v1")
+        concept_ids = await uow.knowledge.persist(
+            segment,
+            InferenceResult(
+                extraction=Extraction(
+                    candidates=[
+                        Candidate(
+                            semantic_type=SemanticType.STRATEGIC_REQUIREMENT,
+                            statement="Use the NIST baseline.",
+                            excerpt="Use the NIST baseline.",
+                        ),
+                        Candidate(
+                            semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                            statement="Protect managed network boundaries.",
+                            excerpt="Protect managed network boundaries.",
+                        ),
+                        Candidate(
+                            semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+                            statement="Configure the platform firewall.",
+                            excerpt="Configure the platform firewall.",
+                            scope=Scope(platform="Azure"),
+                        ),
+                    ]
+                ),
+                model_id="test",
+                prompt_version="architecture-registry",
+            ),
+        )
+        details = [await uow.knowledge.get(concept_id) for concept_id in concept_ids]
+        company, agnostic, platform = details
+        assert company and agnostic and platform
+        await uow.knowledge.link(
+            segment,
+            ConceptLink(
+                from_concept_id=platform.id,
+                from_version_id=platform.versions[-1].id,
+                to_concept_id=agnostic.id,
+                kind=RelationshipKind.REFINES,
+                excerpt="Platform control refines technical requirement.",
+            ),
+            model_id="test",
+            prompt_version="architecture-registry",
+        )
+        await uow.knowledge.link(
+            segment,
+            ConceptLink(
+                from_concept_id=agnostic.id,
+                from_version_id=agnostic.versions[-1].id,
+                to_concept_id=company.id,
+                kind=RelationshipKind.SUPPORTS,
+                excerpt="Technical requirement supports company requirement.",
+            ),
+            model_id="test",
+            prompt_version="architecture-registry",
+        )
+        await uow.commit()
+
+    artifact_directory = tmp_path / "architecture-artifacts"
+    service = ArchitectureService(database, FilesystemArtifactStore(artifact_directory))
+    manifest = ArchitectureManifest(
+        name="Public files",
+        description="Publishes approved public downloads.",
+        owner="Web team",
+        canonical_source="https://example.test/architectures/public-files",
+        version="1",
+        controls=(ArchitectureControl(concept_id=platform.id),),
+    )
+    architecture = await service.register(
+        manifest,
+        "architecture.pdf",
+        "application/pdf",
+        b"synthetic architecture",
+    )
+    replay = await service.register(
+        manifest,
+        "architecture.pdf",
+        "application/pdf",
+        b"synthetic architecture",
+    )
+    assert replay == architecture and architecture.latest.version == "1"
+    assert architecture.latest.controls[0].concept_version_id == platform.versions[-1].id
+    with pytest.raises(ValueError, match="different content"):
+        await service.register(
+            manifest,
+            "architecture.pdf",
+            "application/pdf",
+            b"changed architecture",
+        )
+    changed_key = content_hash(b"changed architecture")
+    assert not (artifact_directory / changed_key[:2] / changed_key).exists()
+    with pytest.raises(ValueError, match="different content"):
+        await service.register(
+            manifest,
+            "renamed-architecture.pdf",
+            "application/pdf",
+            b"synthetic architecture",
+        )
+
+    original_platform_version = platform.versions[-1]
+    replacement_platform_version = ConceptVersion(
+        id=uuid4(),
+        concept_id=platform.id,
+        predecessor_id=original_platform_version.id,
+        semantic_version=SemanticVersion.parse("1.0.1"),
+        candidate=original_platform_version.candidate.model_copy(
+            update={"statement": "Configure the replacement firewall requirement."}
+        ),
+    )
+    async with database() as uow:
+        await uow.knowledge.add_version(replacement_platform_version)
+        await uow.commit()
+    requirements = await service.requirements(architecture.id, version="1")
+    assert requirements[0].control.concept_version_id == original_platform_version.id
+    assert requirements[0].concept.versions[-1].id == replacement_platform_version.id
+
+    missing = await service.assess(architecture.id, ())
+    assert not missing.conforms
+    assert missing.controls[0].outcome is AssessmentOutcome.MISSING
+    assert [step.level for step in missing.controls[0].chain] == [
+        KnowledgeLevel.COMPANY,
+        KnowledgeLevel.PLATFORM_AGNOSTIC,
+        KnowledgeLevel.PLATFORM_SPECIFIC,
+    ]
+    conforming = await service.assess(
+        architecture.id,
+        (
+            ArchitectureEvidence(
+                concept_id=platform.id,
+                summary="The Bicep module configures the firewall.",
+                location="main.bicep:42",
+            ),
+        ),
+    )
+    assert conforming.conforms
+    assert conforming.controls[0].outcome is AssessmentOutcome.CONFORMS
+    assert "Chain:" in conforming.controls[0].explanation
+
+    revised = await service.register(
+        manifest.model_copy(
+            update={
+                "version": "2",
+                "controls": (
+                    ArchitectureControl(concept_id=agnostic.id),
+                    ArchitectureControl(concept_id=platform.id),
+                ),
+            }
+        ),
+        "architecture.pdf",
+        "application/pdf",
+        b"synthetic architecture",
+    )
+    assert [revision.version for revision in revised.revisions] == ["1", "2"]
 
 
 async def test_levels_preserve_goals_and_filter_platform_requirements_before_paging(database):

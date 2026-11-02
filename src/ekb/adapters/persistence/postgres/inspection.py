@@ -288,7 +288,10 @@ class Inspection:
                 if row.id in seen_findings:
                     continue
                 candidate = Finding.model_validate(row.payload)
-                if candidate.action != "relationship" or len(candidate.concept_ids) < 2:
+                if (
+                    candidate.action not in {"alias", "relationship"}
+                    or len(candidate.concept_ids) < 2
+                ):
                     continue
                 seen_findings.add(row.id)
                 findings.append(row)

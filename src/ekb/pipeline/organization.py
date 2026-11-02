@@ -26,6 +26,7 @@ from ekb.domain.models import (
 from ekb.ports import ArtifactStore, UnitOfWorkFactory
 
 CURATION_PARSER = "organization-architecture-v1"
+SOURCE_POLICY_VERSION = "source-policy-v2"
 
 
 def has_organization_configuration(items: Iterable[SourceItem]) -> bool:
@@ -37,14 +38,21 @@ def has_organization_configuration(items: Iterable[SourceItem]) -> bool:
 
 def apply_source_policy(item: SourceItem, extraction: Extraction) -> Extraction:
     platform_scope = str(item.metadata.get("platform_scope") or "").strip()
-    if not platform_scope:
+    adopted_agnostic = bool(str(item.metadata.get("enterprise_requirement") or "").strip())
+    if not platform_scope and adopted_agnostic:
         return extraction
     retained: list[Candidate] = []
     index_map: dict[int, int] = {}
     for index, candidate in enumerate(extraction.candidates):
-        if candidate.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
+        if platform_scope and candidate.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
             continue
-        if candidate.semantic_type in {
+        if not platform_scope and candidate.semantic_type in {
+            SemanticType.ARCHITECTURE_DOMAIN,
+            SemanticType.CONCEPTUAL_REQUIREMENT,
+            SemanticType.TECHNICAL_REQUIREMENT,
+        }:
+            continue
+        if platform_scope and candidate.semantic_type in {
             SemanticType.CONCEPTUAL_REQUIREMENT,
             SemanticType.TECHNICAL_REQUIREMENT,
             SemanticType.PLATFORM_REQUIREMENT,
@@ -59,21 +67,29 @@ def apply_source_policy(item: SourceItem, extraction: Extraction) -> Extraction:
             )
         index_map[index] = len(retained)
         retained.append(candidate)
-    relationships = [
-        relationship.model_copy(
+    relationships = []
+    for relationship in extraction.relationships:
+        if (
+            relationship.from_index not in index_map
+            or relationship.to_index not in index_map
+            or index_map[relationship.from_index] == index_map[relationship.to_index]
+        ):
+            continue
+        remapped = relationship.model_copy(
             update={
                 "from_index": index_map[relationship.from_index],
                 "to_index": index_map[relationship.to_index],
-                "scope": relationship.scope.model_copy(
-                    update={"platform": relationship.scope.platform or platform_scope}
-                ),
             }
         )
-        for relationship in extraction.relationships
-        if relationship.from_index in index_map
-        and relationship.to_index in index_map
-        and index_map[relationship.from_index] != index_map[relationship.to_index]
-    ]
+        if platform_scope:
+            remapped = remapped.model_copy(
+                update={
+                    "scope": relationship.scope.model_copy(
+                        update={"platform": relationship.scope.platform or platform_scope}
+                    )
+                }
+            )
+        relationships.append(remapped)
     return Extraction(candidates=retained, relationships=relationships)
 
 

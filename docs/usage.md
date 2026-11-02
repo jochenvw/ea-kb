@@ -103,7 +103,7 @@ uv run ekb scans list                      # recent scan counts and source/error
 uv run ekb scans tasks --limit 100         # bounded task errors, attempts and individual usage
 uv run ekb scans tasks --after LAST_TASK_UUID
 uv run ekb scans usage                     # bounded workspace usage, not a per-run total
-uv run ekb pipeline resume RUN_UUID
+uv run ekb pipeline resume RUN_UUID --config data\foundry-local.yaml
 ```
 
 Set `EKB_CONFIG_FILE` in both terminals when using a nondefault profile; `--config` selects only the
@@ -117,6 +117,8 @@ any tasks, also has a renewable, fenced lease. Crashed pipeline and scan leases 
 120 seconds; an individual processing-task lease can take five minutes. A pipeline resume fails
 rather than declaring success if a required task is still leased; `ekb scans list` identifies
 `ProcessingIncompleteError`. Retry the same run after that task finishes or its lease expires.
+Pass the same `--config` profile used for the original run so model-backed stages retain their
+explicit provider capabilities; resume never infers or persists credentials from prior execution.
 `ekb scan` and `ekb worker --directory PATH --once` remain available for indexing-only operation.
 
 Task pages cover at most 1,000 tasks in identifier order; pass the last ID as `--after` for the
@@ -151,6 +153,62 @@ a source revision without a valid guard. Shared Azure blobs are never cleared by
 To clear indexed knowledge and runs **without re-indexing**, use
 `uv run ekb reset` (confirmation) or `uv run ekb reset --yes` (automation). The same safety
 boundaries and retained source inputs apply.
+
+### Solution architecture registry
+
+Register an immutable architecture revision from a YAML manifest and its canonical artefact:
+
+```yaml
+name: Public download service
+description: Publishes approved public files.
+owner: Digital delivery
+canonical_source: https://architecture.example/solutions/public-downloads
+version: "1.0"
+scope:
+  application: Public download service
+  platform: Azure
+controls:
+  - concept_id: 11111111-1111-4111-8111-111111111111
+  - concept_id: 22222222-2222-4222-8222-222222222222
+    disposition: exception
+    rationale: Anonymous public access is the intended workload behavior.
+    approved_by: architecture-board
+    approved_at: 2026-11-01T09:00:00Z
+    expires_on: 2027-11-01
+```
+
+```powershell
+uv run ekb architectures register architecture.yaml design.pdf
+uv run ekb architectures list
+uv run ekb architectures show ARCHITECTURE_UUID
+```
+
+Every `concept_id` must identify an existing conceptual, technical or platform requirement. Reusing
+the same version with identical content is idempotent; changing the artefact, controls or exception
+requires a new version. The canonical source is a pointer to the authoritative design location;
+the uploaded artefact is retained in EKB's configured content-addressed store.
+
+Assessment accepts declared implementation evidence:
+
+```json
+[
+  {
+    "concept_id": "11111111-1111-4111-8111-111111111111",
+    "summary": "Private endpoint and deny-public-network policy are declared in the deployment.",
+    "location": "infra/storage.bicep:42"
+  }
+]
+```
+
+```powershell
+uv run ekb architectures assess ARCHITECTURE_UUID evidence.json
+uv run ekb eval architectures
+```
+
+The result reports `conforms`, `excepted` or `missing` per requirement, includes the terse
+company-to-control provenance chain, and identifies evidence for unregistered controls. Its basis
+is `declared_evidence`: this command and the current MCP tool do not parse or independently verify
+Bicep, source code or deployed resources.
 
 Application **0.1.0** is pre-release development: before major version 1, backwards compatibility and
 data-preserving migrations are not required. After schema changes, run `uv run ekb init --recreate`
@@ -218,6 +276,8 @@ ISO/IEC 27001 and ISO 14001 entries are **metadata references only**. No ISO ful
 ISO clauses are provided. Put suitably licensed documents in an authorized private source directory.
 Regulatory entries do not assert applicability to any particular enterprise or operation. Check current
 law, amendments, geography and enterprise adoption before using a candidate as an obligation.
+Without an explicit manifest `enterprise_requirement`, extracted conceptual and technical statements
+remain source evidence and do not enter the adopted platform-agnostic architecture layer.
 
 Public sites can move or deny automated requests. Fetch failures remain visible and do not erase
 historical evidence. Original content hashes preserve the retrieved edition; mutable upstream URLs
@@ -250,7 +310,7 @@ Offline tests do not qualify a live model.
 ### Additional downloadable parser-test corpus
 
 The supplied corpus downloader retrieves additional real PDFs, a Word assessment template,
-the complete NIST OSCAL catalog, and public overview/regulatory HTML when publishers permit it:
+additional NIST OSCAL catalogs and public overview/regulatory HTML when publishers permit it:
 
 ```powershell
 uv run python scripts\download_test_corpus.py --dry-run
@@ -260,7 +320,7 @@ uv run python scripts\download_test_corpus.py
 Its source list is `config\test_corpus.yaml`; downloaded files and a SHA-256/retrieval index stay
 under gitignored `data\test-corpus\public`. Repeat runs validate cached files and use conditional
 requests when available; `--force` refreshes them. This is a download-only parser-test collection,
-separate from the selected ingestion manifest above. It makes no model calls. ISO remains public
+separate from the ingestion manifest above. It makes no model calls. ISO remains public
 overview metadata, never licensed standard text. Publisher refusals or empty challenge responses
 are recorded in `index.json` under `failures` and cause a nonzero exit; valid existing files survive.
 

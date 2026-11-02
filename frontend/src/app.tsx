@@ -38,6 +38,7 @@ import { Sources, SourcePage } from "@/sources";
 import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Ontology } from "@/ontology";
+import { SolutionPage, Solutions } from "@/solutions";
 import type { Issue, Source } from "@/types";
 
 const navigation = [
@@ -70,6 +71,12 @@ const navigation = [
     href: "/platforms",
     name: "Platforms & controls",
     icon: CloudCog,
+    group: "Knowledge",
+  },
+  {
+    href: "/solutions",
+    name: "Solution registry",
+    icon: BookOpen,
     group: "Knowledge",
   },
   {
@@ -116,9 +123,11 @@ export function App() {
         : "/company"
     : path.startsWith("/sources/")
       ? "/sources"
-      : path === "/" && query.has("q")
-        ? "/company"
-        : path;
+      : path.startsWith("/solutions/")
+        ? "/solutions"
+        : path === "/" && query.has("q")
+          ? "/company"
+          : path;
   const active =
     navigation.find((item) => item.href === section) ?? navigation[0];
   const [menu, setMenu] = useState(false);
@@ -250,6 +259,12 @@ export function App() {
               <ConceptPage id={path.split("/")[2]} governance={governance} />
             ) : (
               <Knowledge view="platforms" />
+            ))}
+          {section === "/solutions" &&
+            (path.startsWith("/solutions/") ? (
+              <SolutionPage id={path.split("/")[2]} />
+            ) : (
+              <Solutions />
             ))}
           {section === "/knowledge" && <Knowledge view="all" />}
           {section === "/review" && <Review governance={governance} />}

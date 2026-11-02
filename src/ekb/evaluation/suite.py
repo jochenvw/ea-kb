@@ -11,6 +11,7 @@ from pathlib import Path
 from ekb.adapters.inference import RulesInference
 from ekb.adapters.parsers import StructuredParser
 from ekb.config import Settings
+from ekb.evaluation.architectures import evaluate_architectures
 from ekb.evaluation.dataset import write_json
 from ekb.evaluation.frugal import qualify
 from ekb.evaluation.nist import evaluate_nist
@@ -123,6 +124,7 @@ async def run_suite(
     skills = None
     documents = None
     nist = None
+    architectures = None
     error = None
     code_passed = tests["passed"] and (frontend is None or frontend["passed"])
     if code_passed:
@@ -188,6 +190,10 @@ async def run_suite(
                 nist = await evaluate_nist(
                     None, output / "nist", StructuredParser(), RulesInference()
                 )
+            architectures = await evaluate_architectures(
+                Path("evals") / "architecture-assessment-v1.json",
+                output / "architectures.json",
+            )
         except Exception as exc:
             error = type(exc).__name__
     report = {
@@ -197,13 +203,15 @@ async def run_suite(
         and bool(evaluation and evaluation["passed"])
         and bool(skills and skills["passed"])
         and bool(documents and documents["passed"])
-        and bool(nist and nist["passed"]),
+        and bool(nist and nist["passed"])
+        and bool(architectures and architectures["passed"]),
         "tests": tests,
         "frontend": frontend,
         "evaluation": evaluation,
         "skills": skills,
         "documents": documents,
         "nist": nist,
+        "architectures": architectures,
         "evaluation_error": error,
         "coverage": {
             "indexing_provenance": "ordinary-source pipeline/integration/contract tests",

@@ -44,7 +44,7 @@ from ekb.evaluation.skills import (
     evaluate_skills,
     label_metrics,
 )
-from ekb.pipeline import IngestionPipeline
+from ekb.pipeline import IngestionPipeline, _structured_control_result
 
 DATASET = Path("evals") / "skills-v1.json"
 GATES = Path("evals") / "gates.json"
@@ -107,6 +107,60 @@ def scoped_input():
         ]
     )
     return segment, labels, extraction
+
+
+@pytest.mark.parametrize(
+    ("namespace", "semantic_type"),
+    [
+        ("nist-sp-800-53", SemanticType.TECHNICAL_REQUIREMENT),
+        ("nist-csf", SemanticType.CONCEPTUAL_REQUIREMENT),
+    ],
+)
+def test_structured_framework_controls_are_extracted_deterministically(namespace, semantic_type):
+    text = "Review and analyze audit records:\n  For indications of inappropriate activity."
+    segment = Segment(
+        id=uuid4(),
+        revision_id=uuid4(),
+        ordinal=0,
+        text=text,
+        heading="au-6",
+        location={
+            "structured_control": True,
+            "control_id": "au-6",
+            "control_title": "Audit Record Review, Analysis, and Reporting",
+        },
+    )
+    item = SourceItem(
+        id=uuid4(),
+        connector="test",
+        location="test",
+        name="test",
+        format="oscal",
+        metadata={"framework_namespace": namespace},
+    )
+
+    result = _structured_control_result(item, segment)
+
+    assert result is not None
+    assert result.usage.model_calls == 0
+    assert result.model_id == "deterministic-structured-control"
+    assert result.extraction.candidates == [
+        Candidate(
+            statement=(
+                "Review and analyze audit records: For indications of inappropriate activity."
+            ),
+            excerpt=text,
+            semantic_type=semantic_type,
+            confidence=1,
+            source_key="au-6",
+            uncertainty=(
+                "Normative structured control imported directly; applicability and enterprise "
+                "authority remain separate."
+            ),
+        )
+    ]
+    assert result.labeling is not None
+    validate_scoped_extraction(result.extraction, segment, result.labeling.labeling)
 
 
 async def test_two_skills_route_mixed_scope_and_account_for_separate_models():

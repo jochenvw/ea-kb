@@ -1,0 +1,101 @@
+{
+  "version": "architecture-assessment-v1",
+  "review_status": "independently_reviewed",
+  "cases": [
+    {
+      "id": "required-with-evidence",
+      "controls": [
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000001",
+          "disposition": "required"
+        }
+      ],
+      "evidence": [
+        "10000000-0000-4000-8000-000000000001"
+      ],
+      "as_of": "2026-11-01",
+      "expected_outcomes": [
+        "conforms"
+      ],
+      "expected_conforms": true
+    },
+    {
+      "id": "required-without-evidence",
+      "controls": [
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000002",
+          "disposition": "required"
+        }
+      ],
+      "evidence": [],
+      "as_of": "2026-11-01",
+      "expected_outcomes": [
+        "missing"
+      ],
+      "expected_conforms": false
+    },
+    {
+      "id": "active-approved-exception",
+      "controls": [
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000003",
+          "disposition": "exception",
+          "rationale": "The endpoint intentionally serves approved public downloads.",
+          "approved_by": "Architecture board",
+          "approved_at": "2026-01-01T00:00:00Z",
+          "expires_on": "2027-01-01"
+        }
+      ],
+      "evidence": [],
+      "as_of": "2026-11-01",
+      "expected_outcomes": [
+        "excepted"
+      ],
+      "expected_conforms": true
+    },
+    {
+      "id": "expired-exception",
+      "controls": [
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000004",
+          "disposition": "exception",
+          "rationale": "Temporary migration exception.",
+          "approved_by": "Architecture board",
+          "approved_at": "2026-01-01T00:00:00Z",
+          "expires_on": "2026-06-30"
+        }
+      ],
+      "evidence": [],
+      "as_of": "2026-11-01",
+      "expected_outcomes": [
+        "missing"
+      ],
+      "expected_conforms": false
+    },
+    {
+      "id": "mixed-required-and-excepted",
+      "controls": [
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000005",
+          "disposition": "required"
+        },
+        {
+          "concept_id": "10000000-0000-4000-8000-000000000006",
+          "disposition": "exception",
+          "rationale": "Public endpoint is part of the approved design.",
+          "approved_by": "Architecture board",
+          "approved_at": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "evidence": [
+        "10000000-0000-4000-8000-000000000005"
+      ],
+      "as_of": "2026-11-01",
+      "expected_outcomes": [
+        "conforms",
+        "excepted"
+      ],
+      "expected_conforms": true
+    }
+  ]
+}

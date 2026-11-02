@@ -175,6 +175,51 @@ async def test_official_xml_and_public_web_json_retain_locations():
     assert segments[0].location["json_path"] == "$.main.text"
 
 
+async def test_html_crosswalk_references_propagate_with_exact_mapping_evidence():
+    content = b"""
+    <main>
+      <h2>NS-2: Secure cloud services</h2>
+      <h3>Azure guidance</h3>
+      <p>Use Network Security Perimeter for PaaS resource isolation.</p>
+      <h3>Control mapping</h3>
+      <p>NIST SP 800-53 Rev.5: SC-7(4), SC-7(5), AC-4(21)</p>
+      <p>NIST CSF v2.0: PR.AC-05, PR.DS-05</p>
+      <h2>NS-3: Other control</h2>
+      <p>Use another implementation.</p>
+    </main>
+    """
+    segments = await parse(content, "html")
+    control = next(segment for segment in segments if "Network Security Perimeter" in segment.text)
+    references = control.location["framework_references"]
+    assert {
+        (reference["namespace"], reference["revision"], reference["control_id"])
+        for reference in references
+    } == {
+        ("nist-sp-800-53", "5", "sc-7.4"),
+        ("nist-sp-800-53", "5", "sc-7.5"),
+        ("nist-sp-800-53", "5", "ac-4.21"),
+        ("nist-csf", "2.0", "PR.AC-05"),
+        ("nist-csf", "2.0", "PR.DS-05"),
+    }
+    mapping_segments = {str(segment.id): segment for segment in segments}
+    assert all(
+        mapping_segments[reference["evidence_segment_id"]].text == reference["evidence_excerpt"]
+        for reference in references
+    )
+    unrelated = next(segment for segment in segments if "another implementation" in segment.text)
+    assert "framework_references" not in unrelated.location
+
+
+async def test_html_inline_framework_reference_retains_its_own_segment_evidence():
+    segments = await parse(
+        b"<main><p>NIST SP 800-53 Rev. 5: SC-7</p></main>",
+        "html",
+    )
+    reference = segments[0].location["framework_references"][0]
+    assert reference["evidence_segment_id"] == str(segments[0].id)
+    assert reference["evidence_excerpt"] == segments[0].text
+
+
 async def test_oscal_native_aliases_survive_titled_parts_without_guessing_enhancement_ids():
     content = json.dumps(
         {
@@ -231,6 +276,65 @@ async def test_oscal_parameter_inserts_use_catalog_labels_instead_of_template_ma
         "Define and document the allowed [organization-defined account types]."
     )
     assert "{{" not in segments[0].text
+
+
+async def test_oscal_complete_catalog_groups_normative_statement_and_excludes_guidance():
+    content = json.dumps(
+        {
+            "catalog": {
+                "controls": [
+                    {
+                        "id": "au-6",
+                        "title": "Audit Record Review, Analysis, and Reporting",
+                        "parts": [
+                            {
+                                "id": "au-6_smt",
+                                "name": "statement",
+                                "prose": "Review and analyze system audit records:",
+                                "parts": [
+                                    {
+                                        "id": "au-6_smt.a",
+                                        "name": "item",
+                                        "prose": "For indications of inappropriate activity.",
+                                    }
+                                ],
+                            },
+                            {
+                                "id": "au-6_gdn",
+                                "name": "guidance",
+                                "prose": "Audit review supports investigations.",
+                            },
+                            {
+                                "id": "au-6_obj",
+                                "name": "objective",
+                                "prose": "Determine whether audit records are reviewed.",
+                            },
+                        ],
+                    },
+                    {
+                        "id": "au-11",
+                        "parts": [
+                            {
+                                "id": "au-11_smt",
+                                "name": "statement",
+                                "prose": "Retain audit records for an organization-defined period.",
+                            }
+                        ],
+                    },
+                ]
+            }
+        }
+    ).encode()
+
+    segments = await parse(content, "oscal", control_ids=[])
+
+    assert [segment.heading for segment in segments] == ["au-6", "au-11"]
+    assert segments[0].text == (
+        "Review and analyze system audit records:\n  For indications of inappropriate activity."
+    )
+    assert "guidance" not in segments[0].text.casefold()
+    assert "determine whether" not in segments[0].text.casefold()
+    assert segments[0].location["part_ids"] == ["au-6_smt", "au-6_smt.a"]
 
 
 async def test_oscal_unknown_parameter_insert_is_explicitly_marked_in_location():

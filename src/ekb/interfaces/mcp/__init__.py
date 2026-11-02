@@ -6,17 +6,26 @@ from uuid import UUID
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
+from ekb.domain.architectures import (
+    ArchitectureAssessment,
+    ArchitectureEvidence,
+    SolutionArchitecture,
+)
 from ekb.domain.issues import Issue, IssueStatus
 from ekb.domain.models import ConceptDetail, Provenance, Scope
 from ekb.domain.resolution import Decision, Resolution, ResolutionProfile
 from ekb.runtime import Runtime
+from ekb.services.architectures import ArchitectureService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
 from ekb.services.reconciliation_service import ReconciliationService
 
 
-def create_server(service: KnowledgeService | None = None) -> FastMCP:
+def create_server(
+    service: KnowledgeService | None = None,
+    architecture_service: ArchitectureService | None = None,
+) -> FastMCP:
     @asynccontextmanager
     async def lifespan(server: FastMCP):
         if service:
@@ -25,6 +34,7 @@ def create_server(service: KnowledgeService | None = None) -> FastMCP:
                 "resolver": KnowledgeResolver(service.uow),
                 "issues": IssueService(service.uow),
                 "reconciliation": ReconciliationService(service.uow),
+                "architectures": architecture_service or ArchitectureService(service.uow),
             }
         else:
             async with Runtime() as runtime:
@@ -33,6 +43,7 @@ def create_server(service: KnowledgeService | None = None) -> FastMCP:
                     "resolver": runtime.resolver,
                     "issues": runtime.issues,
                     "reconciliation": runtime.reconciliation,
+                    "architectures": runtime.architectures,
                 }
 
     server = FastMCP(
@@ -45,6 +56,9 @@ def create_server(service: KnowledgeService | None = None) -> FastMCP:
 
     def knowledge(context: Context) -> KnowledgeService:
         return service or context.request_context.lifespan_context["knowledge"]
+
+    def architectures(context: Context) -> ArchitectureService:
+        return context.request_context.lifespan_context["architectures"]
 
     @server.tool()
     async def search_concepts(
@@ -111,5 +125,37 @@ def create_server(service: KnowledgeService | None = None) -> FastMCP:
             "reconciliation"
         ]
         return await reconciliation.history(finding_id)
+
+    @server.tool()
+    async def list_solution_architectures(
+        ctx: Context,
+        limit: Annotated[int, Field(ge=1, le=200)] = 50,
+    ) -> list[SolutionArchitecture]:
+        """List registered immutable solution-architecture revisions."""
+        return await architectures(ctx).list(limit)
+
+    @server.tool()
+    async def get_solution_architecture(
+        architecture_id: UUID,
+        ctx: Context,
+    ) -> SolutionArchitecture | None:
+        """Get one architecture with canonical pointers, controls and exceptions."""
+        return await architectures(ctx).get(architecture_id)
+
+    @server.tool()
+    async def assess_solution_architecture(
+        architecture_id: UUID,
+        ctx: Context,
+        evidence: tuple[ArchitectureEvidence, ...] = (),
+        version: str | None = None,
+        as_of: date | None = None,
+    ) -> ArchitectureAssessment:
+        """Check declared evidence and active exceptions; raw code is not inspected."""
+        return await architectures(ctx).assess(
+            architecture_id,
+            evidence,
+            version=version,
+            as_of=as_of,
+        )
 
     return server

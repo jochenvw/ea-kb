@@ -282,3 +282,40 @@ class IssueEventRow(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     issue_id: Mapped[UUID] = mapped_column(ForeignKey("knowledge_issues.id"), index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class SolutionArchitectureRow(Base):
+    __tablename__ = "solution_architectures"
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SolutionArchitectureRevisionRow(Base):
+    __tablename__ = "solution_architecture_revisions"
+    __table_args__ = (UniqueConstraint("architecture_id", "version"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    architecture_id: Mapped[UUID] = mapped_column(
+        ForeignKey("solution_architectures.id"), index=True
+    )
+    version: Mapped[str] = mapped_column(String(100))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class SolutionArchitectureControlRow(Base):
+    __tablename__ = "solution_architecture_controls"
+    __table_args__ = (
+        UniqueConstraint("revision_id", "concept_id"),
+        CheckConstraint(
+            "disposition IN ('required','exception')",
+            name="solution_architecture_control_disposition",
+        ),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    revision_id: Mapped[UUID] = mapped_column(
+        ForeignKey("solution_architecture_revisions.id"), index=True
+    )
+    concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
+    disposition: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)

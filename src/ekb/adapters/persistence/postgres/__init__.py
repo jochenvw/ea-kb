@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from ekb.adapters.persistence.postgres.architectures import Architectures
 from ekb.adapters.persistence.postgres.inspection import Inspection
 from ekb.adapters.persistence.postgres.issues import Issues
 from ekb.adapters.persistence.postgres.models import (
@@ -682,6 +683,11 @@ class Knowledge:
                 "usage": result.usage.model_dump(),
                 "authority": "candidate",
                 "purpose": purpose,
+                **(
+                    {"framework_references": segment.location["framework_references"]}
+                    if segment.location.get("framework_references")
+                    else {}
+                ),
             },
         )
         await immutable(
@@ -1026,6 +1032,7 @@ class PostgresUnitOfWork:
         self.resolution = ResolutionStore(self.session)
         self.issues = Issues(self.session)
         self.inspection = Inspection(self.session)
+        self.architectures = Architectures(self.session)
 
     async def __aenter__(self) -> PostgresUnitOfWork:
         return self

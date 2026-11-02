@@ -109,30 +109,27 @@ sources:
     framework_revision: "2.0"
     enterprise_requirement: Adhere to NIST Cybersecurity Framework 2.0.
     publisher: US National Institute of Standards and Technology
-    name: NIST Cybersecurity Framework 2.0 (selected OSCAL outcomes)
+    name: NIST Cybersecurity Framework 2.0
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/CSF/v2.0/json/NIST_CSF_v2.0_catalog.json
     format: oscal
     category: cybersecurity
     retrieval: oscal
     jurisdiction: United States
     access_notes: Official usnistgov repository; US government material. Follow repository license and third-party notices. Upstream main is mutable; original bytes and SHA-256 are retained.
-    intended_scope: Voluntary cybersecurity outcomes; applicability and enterprise binding status require a separate decision.
-    control_ids: [GV.OC-01, GV.RM-01, PR.AA-01]
+    intended_scope: Complete voluntary cybersecurity outcome catalog; applicability and enterprise binding status require a separate decision.
   - id: nist-sp800-53-rev5
     framework_namespace: nist-sp-800-53
     framework_revision: "5"
     enterprise_requirement: Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.
     publisher: US National Institute of Standards and Technology
-    name: NIST SP 800-53 revision 5 (selected OSCAL controls)
+    name: NIST SP 800-53 revision 5
     location: https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json
     format: oscal
     category: cybersecurity
     retrieval: oscal
     jurisdiction: United States
-    access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained; only selected controls parsed.
-    intended_scope: Selected access, incident response, boundary protection and input-validation controls; parameter placeholders remain unresolved. Publication does not establish enterprise authority.
-    control_ids:
-      [ac-1, ac-2, ac-6, cm-6, cp-9, ir-4, sc-5, sc-7, sc-7.5, sc-28, si-3, si-10, si-10.1, si-11]
+    access_notes: Official usnistgov repository; US government material. Review third-party notices. Original catalog retained.
+    intended_scope: Complete control catalog; parameter placeholders remain explicit and publication does not establish enterprise authority.
     architecture_principles:
       - id: identity-account-management
         domain: Identity and access management
@@ -154,7 +151,7 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: ac-6
-          semantic_type: ConceptualRequirement
+          semantic_type: TechnicalRequirement
           excerpt_contains: Employ the principle of least privilege, allowing only
         controls:
           - source_id: asb-v2
@@ -168,7 +165,7 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: ir-4
-          semantic_type: ConceptualRequirement
+          semantic_type: TechnicalRequirement
           excerpt_contains: Implement an incident handling capability for incidents
         controls:
           - source_id: asb-v2
@@ -196,8 +193,8 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: sc-7
-          semantic_type: ConceptualRequirement
-          excerpt_contains: Communications at external managed interfaces
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Monitor and control communications at the external managed interfaces
         controls:
           - source_id: asb-v2-network
             heading: "NS-2: Connect private networks together"
@@ -210,8 +207,8 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: sc-5
-          semantic_type: ConceptualRequirement
-          excerpt_contains: denial-of-service attacks
+          semantic_type: TechnicalRequirement
+          excerpt_contains: types of denial-of-service events
         controls:
           - source_id: asb-v2-network
             heading: "NS-4: Protect applications and services from external network attacks"
@@ -252,7 +249,7 @@ sources:
         agnostic:
           source_id: nist-sp800-53-rev5
           heading: sc-28
-          semantic_type: ConceptualRequirement
+          semantic_type: TechnicalRequirement
           excerpt_contains: "Protect the [unresolved OSCAL parameter: sc-28_odp.01]"
         controls:
           - source_id: asb-v2
