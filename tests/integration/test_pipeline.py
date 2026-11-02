@@ -3,6 +3,7 @@ import json
 import re
 from html import escape
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -326,9 +327,7 @@ async def test_adoption_metadata_reprocesses_policy_without_relabeling_or_deleti
     assert parser.calls == 1
     assert (inference.label_calls, inference.extraction_calls) == (1, 1)
     async with database() as uow:
-        assert not await uow.knowledge.search(
-            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
-        )
+        assert not await uow.knowledge.search(semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,))
 
     adopted = item.model_copy(
         update={
@@ -345,9 +344,7 @@ async def test_adoption_metadata_reprocesses_policy_without_relabeling_or_deleti
     assert parser.calls == 1
     assert (inference.label_calls, inference.extraction_calls) == (1, 1)
     async with database() as uow:
-        concepts = await uow.knowledge.search(
-            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
-        )
+        concepts = await uow.knowledge.search(semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,))
         assert len(concepts) == 1
         provenance = await uow.knowledge.provenance(concepts[0].id)
         assert len(provenance) == 1
@@ -365,9 +362,7 @@ async def test_adoption_metadata_reprocesses_policy_without_relabeling_or_deleti
         source = await uow.sources.get(item.id)
         assert source is not None
         assert "enterprise_requirement" not in source.item.metadata
-        concepts = await uow.knowledge.search(
-            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
-        )
+        concepts = await uow.knowledge.search(semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,))
         assert len(concepts) == 1
         provenance = await uow.knowledge.provenance(concepts[0].id)
         assert len(provenance) == 1

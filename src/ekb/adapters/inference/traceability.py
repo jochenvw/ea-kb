@@ -191,7 +191,7 @@ class OpenAITraceabilityMapper:
             client=client,
         )
         self.fingerprint = fingerprint(
-            implementation="control-traceability-v6",
+            implementation="control-traceability-v7",
             model=settings.reconciliation_model_id,
             endpoint=settings.model_endpoint,
             instructions=INSTRUCTIONS,

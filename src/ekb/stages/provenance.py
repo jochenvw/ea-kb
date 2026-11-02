@@ -4,6 +4,7 @@ import asyncio
 import math
 import re
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from itertools import combinations
@@ -578,14 +579,16 @@ def platform_alignment_check(
     embedding_provider: EmbeddingPort | None,
     *,
     concurrency: int,
+    observe_candidates: Callable[[UUID, UUID, tuple[UUID, ...]], None] | None = None,
 ) -> Check:
     version = fingerprint(
-        implementation="platform-alignment-v14",
+        implementation="platform-alignment-v15",
         mapper=mapper.fingerprint if mapper else None,
         embeddings=embedding_provider.fingerprint if embedding_provider else None,
     )
 
     async def evaluate(context: CheckContext) -> CheckResult:
+        context = context.model_copy(update={"check_version": version})
         configuration = ControlMappingOptions.model_validate(context.options.parameters)
         entries = _entries(context)
         parents = [
@@ -611,6 +614,7 @@ def platform_alignment_check(
             prior
             for prior in active_findings(context)
             if prior.check_id == "platform_alignment"
+            and prior.check_version == version
             and prior.action == "relationship"
             and prior.relationship is RelationshipKind.REFINES
             and len(prior.concept_ids) >= 2
@@ -619,6 +623,17 @@ def platform_alignment_check(
             and prior.concept_ids[0] in control_ids
             and prior.concept_ids[0] not in configured_children
             and all(parent_id in parent_ids for parent_id in prior.concept_ids[1:])
+        ]
+        carried_by_child: dict[UUID, list[Finding]] = defaultdict(list)
+        for prior in carried_findings:
+            if prior.confidence >= configuration.confidence_threshold:
+                carried_by_child[prior.concept_ids[0]].append(prior)
+        carried_findings = [
+            prior
+            for group in carried_by_child.values()
+            for prior in sorted(group, key=lambda item: (-item.confidence, str(item.id)))[
+                : configuration.max_parents
+            ]
         ]
         edges.update(
             TraceEdge(
@@ -680,6 +695,13 @@ def platform_alignment_check(
             )
             for child in scanned
         }
+        if observe_candidates is not None:
+            for child in scanned:
+                observe_candidates(
+                    context.run_id,
+                    child.concept_id,
+                    tuple(parent.concept_id for parent in ranked[child.concept_id]),
+                )
         mapped_children = [
             child for child in scanned if not deterministic_candidates[child.concept_id]
         ]
@@ -799,6 +821,7 @@ def platform_alignment_check(
                     relationship=RelationshipKind.REFINES,
                     scope=child.scope,
                     confidence=link.confidence,
+                    deterministic=mapped_result.method == "deterministic-standardized-mechanism",
                     explanation=link.rationale,
                     uncertainty=(
                         "Model-inferred traceability is reviewable and does not grant authority."

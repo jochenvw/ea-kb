@@ -11,7 +11,7 @@
 - `retrieval.py` supplies validated cosine-neighbor retrieval shared by enrichment and evals;
   scaling avoids overflow and underflow for finite nonzero embedding vectors.
 - `architectures.py` registers immutable solution artefacts and assesses declared implementation
-  evidence against explicit requirements and approved exceptions with terse provenance chains.
+  evidence against pinned requirement versions and effective approved exceptions with terse chains.
 - `assessment_basis.py` resolves a selected baseline independently of the design checklist;
   canonical evidence must bind its approval to the exact policy artifact and requirement versions.
 

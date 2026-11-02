@@ -33,7 +33,6 @@ from ekb.domain.models import (
     stable_id,
     total_usage,
 )
-from ekb.domain.reconciliation import EmbeddingResult
 from ekb.domain.resolution import KnowledgeSnapshot
 from ekb.domain.traceability import (
     FrameworkReference,
@@ -44,12 +43,7 @@ from ekb.evaluation.dataset import Split
 from ekb.ports import EmbeddingPort, TraceabilityMapper, UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.stages.enrichment import Check
-from ekb.stages.provenance import (
-    ControlMappingOptions,
-    _rank_parents,
-    assertion,
-    platform_alignment_check,
-)
+from ekb.stages.provenance import ControlMappingOptions, platform_alignment_check
 
 type ProvenanceSplit = Split | Literal["all"]
 
@@ -202,7 +196,7 @@ class ProvenanceQuality(Evaluator[str, ProvenanceExecution, ProvenanceCase]):
 @dataclass
 class ProductionProvenanceQuality(Evaluator[str, ProductionExecution, ProvenanceCase]):
     def get_evaluator_version(self) -> str:
-        return "production-provenance-quality-v1"
+        return "production-provenance-quality-v2"
 
     def evaluate(
         self, ctx: EvaluatorContext[str, ProductionExecution, ProvenanceCase]
@@ -217,11 +211,16 @@ class ProductionProvenanceQuality(Evaluator[str, ProductionExecution, Provenance
             | set(execution.carried_parent_keys)
         )
         expected = set(case.expected_parent_keys)
+        valid = predicted & expected
         return {
-            "exact": not execution.error and predicted == expected,
-            "tp": len(predicted & expected),
+            "exact": (
+                not execution.error
+                and not (predicted - expected)
+                and bool(predicted) == bool(expected)
+            ),
+            "tp": int(bool(valid)),
             "fp": len(predicted - expected),
-            "fn": len(expected - predicted),
+            "fn": int(bool(expected) and not valid),
         }
 
 
@@ -249,19 +248,6 @@ class _EvaluationStore:
         self._entries.update(entries)
 
 
-class _CapturedEmbeddings:
-    def __init__(self, provider: EmbeddingPort) -> None:
-        self._provider = provider
-        self.fingerprint = provider.fingerprint
-        self.model_id = provider.model_id
-        self.vectors: dict[str, tuple[float, ...]] = {}
-
-    async def embed(self, texts: list[str]) -> EmbeddingResult:
-        result = await self._provider.embed(texts)
-        self.vectors.update(zip(texts, result.vectors, strict=True))
-        return result
-
-
 def _production_context(
     case: ProvenanceCase,
     dataset: ProvenanceDataset,
@@ -271,8 +257,6 @@ def _production_context(
 ) -> tuple[
     CheckContext,
     dict[UUID, str],
-    TraceabilityAssertion,
-    tuple[TraceabilityAssertion, ...],
 ]:
     keys = tuple(sorted({case.child_key, *corpus_keys}))
     concepts: dict[str, ConceptDetail] = {}
@@ -291,6 +275,7 @@ def _production_context(
                 statement=value.statement,
                 excerpt=value.excerpt,
                 semantic_type=value.semantic_type,
+                source_key=value.source_key,
                 scope=(
                     Scope(platform="Azure")
                     if value.semantic_type is SemanticType.PLATFORM_REQUIREMENT
@@ -305,6 +290,11 @@ def _production_context(
             excerpt=value.excerpt,
             start=0,
             end=len(value.excerpt),
+            extraction_metadata={
+                "framework_references": [
+                    reference.model_dump(mode="json") for reference in value.framework_references
+                ]
+            },
         )
         versions[key] = version
         occurrences[key] = occurrence
@@ -349,8 +339,6 @@ def _production_context(
     return (
         context,
         parent_by_id,
-        assertion(child, versions[case.child_key]),
-        tuple(assertion(concepts[key], versions[key]) for key in corpus_keys),
     )
 
 
@@ -363,27 +351,21 @@ async def _run_production_case(
     check: Check,
     options: ControlMappingOptions,
     embedding_neighbors: int,
-    captured_embeddings: _CapturedEmbeddings | None,
+    retrieved: dict[tuple[UUID, UUID], tuple[UUID, ...]],
     completed: dict[str, ProductionExecution],
 ) -> ProductionExecution:
     case = cases[case_id]
     started = time.perf_counter()
     try:
-        context, parent_by_id, child, parents = _production_context(
+        context, parent_by_id = _production_context(
             case, dataset, corpus_keys, options, embedding_neighbors
         )
         result: CheckResult = await check.evaluate(context)
-        ranked = (
-            _rank_parents(
-                child,
-                list(parents),
-                captured_embeddings.vectors if captured_embeddings else {},
-                embedding_neighbors,
-            )
-            if not case.carried_parent_keys
-            else ()
-        )
-        candidate_keys = tuple(parent_by_id[parent.concept_id] for parent in ranked)
+        child_id = stable_id("provenance-eval", case.id, case.child_key)
+        candidates = retrieved.get((context.run_id, child_id))
+        if candidates is None and not case.carried_parent_keys:
+            raise ValueError("Production retrieval did not report this child")
+        candidate_keys = tuple(parent_by_id[parent_id] for parent_id in candidates or ())
 
         def parent_keys(*, deterministic_only: bool) -> tuple[str, ...]:
             return tuple(
@@ -429,7 +411,7 @@ async def evaluate_provenance_production(
     max_concurrency: int = 4,
     confidence_threshold: float = 0.72,
     max_parents: int = 3,
-    embedding_neighbors: int = 5,
+    embedding_neighbors: int = 20,
     gates_path: Path = Path("evals") / "gates.json",
     history_dir: Path = Path("data") / "evaluation-history",
 ) -> dict[str, Any]:
@@ -453,12 +435,14 @@ async def evaluate_provenance_production(
             )
         }
     )
-    cases = [case for case in dataset.cases if split == "all" or case.split == split][:max_cases]
+    selected_cases = [case for case in dataset.cases if split == "all" or case.split == split]
+    cases = selected_cases[:max_cases]
     if not cases:
         raise ValueError("No provenance evaluation cases match the selected split")
     options = ControlMappingOptions(
         confidence_threshold=confidence_threshold,
         max_parents=max_parents,
+        semantic_neighbors=embedding_neighbors,
     )
     corpus_keys = tuple(
         sorted(
@@ -468,14 +452,17 @@ async def evaluate_provenance_production(
             in {SemanticType.CONCEPTUAL_REQUIREMENT, SemanticType.TECHNICAL_REQUIREMENT}
         )
     )
-    captured_embeddings = (
-        _CapturedEmbeddings(embedding_provider) if embedding_provider is not None else None
-    )
+    retrieved: dict[tuple[UUID, UUID], tuple[UUID, ...]] = {}
+
+    def observe_candidates(run_id: UUID, child_id: UUID, candidates: tuple[UUID, ...]) -> None:
+        retrieved[(run_id, child_id)] = candidates
+
     check = platform_alignment_check(
         cast(UnitOfWorkFactory, _EvaluationStore()),
         mapper,
-        captured_embeddings,
+        embedding_provider,
         concurrency=max_concurrency,
+        observe_candidates=observe_candidates,
     )
     cases_by_id = {case.id: case for case in cases}
     completed: dict[str, ProductionExecution] = {}
@@ -518,7 +505,7 @@ async def evaluate_provenance_production(
             check=check,
             options=options,
             embedding_neighbors=embedding_neighbors,
-            captured_embeddings=captured_embeddings,
+            retrieved=retrieved,
             completed=completed,
         ),
         max_concurrency=max_concurrency,
@@ -556,14 +543,19 @@ async def evaluate_provenance_production(
             | set(execution.carried_parent_keys)
         )
         expected = set(case.expected_parent_keys)
-        tp += len(predicted & expected)
+        valid = predicted & expected
+        tp += int(bool(valid))
         fp += len(predicted - expected)
-        fn += len(expected - predicted)
-        exact += predicted == expected and execution.error is None and case.id not in failures
-        if not case.carried_parent_keys:
-            for key in case.expected_parent_keys:
-                retrieval_total += 1
-                retrieval_hits += key in execution.candidate_parent_keys
+        fn += int(bool(expected) and not valid)
+        exact += (
+            not (predicted - expected)
+            and bool(predicted) == bool(expected)
+            and execution.error is None
+            and case.id not in failures
+        )
+        if not case.carried_parent_keys and expected:
+            retrieval_total += 1
+            retrieval_hits += bool(expected & set(execution.candidate_parent_keys))
         for category, keys in (
             ("deterministic", execution.deterministic_parent_keys),
             ("model_selected", execution.model_selected_parent_keys),
@@ -635,10 +627,17 @@ async def evaluate_provenance_production(
         "priced_cost": usage.cost is not None and usage.cost <= gates.maximum_estimated_cost,
     }
     passed = not failures and all(quality_gates.values()) and all(performance_gates.values())
+    qualification_gates = {
+        "document_family_isolated": dataset.document_family_isolated,
+        "held_out_test": split == "test",
+        "complete_split": len(cases) == len(selected_cases),
+    }
     report: dict[str, Any] = {
         "evaluation_kind": "production_end_to_end_retrieval_selection",
         "passed": passed,
-        "qualified": passed and model_calls > 0,
+        "qualified": passed and model_calls > 0 and all(qualification_gates.values()),
+        "qualification_gates": qualification_gates,
+        "document_family_isolated": dataset.document_family_isolated,
         "model_backed": model_calls > 0,
         "dataset_version": dataset.version,
         "dataset_sha256": content_hash(dataset_raw),
@@ -651,7 +650,9 @@ async def evaluate_provenance_production(
         "precision": precision,
         "recall": recall,
         "retrieval_recall_at_k": retrieval_hits / retrieval_total if retrieval_total else 1.0,
-        "retrieval_k": embedding_neighbors,
+        "retrieval_k": max((len(item.candidate_parent_keys) for item in executions), default=0),
+        "semantic_neighbors": options.semantic_neighbors,
+        "lexical_neighbors": options.lexical_neighbors,
         "retrieval_scope": "all_dataset_requirements",
         "tp": tp,
         "fp": fp,

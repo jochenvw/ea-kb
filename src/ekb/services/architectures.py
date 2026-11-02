@@ -23,6 +23,7 @@ from ekb.domain.models import (
     SemanticType,
     content_hash,
     fingerprint,
+    knowledge_level,
     now,
     stable_id,
 )
@@ -223,7 +224,7 @@ class ArchitectureService:
             for control in revision.controls:
                 declared = evidence_by_control.get(control.concept_id)
                 outcome = coverage_outcome(control, declared, effective)
-                chain = await self._chain(uow, control.concept_id)
+                chain = await self._chain(uow, control)
                 assessments.append(
                     ControlAssessment(
                         concept_id=control.concept_id,
@@ -246,8 +247,21 @@ class ArchitectureService:
             ),
         )
 
-    async def _chain(self, uow: UnitOfWork, concept_id: UUID) -> tuple[TraceabilityStep, ...]:
-        graph = await uow.inspection.graph(concept_id)
+    async def _chain(
+        self, uow: UnitOfWork, control: ArchitectureControl
+    ) -> tuple[TraceabilityStep, ...]:
+        concept = await uow.knowledge.get(control.concept_id)
+        pinned = (
+            next(
+                (item for item in concept.versions if item.id == control.concept_version_id),
+                None,
+            )
+            if concept
+            else None
+        )
+        if pinned is None:
+            raise ValueError("Architecture control version no longer exists")
+        graph = await uow.inspection.graph(control.concept_id)
         if graph is None:
             return ()
         edges = [
@@ -255,11 +269,21 @@ class ArchitectureService:
             for edge in graph.edges
             if edge.kind in LINEAGE_KINDS and edge.status not in {"proposal", "proposed"}
         ]
+        bound_edges = []
+        for edge in edges:
+            if edge.source == control.concept_id:
+                if edge.evidence and edge.evidence.concept_version_id != pinned.id:
+                    continue
+                if not edge.evidence and edge.href.startswith("/review?finding_id="):
+                    proposal = await uow.resolution.finding(UUID(edge.href.split("=", 1)[1]))
+                    if proposal is None or pinned.id not in proposal.version_ids:
+                        continue
+            bound_edges.append(edge)
         distance = {graph.root: 0}
         queue = [graph.root]
         while queue:
             child = queue.pop(0)
-            for edge in edges:
+            for edge in bound_edges:
                 if edge.source != child or edge.target in distance:
                     continue
                 distance[edge.target] = distance[child] + 1
@@ -282,8 +306,12 @@ class ArchitectureService:
         return tuple(
             TraceabilityStep(
                 concept_id=node.id,
-                level=KnowledgeLevel(node.level or KnowledgeLevel.UNCLASSIFIED),
-                statement=node.label,
+                level=knowledge_level(pinned.candidate)
+                if node.id == control.concept_id
+                else KnowledgeLevel(node.level or KnowledgeLevel.UNCLASSIFIED),
+                statement=pinned.candidate.statement
+                if node.id == control.concept_id
+                else node.label,
             )
             for node in ordered
         )

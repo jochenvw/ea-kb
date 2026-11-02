@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, cast
@@ -911,15 +912,7 @@ async def test_platform_alignment_bypasses_mapper_for_standardized_mechanisms():
     assert result.model_calls == 0
 
 
-async def test_platform_alignment_carries_only_findings_for_current_versions():
-    class CountingMapper(Mapper):
-        def __init__(self):
-            self.calls = 0
-
-        async def map(self, child, parents):
-            self.calls += 1
-            return await super().map(child, parents)
-
+async def test_platform_alignment_carries_findings_until_referenced_version_changes():
     control = concept(
         SemanticType.PLATFORM_REQUIREMENT,
         "Configure the service according to the adopted technical requirement.",
@@ -929,7 +922,7 @@ async def test_platform_alignment_carries_only_findings_for_current_versions():
         SemanticType.TECHNICAL_REQUIREMENT,
         "Manage the service configuration according to organizational requirements.",
     )
-    mapper = CountingMapper()
+    mapper = Mapper()
     check = platform_alignment_check(
         cast(UnitOfWorkFactory, ReplayStore()),
         mapper,
@@ -960,7 +953,7 @@ async def test_platform_alignment_carries_only_findings_for_current_versions():
 
 
 class NoParentMapper:
-    fingerprint = "mapper-test-v2"
+    fingerprint = "mapper-test-v3"
 
     def __init__(self):
         self.calls = 0
@@ -1293,6 +1286,45 @@ async def test_platform_alignment_reapplies_selection_policy_to_replayed_mapping
     assert tuple(item.id for item in strict_confidence.findings) == (default_policy.findings[0].id,)
     assert tuple(item.id for item in single_parent.findings) == (default_policy.findings[0].id,)
     assert mapper.calls == 1
+    carried_policy = await check.evaluate(
+        context(
+            [first_parent, second_parent, control],
+            snapshot_findings=default_policy.findings,
+            parameters={"confidence_threshold": 0.9, "max_parents": 1},
+        )
+    )
+    assert len(carried_policy.findings) == 1
+    assert carried_policy.findings[0].confidence >= 0.9
+    assert mapper.calls == 1
+
+
+async def test_production_candidate_observer_reports_mapper_inputs_on_cache_hits():
+    parent = concept(SemanticType.TECHNICAL_REQUIREMENT, "Manage service configuration.")
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Configure the service according to organizational requirements.",
+        platform="Example",
+    )
+    observed = []
+    supplied = []
+
+    class CapturingMapper(Mapper):
+        async def map(self, child, parents):
+            supplied.append(tuple(parent.concept_id for parent in parents))
+            return await super().map(child, parents)
+
+    mapper = CapturingMapper()
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()),
+        mapper,
+        None,
+        concurrency=1,
+        observe_candidates=lambda run, child, parents: observed.append(parents),
+    )
+    await check.evaluate(context([control, parent]))
+    await check.evaluate(context([control, parent]))
+    assert observed == [supplied[0], supplied[0]]
+    assert mapper.calls == 1
 
 
 class Verifier:
@@ -1451,7 +1483,12 @@ def test_provenance_dataset_isolated_by_child_document_family():
 
     assert families_by_split == {
         "validation": {"azure-security-benchmark-overview-v2"},
-        "test": {"cloud-security-benchmark-network-security"},
+        "test": {
+            "cloud-security-benchmark-network-security",
+            "urn:ekb:synthetic:provenance:negation",
+            "urn:ekb:synthetic:provenance:conditional-scope",
+            "urn:ekb:synthetic:provenance:shared-mechanism",
+        },
     }
     assert {
         split: {
@@ -1465,8 +1502,9 @@ def test_provenance_dataset_isolated_by_child_document_family():
         "validation": {"nist-sp-800-53-revision-5"},
         "test": {"nist-sp-800-53-revision-5"},
     }
-    assert sum(case.split == "validation" for case in dataset.cases) == 6
-    assert sum(case.split == "test" for case in dataset.cases) == 6
+    assert dataset.document_family_isolated
+    assert sum(case.split == "validation" for case in dataset.cases) == 7
+    assert sum(case.split == "test" for case in dataset.cases) == 9
 
 
 def test_provenance_dataset_rejects_same_source_with_different_family_labels():
@@ -1488,7 +1526,9 @@ def test_provenance_dataset_rejects_related_editions_crossing_splits():
     network_case = next(case for case in raw["cases"] if case["id"] == "network-segmentation")
     network_case["split"] = "validation"
 
-    with pytest.raises(ValidationError, match="document families cannot cross"):
+    with pytest.raises(
+        ValidationError, match="(?:document families|source locations) cannot cross"
+    ):
         ProvenanceDataset.model_validate(raw)
 
 
@@ -1527,12 +1567,19 @@ async def test_provenance_evaluation_reports_expected_parent_missing_from_candid
 
 
 async def test_production_provenance_qualifies_retrieval_and_reports_false_links(tmp_path):
+    gates = json.loads(
+        await asyncio.to_thread(Path("evals/gates.json").read_text, encoding="utf-8")
+    )
+    gates["minimum_precision"] = 1
+    gates_path = tmp_path / "strict-gates.json"
+    gates_path.write_text(json.dumps(gates), encoding="utf-8")
     report = await evaluate_provenance_production(
         Path("evals") / "provenance-v2.json",
         tmp_path / "production.json",
         EvaluationMapper(),
         None,
         split="all",
+        gates_path=gates_path,
         history_dir=tmp_path / "history",
     )
 
@@ -1541,7 +1588,7 @@ async def test_production_provenance_qualifies_retrieval_and_reports_false_links
     assert report["qualified"] is False
     assert report["review_status"] == "provisional"
     assert report["authority_status"] == "review_only_no_automatic_approval"
-    assert report["outcome_link_counts"]["deterministic"] == 0
+    assert report["outcome_link_counts"]["deterministic"] > 0
     assert report["outcome_link_counts"]["carried"] == 1
     assert report["outcome_case_counts"]["unresolved"] >= 2
     assert report["selection_policy_fingerprint"]
@@ -1551,10 +1598,45 @@ async def test_production_provenance_qualifies_retrieval_and_reports_false_links
     negative = next(case for case in report["case_results"] if case["id"] == "no-defensible-parent")
     assert negative["expected"] == []
     assert negative["model_selected"] == ["nist-default-deny"]
+    assert "nist-default-deny" in negative["retrieved_candidates"]
+    assert report["retrieval_recall_at_k"] == 1
     assert negative["predicted_evidence"][0]["excerpt"] == (
         "Deny network communications traffic by default and allow network communications traffic "
         "by exception [unresolved OSCAL parameter: sc-07.05_odp.01]."
     )
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "split", "max_cases", "failed_gate"),
+    [
+        ("provenance-v2.json", "test", 1, "complete_split"),
+        ("provenance-v2.json", "all", 100, "held_out_test"),
+        ("provenance-v2.json", "all", 100, "document_family_isolated"),
+    ],
+)
+async def test_production_qualification_requires_isolated_complete_held_out_run(
+    tmp_path, dataset_name, split, max_cases, failed_gate
+):
+    dataset_path = Path("evals") / dataset_name
+    if failed_gate == "document_family_isolated":
+        raw = json.loads(await asyncio.to_thread(dataset_path.read_text, encoding="utf-8"))
+        for value in raw["assertions"].values():
+            value["source"].pop("document_family", None)
+        dataset_path = tmp_path / "legacy-diagnostic.json"
+        await asyncio.to_thread(dataset_path.write_text, json.dumps(raw), encoding="utf-8")
+    report = await evaluate_provenance_production(
+        dataset_path,
+        tmp_path / "production.json",
+        EvaluationMapper(),
+        None,
+        split=split,
+        max_cases=max_cases,
+        history_dir=tmp_path / "history",
+    )
+    assert report["passed"] is True
+    assert report["model_backed"] is True
+    assert report["qualification_gates"][failed_gate] is False
+    assert report["qualified"] is False
 
 
 async def test_production_threshold_and_parent_limit_preserve_unknown_pricing(tmp_path):

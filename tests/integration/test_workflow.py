@@ -391,6 +391,8 @@ async def test_graph_applies_decision_heads_to_manual_and_active_findings(databa
             input_revision="test",
             action="relationship",
             concept_ids=related.concept_ids,
+            version_ids=related.version_ids,
+            occurrence_ids=related.occurrence_ids,
             relationship=RelationshipKind.REFINES,
             confidence=1,
             explanation="Synthetic manual relationship proposal.",
@@ -465,7 +467,7 @@ async def test_graph_applies_decision_heads_to_manual_and_active_findings(databa
             update={
                 "id": uuid4(),
                 "check_id": "company_alignment",
-                "relationship": RelationshipKind.MAPS_TO,
+                "relationship": RelationshipKind.REFINES,
             }
         )
         await runtime.reconciliation.propose(alignment)
@@ -489,6 +491,9 @@ async def test_graph_applies_decision_heads_to_manual_and_active_findings(databa
             )
             await uow.commit()
         assert await graph_edge(alignment, "inferred")
+        async with database() as uow:
+            trace = await uow.inspection.traceability(alignment.concept_ids[0])
+        assert trace and any(edge.href.endswith(str(alignment.id)) for edge in trace.edges)
         alignment_decision = await runtime.reconciliation.decide(
             Decision(
                 finding_id=alignment.id,
@@ -498,6 +503,9 @@ async def test_graph_applies_decision_heads_to_manual_and_active_findings(databa
             )
         )
         assert await graph_edge(alignment, "inferred") is None
+        async with database() as uow:
+            trace = await uow.inspection.traceability(alignment.concept_ids[0])
+        assert trace and not any(edge.href.endswith(str(alignment.id)) for edge in trace.edges)
         assert await runtime.reconciliation.get(alignment.id) == alignment
         assert await runtime.reconciliation.history(alignment.id) == [alignment_decision]
     finally:

@@ -473,6 +473,8 @@ async def test_curation_revalidates_missing_and_ambiguous_evidence(database, tmp
         graph = await uow.inspection.graph(control_id)
         assert graph is not None
         assert not any(edge.status == "configured" for edge in graph.edges)
+        trace = await uow.inspection.traceability(control_id)
+        assert trace and not any(edge.status == "configured" for edge in trace.edges)
 
     await _seed_source(
         database,
@@ -526,6 +528,8 @@ async def test_removing_last_curation_retires_configured_links(database, tmp_pat
         graph = await uow.inspection.graph(control_id)
         assert graph is not None
         assert not any(edge.status == "configured" for edge in graph.edges)
+        trace = await uow.inspection.traceability(control_id)
+        assert trace and not any(edge.status == "configured" for edge in trace.edges)
         history = await uow.inspection.source(stable_id("organization-architecture-curation"))
         assert history is not None
         assert history.revisions == 2

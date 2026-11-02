@@ -9,8 +9,11 @@ zero lexical overlap does not prevent semantic discovery. Provider/input-keyed v
 judgments replay across changed check versions; changed providers or semantic inputs miss the cache.
 `provenance.py` runs ordered company alignment, control-parent mapping and sibling comparison;
 later checks consume earlier findings from the same stage without treating them as approved policy.
-Platform alignment carries unchanged active links whose referenced versions remain current and
+Platform alignment carries unchanged active links only for the current producer and referenced versions,
+reapplies confidence/parent limits, and
 bypasses model mapping when bounded standardized-mechanism semantics determine the parent.
+Negated/conditional mechanisms require model judgment. An optional ID-only observer records the
+actual bounded retrieval pool before cache/model routing for production-path evaluation.
 Control mapping combines twenty semantic and ten weighted lexical neighbors with every
 publisher-declared reference, bounded to thirty-five candidates; the mapper receives source identifiers
 and declared references but must still justify each refinement relationship.

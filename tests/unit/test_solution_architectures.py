@@ -75,6 +75,8 @@ def test_coverage_distinguishes_evidence_active_exception_and_missing():
     )
     assert coverage_outcome(required, evidence, date(2026, 1, 2)) is AssessmentOutcome.CONFORMS
     active = exception(expires_on=date(2026, 12, 31))
+    assert coverage_outcome(active, None, date(2025, 12, 31)) is AssessmentOutcome.MISSING
+    assert coverage_outcome(active, None, date(2026, 1, 1)) is AssessmentOutcome.EXCEPTED
     assert coverage_outcome(active, None, date(2026, 1, 2)) is AssessmentOutcome.EXCEPTED
     assert coverage_outcome(active, None, date(2027, 1, 1)) is AssessmentOutcome.MISSING
     assert coverage_outcome(required, None, date(2026, 1, 2)) is AssessmentOutcome.MISSING

@@ -252,9 +252,11 @@ artefact, artefact metadata, requirement set or exception creates a new version;
 identical content under the same version is idempotent, while conflicting content is rejected.
 
 Approved exceptions are explicit, revision-bound control dispositions with rationale, approver,
-approval time and optional expiry. Deterministic assessment classifies each referenced requirement
+approval time and optional expiry; historical assessments cannot apply an exception before approval.
+Deterministic assessment classifies each referenced requirement
 as `conforms`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
-platform-agnostic to control chain. The current basis is deliberately `declared_evidence`: EKB does
+platform-agnostic to control chain whose control statement and outgoing evidence retain the registered
+version pin. The current basis is deliberately `declared_evidence`: EKB does
 not claim to inspect or verify Bicep, application code or deployed resources. It also does not infer
 that every traceable implementation is required. Architecture authors currently select controls
 from exposure, risk treatment and workload scope. An unselected control is outside this declared
@@ -360,7 +362,9 @@ previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill
 versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
 Graphs distinguish configured links, persisted relationship assertions, proposal records and
 source-history links. Accepted/rejected finding heads are excluded; deferred/reversed and unreviewed
-findings remain visible, with inferred links clearly dashed and review-only. A bounded three-hop
+findings remain visible, with inferred links clearly dashed and review-only. Upward traceability uses
+the same decision heads and current curated-link evidence, so stale links cannot survive in that view.
+A bounded three-hop
 neighborhood exposes company → domain → agnostic requirement → platform-control chains and source
 provenance for every retained concept; it does not invent unresolved targets or confer
 version-specific authority.

@@ -49,8 +49,11 @@ class ArchitectureControl(Model):
         return self
 
     def active_exception(self, as_of: date) -> bool:
-        return self.disposition is ControlDisposition.EXCEPTION and (
-            self.expires_on is None or self.expires_on >= as_of
+        return (
+            self.disposition is ControlDisposition.EXCEPTION
+            and self.approved_at is not None
+            and self.approved_at.date() <= as_of
+            and (self.expires_on is None or self.expires_on >= as_of)
         )
 
 

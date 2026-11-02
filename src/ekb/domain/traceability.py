@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Literal, Self
 from uuid import UUID
 
@@ -16,6 +17,18 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
     """Return whether an explicit standardized mechanism directly implements a parent clause."""
     child = child_statement.casefold()
     parent = parent_statement.casefold()
+    # These two bounded prohibitions enforce a mechanism rather than negate its use.
+    if any(
+        re.search(
+            r"\b(?:no|not|never|cannot|prohibited|forbidden|unless|except|exception|"
+            r"exceptions|if|when|without|optional|disable|disabled)\b",
+            statement.replace("disable public access", "block public access").replace(
+                "deny creation without mandatory tags", "require mandatory tags"
+            ),
+        )
+        for statement in (child, parent)
+    ):
+        return False
 
     private_access = _contains_any(
         child, ("private link", "privatelink", "private endpoint", "private access point")

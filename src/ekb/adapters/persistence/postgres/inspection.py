@@ -4,7 +4,7 @@ import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ekb.adapters.persistence.postgres.models import (
@@ -242,9 +242,8 @@ class Inspection:
             next_cursor=rows[limit - 1][0].id if len(rows) > limit else None,
         )
 
-    async def graph(self, concept_id: UUID) -> KnowledgeGraph | None:
-        if await self.session.get(ConceptRow, concept_id) is None:
-            return None
+    async def _current_relationships(self) -> Select[RelationshipRow]:
+        query = select(RelationshipRow)
         curation_source_id = stable_id("organization-architecture-curation")
         curation_source = await self.session.get(SourceRow, curation_source_id)
         current_curation_revision = (
@@ -277,6 +276,26 @@ class Inspection:
                     current_sources.get(source_id) == revision_id
                     for source_id, revision_id in selected_sources
                 )
+        if curation_source:
+            stale = (
+                select(RelationshipRow.id)
+                .join(OccurrenceRow, OccurrenceRow.id == RelationshipRow.occurrence_id)
+                .join(SegmentRow, SegmentRow.id == OccurrenceRow.segment_id)
+                .join(RevisionRow, RevisionRow.id == SegmentRow.revision_id)
+                .where(
+                    RelationshipRow.payload["status"].astext == "configured",
+                    RevisionRow.source_id == curation_source_id,
+                )
+            )
+            if curation_revision_is_current:
+                stale = stale.where(SegmentRow.revision_id != current_curation_revision)
+            query = query.where(~RelationshipRow.id.in_(stale))
+        return query
+
+    async def graph(self, concept_id: UUID) -> KnowledgeGraph | None:
+        if await self.session.get(ConceptRow, concept_id) is None:
+            return None
+        current_relationships = await self._current_relationships()
         relations: list[RelationshipRow] = []
         seen_relations: set[UUID] = set()
         findings: list[FindingRow] = []
@@ -287,31 +306,12 @@ class Inspection:
         for _ in range(3):
             if not frontier or len(relations) + len(findings) >= 13:
                 break
-            relation_query = select(RelationshipRow).where(
+            relation_query = current_relationships.where(
                 or_(
                     RelationshipRow.from_id.in_(frontier),
                     RelationshipRow.to_id.in_(frontier),
                 )
             )
-            if curation_source:
-                stale_curation_links = (
-                    select(RelationshipRow.id)
-                    .join(
-                        OccurrenceRow,
-                        OccurrenceRow.id == RelationshipRow.occurrence_id,
-                    )
-                    .join(SegmentRow, SegmentRow.id == OccurrenceRow.segment_id)
-                    .join(RevisionRow, RevisionRow.id == SegmentRow.revision_id)
-                    .where(
-                        RelationshipRow.payload["status"].astext == "configured",
-                        RevisionRow.source_id == curation_source_id,
-                    )
-                )
-                if curation_revision_is_current:
-                    stale_curation_links = stale_curation_links.where(
-                        SegmentRow.revision_id != current_curation_revision
-                    )
-                relation_query = relation_query.where(~RelationshipRow.id.in_(stale_curation_links))
             rows = list(
                 await self.session.scalars(
                     relation_query.order_by(RelationshipRow.id).limit(
@@ -537,6 +537,7 @@ class Inspection:
             return None
         lineage_kinds = ("refines", "supports", "inDomain")
         active_findings = await self._active()
+        current_relationships = await self._current_relationships()
         known = {concept_id}
         frontier = {concept_id}
         edges: list[GraphEdge] = []
@@ -547,20 +548,34 @@ class Inspection:
                 break
             relations = list(
                 await self.session.scalars(
-                    select(RelationshipRow)
-                    .where(
+                    current_relationships.where(
                         RelationshipRow.from_id.in_(frontier),
                         RelationshipRow.kind.in_(lineage_kinds),
-                    )
-                    .order_by(RelationshipRow.id)
+                    ).order_by(RelationshipRow.id)
                 )
             )
             finding_rows = list(
                 await self.session.scalars(
                     select(FindingRow)
+                    .outerjoin(
+                        DecisionRow,
+                        DecisionRow.id
+                        == (
+                            select(DecisionRow.id)
+                            .where(DecisionRow.finding_id == FindingRow.id)
+                            .order_by(DecisionRow.recorded_at.desc(), DecisionRow.id.desc())
+                            .correlate(FindingRow)
+                            .limit(1)
+                            .scalar_subquery()
+                        ),
+                    )
                     .where(
                         FindingRow.id.in_(active_findings),
                         FindingRow.check_id.in_(("company_alignment", "platform_alignment")),
+                        or_(
+                            DecisionRow.id.is_(None),
+                            DecisionRow.outcome.not_in(("accepted", "rejected")),
+                        ),
                         or_(
                             *(
                                 FindingRow.payload["concept_ids"].contains([str(identity)])

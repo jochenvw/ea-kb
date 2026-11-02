@@ -165,9 +165,7 @@ def test_platform_independent_requirements_require_source_adoption():
     assert [
         candidate.semantic_type for candidate in apply_source_policy(item, extraction).candidates
     ] == [SemanticType.PLATFORM_REQUIREMENT]
-    adopted = item.model_copy(
-        update={"metadata": {"enterprise_requirement": "Use this standard."}}
-    )
+    adopted = item.model_copy(update={"metadata": {"enterprise_requirement": "Use this standard."}})
     assert apply_source_policy(adopted, extraction).candidates == extraction.candidates
 
 

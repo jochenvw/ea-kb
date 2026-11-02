@@ -230,6 +230,8 @@ async def test_solution_architecture_revisions_are_immutable_and_assessable(data
         KnowledgeLevel.PLATFORM_AGNOSTIC,
         KnowledgeLevel.PLATFORM_SPECIFIC,
     ]
+    assert missing.controls[0].chain[-1].statement == original_platform_version.candidate.statement
+    assert replacement_platform_version.candidate.statement not in missing.controls[0].explanation
     conforming = await service.assess(
         architecture.id,
         (
@@ -363,7 +365,9 @@ async def test_relationship_occurrences_do_not_project_as_candidate_evidence(dat
         uuid4(),
     )
     original_text = "Operators must authenticate."
-    curation_text = "Service owners must retain audit records. This rationale links the requirement."
+    curation_text = (
+        "Service owners must retain audit records. This rationale links the requirement."
+    )
     replacement_text = "Operators must restore service after an outage."
     original_segment = Segment(
         id=uuid4(), revision_id=original_revision_id, ordinal=0, text=original_text
@@ -389,9 +393,7 @@ async def test_relationship_occurrences_do_not_project_as_candidate_evidence(dat
         format="txt",
     )
     async with database() as uow:
-        await uow.sources.save(
-            SourceRecord(item=original_item, revision_id=original_revision_id)
-        )
+        await uow.sources.save(SourceRecord(item=original_item, revision_id=original_revision_id))
         await uow.sources.save_revision(
             SourceRevision(
                 id=original_revision_id,
@@ -419,9 +421,7 @@ async def test_relationship_occurrences_do_not_project_as_candidate_evidence(dat
                 ),
             )
         )[0]
-        await uow.sources.save(
-            SourceRecord(item=curation_item, revision_id=curation_revision_id)
-        )
+        await uow.sources.save(SourceRecord(item=curation_item, revision_id=curation_revision_id))
         await uow.sources.save_revision(
             SourceRevision(
                 id=curation_revision_id,
@@ -483,9 +483,7 @@ async def test_relationship_occurrences_do_not_project_as_candidate_evidence(dat
 
     async with database() as uow:
         occurrence = await uow.session.scalar(
-            select(OccurrenceRow).where(
-                OccurrenceRow.concept_version_id == curation_version.id
-            )
+            select(OccurrenceRow).where(OccurrenceRow.concept_version_id == curation_version.id)
         )
         assert occurrence
         payload = dict(occurrence.payload)
