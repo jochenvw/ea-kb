@@ -362,7 +362,14 @@ class Knowledge:
                 select(OccurrenceRow.concept_version_id)
                 .join(SegmentRow, OccurrenceRow.segment_id == SegmentRow.id)
                 .join(RevisionRow, SegmentRow.revision_id == RevisionRow.id)
-                .where(RevisionRow.source_id == source_id)
+                .where(
+                    RevisionRow.source_id == source_id,
+                    or_(
+                        OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(None),
+                        OccurrenceRow.payload["extraction_metadata"]["purpose"].astext
+                        == "candidate",
+                    ),
+                )
             )
             matches = matches.where(VersionRow.id.in_(own))
         matched = matches.subquery()
@@ -430,7 +437,13 @@ class Knowledge:
             .join(RevisionRow, RevisionRow.source_id == SourceRow.id)
             .join(SegmentRow, SegmentRow.revision_id == RevisionRow.id)
             .join(OccurrenceRow, OccurrenceRow.segment_id == SegmentRow.id)
-            .where(OccurrenceRow.concept_version_id.in_(version_ids))
+            .where(
+                OccurrenceRow.concept_version_id.in_(version_ids),
+                or_(
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(None),
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext == "candidate",
+                ),
+            )
             .group_by(SourceRow.id, OccurrenceRow.concept_version_id)
             .order_by(SourceRow.id, OccurrenceRow.concept_version_id)
         )

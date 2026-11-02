@@ -115,7 +115,13 @@ class Inspection:
         segments = select(SegmentRow.id).where(SegmentRow.revision_id.in_(revisions))
         own_versions = (
             select(OccurrenceRow.concept_version_id)
-            .where(OccurrenceRow.segment_id.in_(segments))
+            .where(
+                OccurrenceRow.segment_id.in_(segments),
+                or_(
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(None),
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext == "candidate",
+                ),
+            )
             .distinct()
         )
         counts = (
@@ -126,7 +132,16 @@ class Inspection:
                     select(func.count()).select_from(own_versions.subquery()).scalar_subquery(),
                     select(func.count())
                     .select_from(OccurrenceRow)
-                    .where(OccurrenceRow.segment_id.in_(segments))
+                    .where(
+                        OccurrenceRow.segment_id.in_(segments),
+                        or_(
+                            OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(
+                                None
+                            ),
+                            OccurrenceRow.payload["extraction_metadata"]["purpose"].astext
+                            == "candidate",
+                        ),
+                    )
                     .scalar_subquery(),
                 )
             )
@@ -134,7 +149,13 @@ class Inspection:
         query = (
             select(VersionRow, func.count(OccurrenceRow.id))
             .join(OccurrenceRow, OccurrenceRow.concept_version_id == VersionRow.id)
-            .where(OccurrenceRow.segment_id.in_(segments))
+            .where(
+                OccurrenceRow.segment_id.in_(segments),
+                or_(
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext.is_(None),
+                    OccurrenceRow.payload["extraction_metadata"]["purpose"].astext == "candidate",
+                ),
+            )
             .group_by(VersionRow.id)
             .order_by(VersionRow.id)
         )
@@ -402,7 +423,7 @@ class Inspection:
                                 None
                             ),
                             OccurrenceRow.payload["extraction_metadata"]["purpose"].astext
-                            != "relationship",
+                            == "candidate",
                         ),
                     )
                     .distinct()

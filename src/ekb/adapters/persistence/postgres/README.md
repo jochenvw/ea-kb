@@ -5,8 +5,10 @@
   type projections must match payloads. Unknown stays null; succession is lifecycle metadata.
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
-- Source filters and text search match the same evidenced version, not an unrelated latest one.
+- Source filters, citations and extraction inspection use candidate evidence (including legacy
+  purpose-less occurrences), not relationship rationale.
 - Level filters use that same evidenced version; graph edges require retained evidence or proposals.
+- Source filters and text search match the same evidenced version, not an unrelated latest one.
 - Provenance selectors resolve exact current-revision heading/excerpt matches; configured links keep
   relationship evidence separate from concept evidence and may use ontology `inDomain`.
 - Graph inspection follows up to three relationship hops and shows source provenance for every

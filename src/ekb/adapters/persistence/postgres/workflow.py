@@ -210,7 +210,10 @@ class ResolutionStore:
         }
         current_segments = {r.id for r in segments if str(r.revision_id) in current_revisions}
         current_versions = frozenset(
-            o.concept_version_id for o in occurrences if o.segment_id in current_segments
+            o.concept_version_id
+            for o in occurrences
+            if o.segment_id in current_segments
+            and o.extraction_metadata.get("purpose") in (None, "candidate")
         )
         latest_assessments: dict[UUID, PublicationRow] = {}
         for row in await self._bounded(PublicationRow):
