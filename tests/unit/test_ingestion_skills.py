@@ -594,6 +594,7 @@ async def test_default_scan_finishes_inventory_before_semantic_processing(tmp_pa
     store.return_value.__aexit__ = AsyncMock()
     uow.processing.save_scan = AsyncMock()
     uow.sources.list = AsyncMock(return_value=[])
+    uow.sources.get = AsyncMock(return_value=None)
     uow.commit = AsyncMock()
     pipeline = IngestionPipeline(store, MagicMock(), StructuredParser(), RulesInference())
     prepared = []

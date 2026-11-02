@@ -10,8 +10,9 @@ strategic goals and requirements before persistence.
 Optional `RequestControlledSkills` scopes a `ModelRequestLimiter` around evaluation requests;
 providers reserve each actual request, including retries, by deployment and reset on cancellation.
 Knowledge search supports exact-source/level filters and exclusive UUID cursors in stable order.
-Knowledge repositories match configured selectors against exact current-revision provenance and
-persist configured concept links without moving source or curation behavior into the domain.
+Knowledge repositories match configured selectors against exact current-revision provenance,
+including the selected evidence occurrence IDs, and persist configured concept links without
+moving source or curation behavior into the domain.
 `SolutionArchitectureRepository` stores immutable architecture revisions and their explicit
 requirement dispositions; artifact bytes remain behind the shared `ArtifactStore`.
 `AssertionWriter` rephrases a version against its exact evidence; original candidates stay immutable.

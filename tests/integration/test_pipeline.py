@@ -830,7 +830,7 @@ async def test_staged_acquisition_barrier_and_bounded_parallel_extraction(databa
     first = await pipeline.scan(
         [ParallelFiles(source)], staged=True, phase=lambda phase, report: phases.append(phase)
     )
-    assert phases == ["discovery", "discovered", "completed"]
+    assert phases == ["discovery", "discovered", "organizing", "completed"]
     assert peak > 1 and peak <= pipeline.concurrency
     assert first.processed == 4 and first.unknown == 4 and first.known == 0
     calls = inference.calls

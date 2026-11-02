@@ -629,6 +629,9 @@ class ConceptMatch(Model):
     concept_id: UUID
     version_id: UUID
     candidate: Candidate
+    source_id: UUID
+    revision_id: UUID
+    evidence_ids: tuple[UUID, ...]
 
 
 class ConceptLink(Model):

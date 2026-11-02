@@ -9,6 +9,7 @@ from ekb.domain.models import (
     Candidate,
     ClassificationProperty,
     ConceptLink,
+    ConceptMatch,
     Extraction,
     InferenceResult,
     Modality,
@@ -27,13 +28,6 @@ from ekb.ports import ArtifactStore, UnitOfWorkFactory
 
 CURATION_PARSER = "organization-architecture-v1"
 SOURCE_POLICY_VERSION = "source-policy-v2"
-
-
-def has_organization_configuration(items: Iterable[SourceItem]) -> bool:
-    return any(
-        item.metadata.get("enterprise_requirement") or item.metadata.get("architecture_principles")
-        for item in items
-    )
 
 
 def apply_source_policy(item: SourceItem, extraction: Extraction) -> Extraction:
@@ -149,16 +143,45 @@ async def organize_knowledge(
     artifacts: ArtifactStore,
     items: Iterable[SourceItem],
 ) -> int:
+    items = list(items)
     requirements, principles = _configuration(items)
-    if not requirements and not principles:
+    source_id = stable_id("organization-architecture-curation")
+    async with uow() as work:
+        previous = await work.sources.get(source_id)
+        resolved: dict[str, tuple[ConceptMatch, list[ConceptMatch]]] = {}
+        evidence: dict[str, list[dict[str, object]]] = {}
+        for principle in principles:
+            agnostic_matches = await work.knowledge.match(principle.agnostic)
+            if len(agnostic_matches) != 1:
+                raise ValueError(
+                    f"Principle {principle.id} expected one agnostic match, "
+                    f"found {len(agnostic_matches)}"
+                )
+            control_matches = []
+            for selector in principle.controls:
+                matches = await work.knowledge.match(selector)
+                if len(matches) != 1:
+                    raise ValueError(
+                        f"Principle {principle.id} expected one control match for "
+                        f"{selector.source_id}/{selector.heading}, "
+                        f"found {len(matches)}"
+                    )
+                control_matches.append(matches[0])
+            agnostic = agnostic_matches[0]
+            resolved[principle.id] = (agnostic, control_matches)
+            evidence[principle.id] = [
+                _match_evidence(agnostic),
+                *(_match_evidence(match) for match in control_matches),
+            ]
+    if not requirements and not principles and previous is None:
         return 0
     configuration = {
         "requirements": requirements,
         "principles": [principle.model_dump(mode="json") for principle in principles],
+        "selected_evidence": evidence,
     }
     content = json.dumps(configuration, sort_keys=True, indent=2).encode()
     digest = content_hash(content)
-    source_id = stable_id("organization-architecture-curation")
     revision_id = stable_id(source_id, digest)
     item = SourceItem(
         id=source_id,
@@ -169,8 +192,6 @@ async def organize_knowledge(
         indicator=digest,
         metadata={"schema": CURATION_PARSER},
     )
-    async with uow() as work:
-        previous = await work.sources.get(source_id)
     if previous and previous.revision_id == revision_id:
         return 0
     key = await artifacts.put(content)
@@ -304,13 +325,7 @@ async def organize_knowledge(
     link_count = 0
     async with uow() as work:
         for principle in principles:
-            agnostic_matches = await work.knowledge.match(principle.agnostic)
-            if len(agnostic_matches) != 1:
-                raise ValueError(
-                    f"Principle {principle.id} expected one agnostic match, "
-                    f"found {len(agnostic_matches)}"
-                )
-            agnostic = agnostic_matches[0]
+            agnostic, control_matches = resolved[principle.id]
             domain_id, domain_version_id = domain_concepts[principle.domain]
             requirement_id, _ = requirement_concepts[principle.strategic_requirement_source_id]
             links = [
@@ -329,15 +344,7 @@ async def organize_knowledge(
                     excerpt=principle.rationale,
                 ),
             ]
-            for selector in principle.controls:
-                control_matches = await work.knowledge.match(selector)
-                if len(control_matches) != 1:
-                    raise ValueError(
-                        f"Principle {principle.id} expected one control match for "
-                        f"{selector.source_id}/{selector.heading}, "
-                        f"found {len(control_matches)}"
-                    )
-                control = control_matches[0]
+            for control in control_matches:
                 links.append(
                     ConceptLink(
                         from_concept_id=control.concept_id,
@@ -369,3 +376,13 @@ async def organize_knowledge(
         )
         await work.commit()
     return len(requirement_concepts) + len(domain_concepts) + link_count
+
+
+def _match_evidence(match: ConceptMatch) -> dict[str, object]:
+    return {
+        "concept_id": str(match.concept_id),
+        "version_id": str(match.version_id),
+        "source_id": str(match.source_id),
+        "revision_id": str(match.revision_id),
+        "evidence_ids": [str(identity) for identity in match.evidence_ids],
+    }

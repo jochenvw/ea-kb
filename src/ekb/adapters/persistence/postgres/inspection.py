@@ -33,7 +33,7 @@ from ekb.domain.inspection import (
     TableInfo,
     TablePage,
 )
-from ekb.domain.models import Occurrence, SourceRecord, knowledge_level
+from ekb.domain.models import Occurrence, SourceRecord, knowledge_level, stable_id
 from ekb.domain.resolution import Decision, Finding
 
 
@@ -224,6 +224,38 @@ class Inspection:
     async def graph(self, concept_id: UUID) -> KnowledgeGraph | None:
         if await self.session.get(ConceptRow, concept_id) is None:
             return None
+        curation_source_id = stable_id("organization-architecture-curation")
+        curation_source = await self.session.get(SourceRow, curation_source_id)
+        current_curation_revision = (
+            UUID(curation_source.payload["revision_id"])
+            if curation_source and curation_source.payload.get("revision_id")
+            else None
+        )
+        curation_revision_is_current = current_curation_revision is not None
+        if current_curation_revision is not None:
+            curation_revision = await self.session.get(RevisionRow, current_curation_revision)
+            snapshot = (
+                curation_revision.payload.get("metadata_snapshot", {}) if curation_revision else {}
+            )
+            selected = snapshot.get("selected_evidence", {})
+            selected_sources = {
+                (UUID(match["source_id"]), match["revision_id"])
+                for matches in selected.values()
+                for match in matches
+            }
+            if selected_sources:
+                current_sources = {
+                    row.id: row.payload.get("revision_id")
+                    for row in await self.session.scalars(
+                        select(SourceRow).where(
+                            SourceRow.id.in_({source_id for source_id, _ in selected_sources})
+                        )
+                    )
+                }
+                curation_revision_is_current = all(
+                    current_sources.get(source_id) == revision_id
+                    for source_id, revision_id in selected_sources
+                )
         relations: list[RelationshipRow] = []
         seen_relations: set[UUID] = set()
         findings: list[FindingRow] = []
@@ -234,17 +266,36 @@ class Inspection:
         for _ in range(3):
             if not frontier or len(relations) + len(findings) >= 13:
                 break
+            relation_query = select(RelationshipRow).where(
+                or_(
+                    RelationshipRow.from_id.in_(frontier),
+                    RelationshipRow.to_id.in_(frontier),
+                )
+            )
+            if curation_source:
+                stale_curation_links = (
+                    select(RelationshipRow.id)
+                    .join(
+                        OccurrenceRow,
+                        OccurrenceRow.id == RelationshipRow.occurrence_id,
+                    )
+                    .join(SegmentRow, SegmentRow.id == OccurrenceRow.segment_id)
+                    .join(RevisionRow, RevisionRow.id == SegmentRow.revision_id)
+                    .where(
+                        RelationshipRow.payload["status"].astext == "configured",
+                        RevisionRow.source_id == curation_source_id,
+                    )
+                )
+                if curation_revision_is_current:
+                    stale_curation_links = stale_curation_links.where(
+                        SegmentRow.revision_id != current_curation_revision
+                    )
+                relation_query = relation_query.where(~RelationshipRow.id.in_(stale_curation_links))
             rows = list(
                 await self.session.scalars(
-                    select(RelationshipRow)
-                    .where(
-                        or_(
-                            RelationshipRow.from_id.in_(frontier),
-                            RelationshipRow.to_id.in_(frontier),
-                        )
+                    relation_query.order_by(RelationshipRow.id).limit(
+                        13 - len(relations) - len(findings)
                     )
-                    .order_by(RelationshipRow.id)
-                    .limit(13 - len(relations) - len(findings))
                 )
             )
             finding_rows = list(
