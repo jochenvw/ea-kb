@@ -37,6 +37,7 @@ from ekb.domain.traceability import (
     FrameworkReference,
     ParentSelection,
     TraceabilityAssertion,
+    TraceabilitySelection,
     TraceabilityVerification,
     standardized_mechanism_supports,
 )
@@ -544,6 +545,33 @@ def _semantic(assertion: TraceabilityAssertion) -> SemanticAssertion:
     )
 
 
+def _standardized_parent_candidates(
+    child: TraceabilityAssertion,
+    parents: list[TraceabilityAssertion],
+    ranked: tuple[TraceabilityAssertion, ...],
+) -> tuple[TraceabilityAssertion, ...]:
+    matches = [
+        parent
+        for parent in parents
+        if standardized_mechanism_supports(child.statement, parent.statement)
+    ]
+    if not matches:
+        return ()
+    ranked_positions = {parent.concept_id: index for index, parent in enumerate(ranked)}
+    lexical_scores = _lexical_scores(child.statement, matches)
+    return tuple(
+        sorted(
+            matches,
+            key=lambda parent: (
+                parent.concept_id not in ranked_positions,
+                ranked_positions.get(parent.concept_id, len(ranked)),
+                -lexical_scores[parent.concept_id],
+                str(parent.concept_id),
+            ),
+        )
+    )
+
+
 def platform_alignment_check(
     database: UnitOfWorkFactory,
     mapper: TraceabilityMapper | None,
@@ -552,7 +580,7 @@ def platform_alignment_check(
     concurrency: int,
 ) -> Check:
     version = fingerprint(
-        implementation="platform-alignment-v8",
+        implementation="platform-alignment-v13",
         mapper=mapper.fingerprint if mapper else None,
         embeddings=embedding_provider.fingerprint if embedding_provider else None,
     )
@@ -571,7 +599,37 @@ def platform_alignment_check(
             if concept_version.candidate.semantic_type is SemanticType.PLATFORM_REQUIREMENT
         ]
         parent_ids = {parent.concept_id for parent in parents}
+        control_ids = {control.concept_id for control in controls}
         edges = relationship_edges(context, exclude_checks=frozenset({"platform_alignment"}))
+        current_version_ids = context.snapshot.current_version_ids
+        configured_children = {
+            edge.source
+            for edge in edges
+            if edge.kind is RelationshipKind.REFINES and edge.source in control_ids
+        }
+        carried_findings = [
+            prior
+            for prior in active_findings(context)
+            if prior.check_id == "platform_alignment"
+            and prior.action == "relationship"
+            and prior.relationship is RelationshipKind.REFINES
+            and len(prior.concept_ids) >= 2
+            and len(prior.version_ids) >= 2
+            and set(prior.version_ids) <= current_version_ids
+            and prior.concept_ids[0] in control_ids
+            and prior.concept_ids[0] not in configured_children
+            and all(parent_id in parent_ids for parent_id in prior.concept_ids[1:])
+        ]
+        edges.update(
+            TraceEdge(
+                prior.concept_ids[0],
+                parent_id,
+                RelationshipKind.REFINES,
+            )
+            for prior in carried_findings
+            for parent_id in prior.concept_ids[1:]
+            if parent_id in parent_ids
+        )
 
         def current_parents(control_id: UUID) -> set[UUID]:
             return {
@@ -614,26 +672,65 @@ def platform_alignment_check(
             }
 
         ranked = await asyncio.to_thread(rank_controls)
+        deterministic_candidates = {
+            child.concept_id: _standardized_parent_candidates(
+                child,
+                parents,
+                ranked[child.concept_id],
+            )
+            for child in scanned
+        }
+        mapped_children = [
+            child for child in scanned if not deterministic_candidates[child.concept_id]
+        ]
         mapping_cache: dict[str, SemanticCacheEntry] = {}
         active_mapper = mapper
         if active_mapper:
             keys = [
                 _mapping_key(active_mapper, child, ranked[child.concept_id])
-                for child in scanned
+                for child in mapped_children
                 if ranked[child.concept_id]
             ]
             if keys:
                 async with database() as uow:
                     mapping_cache = await uow.workflow.semantic_cache(keys)
 
-        mapped: list[tuple[TraceabilityAssertion, TraceabilityVerification]] = []
+        mapped: list[tuple[TraceabilityAssertion, TraceabilityVerification]] = [
+            (
+                child,
+                TraceabilityVerification(
+                    selection=TraceabilitySelection(
+                        links=(
+                            ParentSelection(
+                                parent_concept_id=deterministic_candidates[child.concept_id][
+                                    0
+                                ].concept_id,
+                                confidence=0.95,
+                                rationale=(
+                                    "The child explicitly states a standardized mechanism whose "
+                                    "bounded semantics directly implement the selected parent "
+                                    "clause."
+                                ),
+                                child_excerpt=child.excerpt,
+                                parent_excerpt=deterministic_candidates[child.concept_id][
+                                    0
+                                ].excerpt,
+                            ),
+                        )
+                    ),
+                    method="deterministic-standardized-mechanism",
+                ),
+            )
+            for child in scanned
+            if deterministic_candidates[child.concept_id]
+        ]
         if active_mapper:
             queue: asyncio.Queue[TraceabilityAssertion | None] = asyncio.Queue(
                 maxsize=max(concurrency * 2, 1)
             )
 
             async def produce() -> None:
-                for child in scanned:
+                for child in mapped_children:
                     await queue.put(child)
                 for _ in range(concurrency):
                     await queue.put(None)
@@ -661,7 +758,7 @@ def platform_alignment_check(
                     group.create_task(consume())
 
         by_parent = {parent.concept_id: parent for parent in parents}
-        results: list[Finding] = []
+        results: list[Finding] = list(carried_findings)
         model_calls = output_tokens = latency = validation_failures = 0
         input_tokens = embedding_tokens
         deterministic_selections = selections = rejected = unknown = 0
@@ -683,22 +780,8 @@ def platform_alignment_check(
             )[: configuration.max_parents]
             rejected += len(mapped_result.selection.links) - len(model_retained)
             retained_by_id = {link.parent_concept_id: link for link in model_retained}
-            if not retained_by_id:
-                for parent in ranked[child.concept_id]:
-                    if not standardized_mechanism_supports(child.statement, parent.statement):
-                        continue
-                    retained_by_id[parent.concept_id] = ParentSelection(
-                        parent_concept_id=parent.concept_id,
-                        confidence=0.95,
-                        rationale=(
-                            "The child explicitly states a standardized mechanism whose bounded "
-                            "semantics directly implement the selected parent clause."
-                        ),
-                        child_excerpt=child.excerpt,
-                        parent_excerpt=parent.excerpt,
-                    )
-                    deterministic_selections += 1
-                    break
+            if mapped_result.method == "deterministic-standardized-mechanism":
+                deterministic_selections += len(retained_by_id)
             retained = tuple(retained_by_id.values())
             if not retained:
                 unknown += 1
@@ -755,6 +838,7 @@ def platform_alignment_check(
                     count > 1 for count in parent_counts.values()
                 ),
                 "platform_controls_unscanned": max(len(unmapped) - len(scanned), 0),
+                "platform_parent_selections_carried": len(carried_findings),
                 "agnostic_requirements_total": len(parents),
                 "agnostic_with_controls": len(agnostic_with_controls),
                 "agnostic_without_controls": len(parent_ids - agnostic_with_controls),

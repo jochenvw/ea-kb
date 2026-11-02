@@ -18,7 +18,7 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
     parent = parent_statement.casefold()
 
     private_access = _contains_any(
-        child, ("private link", "private endpoint", "private access point")
+        child, ("private link", "privatelink", "private endpoint", "private access point")
     )
     if private_access and (
         "separate information flows" in parent
@@ -75,6 +75,7 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
             "firewall",
             "network acl",
             "network security group",
+            "security groups",
             "security group rules",
         ),
     )
@@ -89,6 +90,188 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
                 "policy filters",
             ),
         )
+    ):
+        return True
+
+    firewall_policy = "firewall" in child and _contains_any(
+        child,
+        (
+            "configure azure firewall",
+            "deploy and configure",
+            "firewall rules",
+            "firewall policy",
+        ),
+    )
+    if firewall_policy and _contains_any(
+        parent,
+        (
+            "information flow control",
+            "external managed interfaces",
+            "controlling the flow of information",
+        ),
+    ):
+        return True
+
+    central_management = _contains_any(
+        child,
+        (
+            "central management",
+            "centrally manage",
+            "firewall manager",
+            "firewall policy",
+        ),
+    )
+    if central_management and "centrally manage" in parent:
+        return True
+
+    waf = _contains_any(child, ("web application firewall", "waf"))
+    if (
+        waf
+        and _contains_any(
+            child,
+            (
+                "block malicious",
+                "detection mode",
+                "prevention mode",
+                "protect applications",
+                "protect apis",
+            ),
+        )
+        and _contains_any(
+            parent,
+            (
+                "information flow control",
+                "external managed interfaces",
+                "validity of the following information inputs",
+            ),
+        )
+    ):
+        return True
+
+    application_firewall = _contains_any(child, ("web application firewall", "waf", "cloud armor"))
+    if (
+        application_firewall
+        and _contains_any(
+            child,
+            (
+                "application-specific attacks",
+                "bot protection",
+                "common web attacks",
+                "deploy a web application firewall",
+                "modsecurity",
+                "owasp",
+                "protect applications",
+                "protect web applications",
+                "web-application vulnerabilities",
+            ),
+        )
+        and "application self-protection at runtime" in parent
+    ):
+        return True
+    if (
+        "built-in ruleset" in child
+        and "owasp" in child
+        and "application self-protection at runtime" in parent
+    ):
+        return True
+    if (
+        application_firewall
+        and _contains_any(child, ("baseline groups", "built-in ruleset", "managed rules"))
+        and "configuration settings" in parent
+    ):
+        return True
+    if (
+        waf
+        and "associate" in child
+        and _contains_any(child, ("service endpoint", "application gateway", "front door"))
+        and "external managed interfaces" in parent
+    ):
+        return True
+    false_positive_tuning = "false positives" in child and _contains_any(
+        child, ("custom rules", "exclusions", "tune", "reduce")
+    )
+    if false_positive_tuning and _contains_any(parent, ("accuracy", "monitoring results")):
+        return True
+
+    private_connectivity = "private connectivity" in child
+    if private_connectivity and _contains_any(
+        parent,
+        (
+            "separate information flows",
+            "network integrity is protected",
+            "unauthorized logical access",
+        ),
+    ):
+        return True
+
+    if "network security perimeter" in child and _contains_any(
+        parent,
+        (
+            "separate information flows",
+            "network integrity is protected",
+            "unauthorized logical access",
+        ),
+    ):
+        return True
+
+    vpn = _contains_any(child, ("virtual private network", " vpn ", "ipsec"))
+    if (
+        vpn
+        and _contains_any(child, ("secure connection", "site-to-site", "point-to-site"))
+        and ("transmitted information" in parent or "remote access is managed" in parent)
+    ):
+        return True
+
+    if (
+        _contains_any(child, ("avoid assigning public ips", "avoid public ip", "without public ip"))
+        and _contains_any(child, ("application gateway", "load balancer", "front-end"))
+        and _contains_any(parent, ("direct connection", "managed interface"))
+    ):
+        return True
+
+    if (
+        "vpc peering" in child
+        and _contains_any(child, ("create", "accept", "connection"))
+        and "authorize internal connections" in parent
+    ):
+        return True
+
+    if (
+        "custom routes" in child
+        and _contains_any(child, ("forced through", "network appliance", "security control"))
+        and _contains_any(
+            parent,
+            ("external managed interfaces", "key internal managed interfaces"),
+        )
+    ):
+        return True
+
+    if (
+        "centralized traffic inspection" in child
+        and _contains_any(child, ("network boundaries", "network topology"))
+        and _contains_any(
+            parent,
+            ("visibility into network traffic", "external and key internal system interfaces"),
+        )
+    ):
+        return True
+
+    if (
+        "azure policy" in child
+        and _contains_any(child, ("require", "mandatory", "enforce"))
+        and _contains_any(parent, ("configuration settings", "configuration management"))
+    ):
+        return True
+
+    if _contains_any(child, ("transition mode", "enforced mode")) and _contains_any(
+        parent, ("configuration settings", "restrictive mode")
+    ):
+        return True
+
+    if (
+        _contains_any(child, ("allow list", "allow lists", "allowlist"))
+        and traffic_mechanism
+        and _contains_any(parent, ("approved authorizations", "information flow control"))
     ):
         return True
 
@@ -151,7 +334,137 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
         return True
     if _contains_any(
         child, ("siem", "security information and event management")
-    ) and _contains_any(parent, ("analyze and correlate audit records", "system monitoring")):
+    ) and _contains_any(
+        parent,
+        (
+            "analyze and correlate audit records",
+            "centrally review and analyze audit records",
+            "system monitoring",
+        ),
+    ):
+        return True
+    if (
+        "sentinel" in child
+        and _contains_any(child, ("centralize security analysis", "security analysis"))
+        and _contains_any(parent, ("review and analyze audit records", "security analysis"))
+    ):
+        return True
+
+    dangling_dns = _contains_any(
+        child, ("dangling dns", "subdomain takeover", "custom domain")
+    ) and _contains_any(child, ("detect", "identify", "decommission"))
+    if dangling_dns and _contains_any(
+        parent,
+        (
+            "monitor and scan for vulnerabilities",
+            "monitored to find anomalies",
+            "monitored to find potentially adverse events",
+        ),
+    ):
+        return True
+
+    if "dnssec" in child and _contains_any(
+        parent,
+        (
+            "data origin authentication",
+            "integrity verification artifacts",
+            "chain of trust",
+        ),
+    ):
+        return True
+
+    if _contains_any(child, ("sender policy framework", "spf")) and _contains_any(
+        parent, ("spam protection", "unsolicited messages")
+    ):
+        return True
+
+    if (
+        "nist sp 800-81" in child
+        and _contains_any(child, ("follow", "deployment guide", "best practices"))
+        and "security and privacy engineering principles" in parent
+    ):
+        return True
+
+    if (
+        _contains_any(child, ("high-quality alerts", "threat detection"))
+        and _contains_any(child, ("detection", "investigation", "remediation", "alerts"))
+        and _contains_any(
+            parent,
+            (
+                "incident handling capability",
+                "security alerts",
+                "adverse events are analyzed",
+            ),
+        )
+    ):
+        return True
+
+    mandatory_tags = "tags" in child and "mandatory" in child and "not mandatory" not in child
+    if (
+        mandatory_tags
+        or _contains_any(
+            child,
+            (
+                "apply caf naming",
+                "naming conventions",
+            ),
+        )
+    ) and "configuration management practices" in parent:
+        return True
+
+    if (
+        _contains_any(child, ("detect misconfiguration", "detect the misconfiguration"))
+        and _contains_any(child, ("security center", "defender for cloud"))
+        and _contains_any(
+            parent,
+            (
+                "vulnerabilities in assets are identified",
+                "monitor and scan for vulnerabilities",
+                "identify, report, and correct system flaws",
+            ),
+        )
+    ):
+        return True
+
+    if _contains_any(child, ("detect threats", "threat detection")) and _contains_any(
+        parent,
+        (
+            "assets are monitored to find",
+            "networks and network services are monitored to find",
+        ),
+    ):
+        return True
+
+    if (
+        "service-native firewalls" in child
+        and _contains_any(child, ("limit exposure", "disabling public access"))
+        and _contains_any(
+            parent,
+            ("external managed interfaces", "key internal managed interfaces"),
+        )
+    ):
+        return True
+
+    if (
+        "regulatory compliance dashboard" in child
+        and _contains_any(child, ("monitor", "compliance"))
+        and "compliance monitoring" in parent
+    ):
+        return True
+
+    if (
+        "privileged access" in child
+        and _contains_any(child, ("administrative accounts", "privileged access workstations"))
+        and _contains_any(
+            parent,
+            (
+                "privileged accounts",
+                "least privilege",
+                "logical access",
+                "access enforcement",
+            ),
+        )
+    ):
         return True
     return False
 

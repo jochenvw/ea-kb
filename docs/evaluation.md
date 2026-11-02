@@ -170,11 +170,14 @@ then adversarially critiques selected links. The qualified run made 311 model ca
 this higher call and token cost is intentional and must be considered when changing concurrency or
 running the complete corpus.
 
-The latest qualified live `platform-alignment-v8` execution scanned all 384 current platform
-controls: 256 received a platform-independent parent, 128 remained explicitly orphaned, 14 had
-multiple defensible parents and 22 otherwise-unparented controls received one bounded
-standardized-mechanism rescue. All 1,230 adopted platform-independent requirements retain a company
-parent, and the issue scan reported no provenance-gap defects.
+The latest qualified live `platform-alignment-v13` execution scanned all 384 current platform
+controls: 320 received a platform-independent parent, 64 remained explicit reviewed no-parent
+outcomes, and 14 had multiple defensible parents. The execution carried all 326 unchanged active
+findings forward without model calls; the preceding source repair added three bounded deterministic
+selections. One further control has a configured parent outside the platform-alignment findings, so
+the live upward projection contains 321 complete paths and 63 explicit gaps. All 21 independently
+adjudicated missing links are present, and a deterministic random sample of ten controls showed
+identical, complete compact and full browser chains.
 
 Reports distinguish observed requests and retries from estimated rate-limit reservations.
 `retry_count` sums explicitly measured retry attempts, not additional model calls: one skill may

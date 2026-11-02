@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
 
+import pytest
+
 from ekb.adapters.inference.traceability import (
     OpenAITraceabilityMapper,
     _explicit_mechanism_supports,
@@ -54,6 +56,7 @@ from ekb.stages.provenance import (
     _lexical_tokens,
     _parent_candidate_limit,
     _rank_parents,
+    _standardized_parent_candidates,
     company_alignment,
     platform_alignment_check,
     sibling_comparison_check,
@@ -390,6 +393,213 @@ def test_platform_alignment_recognizes_bounded_standardized_mechanisms():
     )
 
 
+@pytest.mark.parametrize(
+    ("child", "parent"),
+    [
+        (
+            "Control traffic to EC2 instances with security groups.",
+            "Enforce information flow control using policy filters.",
+        ),
+        (
+            "Create and accept VPC peering connections.",
+            "Authorize internal connections of system components.",
+        ),
+        (
+            "Use Azure VPN to create a secure site-to-site connection.",
+            "Protect transmitted information.",
+        ),
+        (
+            "Manage Azure Firewall rules through Firewall Manager with Firewall Policy objects.",
+            "Centrally manage controls and related processes.",
+        ),
+        (
+            "Deploy and configure Azure Firewall with comprehensive policies.",
+            "Monitor and control communications at external managed interfaces.",
+        ),
+        (
+            "Switch WAF to prevention mode to block malicious requests.",
+            "Enforce information flow control using policy filters.",
+        ),
+        (
+            "Implement private connectivity for cloud services.",
+            "Separate information flows logically or physically.",
+        ),
+        (
+            "Implement Network Security Perimeter to secure PaaS resources.",
+            "Networks and environments are protected from unauthorized logical access.",
+        ),
+        (
+            "Avoid assigning public IPs to VMs; use an Application Gateway front-end.",
+            "Prohibit direct connection of the system to a public network.",
+        ),
+        (
+            "Use Azure Policy initiatives to require NSG on every subnet.",
+            "Implement restrictive configuration settings.",
+        ),
+        (
+            "Start with Transition mode before moving to Enforced mode.",
+            "Establish and implement restrictive configuration settings.",
+        ),
+        (
+            "Add the resolver address to firewall and NSG allow lists.",
+            "Enforce approved authorizations for controlling information flow.",
+        ),
+        (
+            "Centralize security analysis with Azure Sentinel.",
+            "Provide the capability to centrally review and analyze audit records.",
+        ),
+        (
+            "Detect dangling DNS records to prevent subdomain takeover.",
+            "Networks are monitored to find potentially adverse events.",
+        ),
+        (
+            "Configure DNSSEC to protect DNS traffic from spoofing.",
+            "Provide data origin authentication and integrity verification artifacts.",
+        ),
+        (
+            "Use the Sender Policy Framework (SPF) to stop domain spoofing.",
+            "Employ spam protection mechanisms against unsolicited messages.",
+        ),
+        (
+            "Follow NIST SP 800-81 Secure DNS Deployment Guide best practices.",
+            "Apply systems security and privacy engineering principles.",
+        ),
+        (
+            "Generate high-quality alerts using native threat detection.",
+            "Generate internal security alerts and advisories.",
+        ),
+        (
+            "Apply naming conventions and mandatory resource tags.",
+            "Configuration management practices are established and applied.",
+        ),
+        (
+            "Protect privileged access, administrative accounts, and privileged workstations.",
+            "Apply least privilege to privileged accounts.",
+        ),
+        (
+            "Deploy VPC PrivateLink to allow private connections to services.",
+            "Separate information flows logically or physically.",
+        ),
+        (
+            "Use Cloud Armor rules to protect against common web attacks.",
+            "Implement controls for application self-protection at runtime.",
+        ),
+        (
+            "Use AWS Managed Rules for WAF to deploy built-in baseline groups.",
+            "Implement common secure configuration settings.",
+        ),
+        (
+            "Associate the WAF policy with the service endpoint.",
+            "Monitor communications at external managed interfaces.",
+        ),
+        (
+            "Tune custom WAF rules and exclusions to reduce false positives.",
+            "Ensure the accuracy of monitoring results.",
+        ),
+        (
+            "Use custom routes to force traffic through a network appliance for security control.",
+            "Control communications through key internal managed interfaces.",
+        ),
+        (
+            "Use a topology enabling centralized traffic inspection across network boundaries.",
+            "Provide visibility into network traffic at external and key internal "
+            "system interfaces.",
+        ),
+        (
+            "Use Azure Security Center to detect misconfiguration risks.",
+            "Vulnerabilities in assets are identified, validated, and recorded.",
+        ),
+        (
+            "Detect threats in cloud environments.",
+            "Assets are monitored to find anomalies and potentially adverse events.",
+        ),
+        (
+            "Service-native firewalls limit exposure and disable public access.",
+            "Monitor and control communications at external managed interfaces.",
+        ),
+        (
+            "Use a regulatory compliance dashboard to monitor compliance.",
+            "Continuous risk monitoring includes compliance monitoring.",
+        ),
+        (
+            "Deny creation without mandatory tags.",
+            "Configuration management practices are established and applied.",
+        ),
+        (
+            "The tags env, owner, dataClass, and costCenter are mandatory.",
+            "Configuration management practices are established and applied.",
+        ),
+        (
+            "Choose a built-in ruleset, such as OWASP Top 10 vulnerabilities, "
+            "and tune it to the application's needs.",
+            "Implement controls for application self-protection at runtime.",
+        ),
+        (
+            "Add custom rules and exclusions to reduce false positives based on "
+            "the threat landscape and application security profile.",
+            "Ensure the accuracy, currency, and availability of monitoring results.",
+        ),
+    ],
+)
+def test_platform_alignment_recognizes_additional_explicit_mechanisms(
+    child: str,
+    parent: str,
+):
+    assert standardized_mechanism_supports(child, parent)
+
+
+def test_standardized_mechanisms_do_not_invent_behavior_from_product_topics():
+    assert not standardized_mechanism_supports(
+        "Understand and use application security groups.",
+        "Enforce information flow control using policy filters.",
+    )
+    assert not standardized_mechanism_supports(
+        "Prepare network infrastructure for Azure Firewall deployment.",
+        "Monitor and control communications at external managed interfaces.",
+    )
+    assert not standardized_mechanism_supports(
+        "Resource tags are not mandatory.",
+        "Configuration management practices are established and applied.",
+    )
+    assert not standardized_mechanism_supports(
+        "Add exclusions for application compatibility.",
+        "Ensure the accuracy of monitoring results.",
+    )
+    assert not standardized_mechanism_supports(
+        "Review VPN product options.",
+        "Protect transmitted information.",
+    )
+
+
+def test_standardized_rescue_searches_beyond_the_retrieved_shortlist():
+    child = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Control traffic to EC2 instances with security groups.",
+        excerpt="Control traffic to EC2 instances with security groups.",
+        semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+    )
+    distractor = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Review network traffic reports.",
+        excerpt="Review network traffic reports.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+    parent = TraceabilityAssertion(
+        concept_id=uuid4(),
+        version_id=uuid4(),
+        occurrence_id=uuid4(),
+        statement="Enforce information flow control using policy filters.",
+        excerpt="Enforce information flow control using policy filters.",
+        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    )
+
+    assert _standardized_parent_candidates(child, [distractor, parent], (distractor,)) == (parent,)
+
+
 def test_traceability_model_receives_source_keys_and_declared_framework_references():
     reference = FrameworkReference(
         namespace="nist-sp-800-53",
@@ -644,6 +854,85 @@ class Mapper:
             model_calls=1,
             usage=Usage(input_tokens=10, output_tokens=5, latency_ms=2, cost=0),
         )
+
+
+async def test_platform_alignment_bypasses_mapper_for_standardized_mechanisms():
+    class UnexpectedMapper:
+        fingerprint = "unexpected-mapper"
+
+        async def map(self, child, parents):
+            raise AssertionError("deterministic controls must not invoke the mapper")
+
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Use network security groups to restrict traffic inbound and outbound.",
+        platform="Azure",
+    )
+    parent = concept(
+        SemanticType.TECHNICAL_REQUIREMENT,
+        "Enforce information flow control using policy filters.",
+    )
+
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()),
+        UnexpectedMapper(),
+        Embeddings(),
+        concurrency=2,
+    )
+    result = await check.evaluate(context([control, parent]))
+
+    assert len(result.findings) == 1
+    assert result.findings[0].concept_ids == (control.id, parent.id)
+    assert result.statistics["deterministic_mechanism_selections"] == 1
+    assert result.model_calls == 0
+
+
+async def test_platform_alignment_carries_only_findings_for_current_versions():
+    class CountingMapper(Mapper):
+        def __init__(self):
+            self.calls = 0
+
+        async def map(self, child, parents):
+            self.calls += 1
+            return await super().map(child, parents)
+
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Configure the service according to the adopted technical requirement.",
+        platform="Azure",
+    )
+    parent = concept(
+        SemanticType.TECHNICAL_REQUIREMENT,
+        "Manage the service configuration according to organizational requirements.",
+    )
+    mapper = CountingMapper()
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()),
+        mapper,
+        Embeddings(),
+        concurrency=2,
+    )
+    first = await check.evaluate(context([control, parent]))
+    carried = await check.evaluate(context([control, parent], snapshot_findings=first.findings))
+
+    changed_version_id = uuid4()
+    changed_parent = parent.model_copy(
+        update={
+            "versions": [parent.versions[0].model_copy(update={"id": changed_version_id})],
+            "occurrences": [
+                parent.occurrences[0].model_copy(update={"concept_version_id": changed_version_id})
+            ],
+        }
+    )
+    refreshed = await check.evaluate(
+        context([control, changed_parent], snapshot_findings=first.findings)
+    )
+
+    assert mapper.calls == 2
+    assert carried.findings == first.findings
+    assert carried.statistics["platform_parent_selections_carried"] == 1
+    assert refreshed.statistics["platform_parent_selections_carried"] == 0
+    assert changed_version_id in refreshed.findings[0].version_ids
 
 
 class EvaluationMapper(Mapper):
