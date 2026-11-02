@@ -21,6 +21,8 @@ no-parent outcomes and independently generated retrieval candidates. Like v1, it
 are component diagnostics, not document-family-isolated qualification.
 `architecture-assessment-v1.json` qualifies required, missing, excepted and expired solution-control
 outcomes with Pydantic Evals; it is deterministic and does not claim to inspect implementation code.
+The v2 cases also cover production retrieval, strict no-parent, negation, conditional scope,
+misleading shared mechanisms and carry-forward; component and production reports remain separate.
 Original PDF hashes/pages can be audited with `uv run ekb eval documents --verify-sources`.
 `nist-csf` imports the supplied Core hierarchy, 25 provisional mappings and 14 negative challenges,
 with separately source-audited excerpts, locator corrections and explicit reference disagreements.

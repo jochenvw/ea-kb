@@ -141,16 +141,17 @@ neither reservations nor post-run quality/cost gates are a provider billing cap.
 ```powershell
 uv run ekb eval provenance --live --split validation
 uv run ekb eval provenance --live --split test
+uv run ekb eval provenance-production --live --split test
 uv run ekb eval provenance --live --split test --dataset evals\provenance-complete-v1.json
 ```
 
-`evals\provenance-v2.json` contains 12 provisional, source-attributed control-parent cases: validation
-has six cases from one Azure Security Benchmark v2 overview source family/document; test has six
-cases from one network-security family spanning two related Azure Security Benchmark and Microsoft
+`evals\provenance-v2.json` contains 16 provisional control-parent cases: validation
+has seven cases from one Azure Security Benchmark v2 overview source family/document; test has six
+attributed cases from one network-security family spanning two related Azure Security Benchmark and Microsoft
 Cloud Security Benchmark documents. The shared NIST parent catalog is reference data, not a held-out
 child family.
-Use validation for selection and reserve test for final qualification. The v2 dataset SHA-256 is
-`5a3c0c86e9d53dc60d6bb9aa5174cc1c9650a45ca0f557b0ed64f4aae6b205f4`.
+Three synthetic held-out cases add explicit negation, conditional-scope and misleading-mechanism
+coverage. Use validation for selection and reserve the complete test split for final qualification.
 The prior `provenance-v1.json` is retained for component diagnostics, but its shared child sources
 crossed all three splits; its scores are invalid as document-family-generalization evidence and are
 not comparable to v2.
@@ -164,20 +165,29 @@ metadata. Multiple reviewed parents are acceptable alternatives: a parented case
 mapper selects at least one reviewed parent and no unreviewed parent, rather than requiring every
 possible valid chain. Retrieval recall similarly measures whether at least one reviewed parent was
 available. Pydantic Evals reports exact cases plus parent-selection precision and control-level
-recall, while EKB retains immutable reports under `data\evaluation-history`. A pass qualifies this
-relationship task only; links remain inferred proposals pending enterprise governance.
+recall, while EKB retains immutable reports under `data\evaluation-history`. `eval provenance` evaluates the frozen-pool
+mapper component and does not qualify production. `eval provenance-production` invokes the production
+platform-alignment check over the complete dataset requirement corpus, including retrieval,
+carry-forward, confidence filtering and parent limit. Its report separates deterministic,
+model-selected, carried and unresolved outcomes; records exact source excerpts and
+selection/provider/evaluator fingerprints; and applies precision, recall, p95 latency and priced-cost
+gates. Unknown pricing remains unknown and prevents qualification. Both evaluations use Pydantic
+Evals and retain immutable reports under `data\evaluation-history`; inferred links remain review-only
+proposals and are never automatically approved. Qualification also requires isolated child document
+families and execution of the complete held-out test split; partial, training and legacy runs remain
+diagnostic even when their measured gates pass.
 
-The independently adjudicated held-out split currently qualifies the v6 mapper: 67 controls,
+The historical independently adjudicated v6 component run measured 67 controls,
 61 exact cases, 0.904 parent-selection precision, 0.959 control-level recall and 0.959 retrieval
 recall (47 true-positive selections, five false positives and two false negatives). The immutable
 dataset hash is
 `7e551784ce694212eb17639759b49eac930d70b82e91617574292957fcbe92c7`.
 The mapper explicitly assesses every candidate in batches, globally arbitrates the accepted set,
-then adversarially critiques selected links. The qualified run made 311 model calls for 67 cases;
+then adversarially critiques selected links. The component run made 311 model calls for 67 cases;
 this higher call and token cost is intentional and must be considered when changing concurrency or
 running the complete corpus.
 
-The latest qualified live `platform-alignment-v13` execution scanned all 384 current platform
+The recorded live `platform-alignment-v13` execution scanned all 384 current platform
 controls: 320 received a platform-independent parent, 64 remained explicit reviewed no-parent
 outcomes, and 14 had multiple defensible parents. The execution carried all 326 unchanged active
 findings forward without model calls; the preceding source repair added three bounded deterministic

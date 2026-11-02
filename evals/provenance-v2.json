@@ -221,6 +221,46 @@
         "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
         "document_family": "nist-sp-800-53-revision-5"
       }
+    },
+    "synthetic-negated-network": {
+      "statement": "Do not deny network communications traffic by default; allow all communications except when an incident is detected.",
+      "excerpt": "Do not deny network communications traffic by default; allow all communications except when an incident is detected.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:negation",
+        "document_family": "urn:ekb:synthetic:provenance:negation"
+      }
+    },
+    "synthetic-conditional-boundary": {
+      "statement": "Only when a threat is detected at a managed external interface, control communications; otherwise leave traffic unrestricted.",
+      "excerpt": "Only when a threat is detected at a managed external interface, control communications; otherwise leave traffic unrestricted.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:conditional-scope",
+        "document_family": "urn:ekb:synthetic:provenance:conditional-scope"
+      }
+    },
+    "synthetic-shared-mechanism": {
+      "statement": "Mechanisms protect confidential information at rest by using encrypted backups.",
+      "excerpt": "Mechanisms protect confidential information at rest by using encrypted backups.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:shared-mechanism",
+        "document_family": "urn:ekb:synthetic:provenance:shared-mechanism"
+      }
+    },
+    "synthetic-no-defensible-parent": {
+      "statement": "Use Network Security Perimeter for PaaS resource isolation only; network traffic may be permitted without a default-deny policy.",
+      "excerpt": "Use Network Security Perimeter for PaaS resource isolation only; network traffic may be permitted without a default-deny policy.",
+      "semantic_type": "PlatformRequirement",
+      "source": {
+        "name": "Synthetic evaluation case",
+        "location": "urn:ekb:synthetic:provenance:no-defensible-parent",
+        "document_family": "urn:ekb:synthetic:provenance:no-defensible-parent"
+      }
     }
   },
   "cases": [
@@ -229,96 +269,221 @@
       "family": "identity",
       "split": "validation",
       "child_key": "azure-identity",
-      "parent_keys": ["nist-account", "nist-backup", "nist-ddos"],
-      "expected_parent_keys": ["nist-account"]
+      "parent_keys": [
+        "nist-account",
+        "nist-backup",
+        "nist-ddos"
+      ],
+      "expected_parent_keys": [
+        "nist-account"
+      ]
     },
     {
       "id": "privileged-access",
       "family": "privileged-access",
       "split": "validation",
       "child_key": "azure-privileged",
-      "parent_keys": ["nist-least-privilege", "nist-incident", "nist-data-at-rest"],
-      "expected_parent_keys": ["nist-least-privilege"]
+      "parent_keys": [
+        "nist-least-privilege",
+        "nist-incident",
+        "nist-data-at-rest"
+      ],
+      "expected_parent_keys": [
+        "nist-least-privilege"
+      ]
     },
     {
       "id": "incident-handling",
       "family": "incident",
       "split": "validation",
       "child_key": "azure-incident",
-      "parent_keys": ["nist-incident", "nist-account", "nist-configuration"],
-      "expected_parent_keys": ["nist-incident"]
+      "parent_keys": [
+        "nist-incident",
+        "nist-account",
+        "nist-configuration"
+      ],
+      "expected_parent_keys": [
+        "nist-incident"
+      ]
     },
     {
       "id": "network-segmentation",
       "family": "segmentation",
       "split": "test",
       "child_key": "azure-segmentation",
-      "parent_keys": ["nist-segmentation", "nist-backup", "nist-malware"],
-      "expected_parent_keys": ["nist-segmentation"]
+      "parent_keys": [
+        "nist-segmentation",
+        "nist-backup",
+        "nist-malware"
+      ],
+      "expected_parent_keys": [
+        "nist-segmentation"
+      ]
     },
     {
       "id": "private-network-connectivity",
       "family": "private-connectivity",
       "split": "test",
       "child_key": "azure-private-connectivity",
-      "parent_keys": ["nist-boundary", "nist-account", "nist-backup"],
-      "expected_parent_keys": ["nist-boundary"]
+      "parent_keys": [
+        "nist-boundary",
+        "nist-account",
+        "nist-backup"
+      ],
+      "expected_parent_keys": [
+        "nist-boundary"
+      ]
     },
     {
       "id": "denial-of-service-protection",
       "family": "denial-of-service",
       "split": "test",
       "child_key": "azure-ddos",
-      "parent_keys": ["nist-ddos", "nist-incident", "nist-configuration"],
-      "expected_parent_keys": ["nist-ddos"]
+      "parent_keys": [
+        "nist-ddos",
+        "nist-incident",
+        "nist-configuration"
+      ],
+      "expected_parent_keys": [
+        "nist-ddos"
+      ]
     },
     {
       "id": "backup-and-recovery",
       "family": "backup",
       "split": "validation",
       "child_key": "azure-backup",
-      "parent_keys": ["nist-backup", "nist-least-privilege", "nist-segmentation"],
-      "expected_parent_keys": ["nist-backup"]
+      "parent_keys": [
+        "nist-backup",
+        "nist-least-privilege",
+        "nist-segmentation"
+      ],
+      "expected_parent_keys": [
+        "nist-backup"
+      ]
     },
     {
       "id": "endpoint-malware-protection",
       "family": "malware",
       "split": "validation",
       "child_key": "azure-malware",
-      "parent_keys": ["nist-malware", "nist-backup", "nist-boundary"],
-      "expected_parent_keys": ["nist-malware"]
+      "parent_keys": [
+        "nist-malware",
+        "nist-backup",
+        "nist-boundary"
+      ],
+      "expected_parent_keys": [
+        "nist-malware"
+      ]
     },
     {
       "id": "data-at-rest-protection",
       "family": "data-at-rest",
       "split": "validation",
       "child_key": "azure-data",
-      "parent_keys": ["nist-data-at-rest", "nist-account", "nist-ddos"],
-      "expected_parent_keys": ["nist-data-at-rest"]
+      "parent_keys": [
+        "nist-data-at-rest",
+        "nist-account",
+        "nist-ddos"
+      ],
+      "expected_parent_keys": [
+        "nist-data-at-rest"
+      ]
     },
     {
       "id": "secure-configuration",
       "family": "configuration",
       "split": "test",
       "child_key": "azure-configuration",
-      "parent_keys": ["nist-configuration", "nist-incident", "nist-backup"],
-      "expected_parent_keys": ["nist-configuration"]
+      "parent_keys": [
+        "nist-configuration",
+        "nist-incident",
+        "nist-backup"
+      ],
+      "expected_parent_keys": [
+        "nist-configuration"
+      ]
     },
     {
       "id": "network-security-perimeter",
       "family": "network-security-perimeter",
       "split": "test",
       "child_key": "azure-nsp",
-      "parent_keys": ["nist-default-deny", "nist-account", "nist-malware"],
-      "expected_parent_keys": ["nist-default-deny"]
+      "parent_keys": [
+        "nist-default-deny",
+        "nist-account",
+        "nist-malware"
+      ],
+      "expected_parent_keys": [
+        "nist-default-deny"
+      ]
     },
     {
       "id": "no-defensible-parent",
       "family": "negative-network-hardening",
       "split": "test",
       "child_key": "azure-nsp",
-      "parent_keys": ["nist-backup", "nist-incident", "nist-data-at-rest"],
+      "parent_keys": [
+        "nist-backup",
+        "nist-incident",
+        "nist-data-at-rest"
+      ],
       "expected_parent_keys": []
+    },
+    {
+      "id": "negated-network-default",
+      "family": "negated-network-default",
+      "split": "test",
+      "child_key": "synthetic-negated-network",
+      "parent_keys": [
+        "nist-default-deny",
+        "nist-incident",
+        "nist-configuration"
+      ],
+      "expected_parent_keys": []
+    },
+    {
+      "id": "conditional-interface-boundary",
+      "family": "conditional-interface-boundary",
+      "split": "test",
+      "child_key": "synthetic-conditional-boundary",
+      "parent_keys": [
+        "nist-boundary",
+        "nist-incident",
+        "nist-account"
+      ],
+      "expected_parent_keys": []
+    },
+    {
+      "id": "misleading-shared-mechanism",
+      "family": "misleading-shared-mechanism",
+      "split": "test",
+      "child_key": "synthetic-shared-mechanism",
+      "parent_keys": [
+        "nist-ddos",
+        "nist-data-at-rest",
+        "nist-backup"
+      ],
+      "expected_parent_keys": [
+        "nist-data-at-rest"
+      ]
+    },
+    {
+      "id": "carried-backup-parent",
+      "family": "carried-backup-parent",
+      "split": "validation",
+      "child_key": "azure-backup",
+      "parent_keys": [
+        "nist-backup",
+        "nist-least-privilege",
+        "nist-segmentation"
+      ],
+      "expected_parent_keys": [
+        "nist-backup"
+      ],
+      "carried_parent_keys": [
+        "nist-backup"
+      ]
     }
   ]
 }
