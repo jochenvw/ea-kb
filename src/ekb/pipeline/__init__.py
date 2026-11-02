@@ -352,6 +352,7 @@ class IngestionPipeline:
             inference=self.inference_fingerprint,
             extract_strategy=_extracts_strategy(item),
             platform_scope=item.metadata.get("platform_scope"),
+            enterprise_requirement=str(item.metadata.get("enterprise_requirement") or "").strip(),
             publication=publication_fingerprint(
                 item, parsing_fingerprint(self.parser.version, item)
             ),

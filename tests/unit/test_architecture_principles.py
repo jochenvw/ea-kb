@@ -138,6 +138,39 @@ def test_adopted_sources_can_emit_platform_agnostic_requirements():
     assert apply_source_policy(item, extraction) == extraction
 
 
+def test_platform_independent_requirements_require_source_adoption():
+    item = SourceItem(
+        id=uuid4(),
+        connector="test",
+        location="urn:standard",
+        name="Standard",
+        format="txt",
+    )
+    extraction = Extraction(
+        candidates=[
+            Candidate(
+                statement="Retain audit logs.",
+                excerpt="Retain audit logs.",
+                semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+            ),
+            Candidate(
+                statement="Use Azure Monitor.",
+                excerpt="Use Azure Monitor.",
+                semantic_type=SemanticType.PLATFORM_REQUIREMENT,
+                scope=Scope(platform="Azure"),
+            ),
+        ]
+    )
+
+    assert [
+        candidate.semantic_type for candidate in apply_source_policy(item, extraction).candidates
+    ] == [SemanticType.PLATFORM_REQUIREMENT]
+    adopted = item.model_copy(
+        update={"metadata": {"enterprise_requirement": "Use this standard."}}
+    )
+    assert apply_source_policy(adopted, extraction).candidates == extraction.candidates
+
+
 def test_public_manifest_defines_ten_complete_cross_layer_principles():
     sources = read_manifest(Path("sources/public.yaml"))
     by_id = {source.id: source for source in sources}

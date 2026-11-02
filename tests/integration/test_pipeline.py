@@ -19,12 +19,16 @@ from ekb.domain.models import (
     ContentLabel,
     ContentLabeling,
     Extraction,
+    FetchResult,
     GoalLevel,
     InferenceResult,
     LabelingResult,
     Modality,
     SemanticType,
+    SourceItem,
+    SourceRecord,
     Usage,
+    content_hash,
 )
 from ekb.pipeline import IngestionPipeline
 
@@ -49,6 +53,58 @@ class CountingInference(RulesInference):
             raise RuntimeError("Simulated inference interruption")
         await asyncio.sleep(0.01)
         return await super().extract(segment)
+
+
+class AdoptionInference(RulesInference):
+    label_calls = 0
+    extraction_calls = 0
+
+    async def label(self, segment):
+        self.label_calls += 1
+        return LabelingResult(
+            labeling=ContentLabeling(
+                labels=[
+                    ContentLabel(
+                        excerpt=segment.text,
+                        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                    )
+                ]
+            ),
+            model_id=self.capabilities.model_id,
+            prompt_version="adoption-fixture-v1",
+        )
+
+    async def extract(self, segment):
+        self.extraction_calls += 1
+        return InferenceResult(
+            extraction=Extraction(
+                candidates=[
+                    Candidate(
+                        statement=segment.text,
+                        excerpt=segment.text,
+                        semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+                    )
+                ]
+            ),
+            model_id=self.capabilities.model_id,
+            prompt_version="adoption-fixture-v1",
+        )
+
+
+class MutableMetadataConnector:
+    name = "test:mutable-metadata"
+
+    def __init__(self, item, content):
+        self.item = item
+        self.content = content
+        self.fetch_calls = 0
+
+    async def discover(self):
+        yield self.item
+
+    async def fetch(self, item, previous: SourceRecord | None):
+        self.fetch_calls += 1
+        return FetchResult(content=self.content)
 
 
 class SynthesizingInference(RulesInference):
@@ -244,6 +300,77 @@ async def test_incremental_revisions_grounding_and_deletion(database, tmp_path):
         assert (await uow.sources.list())[0].status == "missing"
         assert len(await uow.knowledge.search()) == 3
         assert await uow.session.scalar(select(func.count()).select_from(OccurrenceRow)) == 4
+
+
+async def test_adoption_metadata_reprocesses_policy_without_relabeling_or_deleting_history(
+    database, tmp_path
+):
+    content = b"Operators must retain audit logs."
+    item = SourceItem(
+        id=uuid4(),
+        connector="test:mutable-metadata",
+        location="urn:adoption",
+        name="Adoption standard",
+        format="txt",
+        indicator="unchanged-content",
+        metadata={"id": "adoption-standard"},
+    )
+    connector = MutableMetadataConnector(item, content)
+    parser, inference = CountingParser(), AdoptionInference()
+    pipeline = IngestionPipeline(
+        database, FilesystemArtifactStore(tmp_path / "artifacts"), parser, inference
+    )
+
+    first = await pipeline.scan([connector])
+    assert first.processed == 1 and first.failed == 0
+    assert parser.calls == 1
+    assert (inference.label_calls, inference.extraction_calls) == (1, 1)
+    async with database() as uow:
+        assert not await uow.knowledge.search(
+            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
+        )
+
+    adopted = item.model_copy(
+        update={
+            "metadata": {
+                "id": "adoption-standard",
+                "enterprise_requirement": "Use this standard.",
+            }
+        }
+    )
+    connector.item = adopted
+    second = await pipeline.scan([connector])
+    assert second.processed == 1 and second.failed == 0
+    assert connector.fetch_calls == 1
+    assert parser.calls == 1
+    assert (inference.label_calls, inference.extraction_calls) == (1, 1)
+    async with database() as uow:
+        concepts = await uow.knowledge.search(
+            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
+        )
+        assert len(concepts) == 1
+        provenance = await uow.knowledge.provenance(concepts[0].id)
+        assert len(provenance) == 1
+        assert provenance[0].revision.content_hash == content_hash(content)
+
+    replay = await pipeline.scan([connector])
+    assert replay.skipped == 1
+    assert parser.calls == 1
+    assert (inference.label_calls, inference.extraction_calls) == (1, 1)
+
+    connector.item = item
+    removed = await pipeline.scan([connector])
+    assert removed.skipped == 1
+    async with database() as uow:
+        source = await uow.sources.get(item.id)
+        assert source is not None
+        assert "enterprise_requirement" not in source.item.metadata
+        concepts = await uow.knowledge.search(
+            semantic_types=(SemanticType.TECHNICAL_REQUIREMENT,)
+        )
+        assert len(concepts) == 1
+        provenance = await uow.knowledge.provenance(concepts[0].id)
+        assert len(provenance) == 1
 
 
 async def test_ordinary_http_sources_use_shared_ontology_and_replay_without_reprocessing(

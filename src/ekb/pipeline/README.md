@@ -20,6 +20,7 @@
   requirement into `PlatformRequirement`, preserving a more specific evidenced platform when present.
 - Platform-independent requirements are retained only from sources with an explicit
   `enterprise_requirement`; unadopted external obligations remain source evidence, not adopted knowledge.
+  Removing adoption does not delete already persisted candidate or evidence history.
 - `organization.py` persists manifest-curated strategic requirements/domains and configured,
   evidence-backed cross-source principle links after every successful corpus scan.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.
