@@ -250,6 +250,18 @@ class Inspection:
             finding_rows = list(
                 await self.session.scalars(
                     select(FindingRow)
+                    .outerjoin(
+                        DecisionRow,
+                        DecisionRow.id
+                        == (
+                            select(DecisionRow.id)
+                            .where(DecisionRow.finding_id == FindingRow.id)
+                            .order_by(DecisionRow.recorded_at.desc(), DecisionRow.id.desc())
+                            .correlate(FindingRow)
+                            .limit(1)
+                            .scalar_subquery()
+                        ),
+                    )
                     .where(
                         or_(
                             *(
@@ -260,6 +272,10 @@ class Inspection:
                         or_(
                             FindingRow.check_id == "manual",
                             FindingRow.id.in_(active_findings),
+                        ),
+                        or_(
+                            DecisionRow.id.is_(None),
+                            DecisionRow.outcome.not_in(("accepted", "rejected")),
                         ),
                     )
                     .order_by(
