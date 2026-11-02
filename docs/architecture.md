@@ -359,10 +359,11 @@ returns bounded source/version pages, concept neighborhoods, active proposal que
 previews; its PostgreSQL adapter owns all joins and cursor queries. Source drill-down selects
 versions with actual occurrences in that source, not a concept's unrelated latest interpretation.
 Graphs distinguish configured links, persisted relationship assertions, proposal records and
-source-history links. Inferred provenance links are visible by default but remain dashed and
-review-only. A bounded three-hop neighborhood exposes company → domain → agnostic
-requirement → platform-control chains and source provenance for every retained concept; it does not
-invent unresolved targets or confer version-specific authority.
+source-history links. Accepted/rejected finding heads are excluded; deferred/reversed and unreviewed
+findings remain visible, with inferred links clearly dashed and review-only. A bounded three-hop
+neighborhood exposes company → domain → agnostic requirement → platform-control chains and source
+provenance for every retained concept; it does not invent unresolved targets or confer
+version-specific authority.
 
 The work backlog selects manual proposals plus the latest successful enrichment output, excluding
 accepted/rejected decision heads and obsolete-run findings. Deferred/reversed heads remain work;

@@ -20,6 +20,7 @@ from ekb.domain.models import (
     ConceptVersion,
     PublicationEvidence,
     PublicationMetadata,
+    RelationshipKind,
     Scope,
     SemanticType,
     SemanticVersion,
@@ -34,7 +35,7 @@ from ekb.domain.reconciliation import (
     Verification,
     VerificationStatus,
 )
-from ekb.domain.resolution import Decision, active_aliases
+from ekb.domain.resolution import Decision, Finding, active_aliases
 from ekb.domain.traceability import TraceabilitySelection
 from ekb.interfaces.api import create_app
 from ekb.interfaces.tui import KnowledgeApp
@@ -372,6 +373,133 @@ async def test_backlog_tracks_latest_decisions_and_graph_preserves_proposal_dire
                 assert (
                     await client.get(f"/api/concepts/{uuid4()}/traceability")
                 ).status_code == 404
+    finally:
+        await runtime.__aexit__()
+
+
+async def test_graph_applies_decision_heads_to_manual_and_active_findings(database, tmp_path):
+    from ekb.domain.execution import ArtifactReference, Execution
+
+    runtime, _, config = await prepare(database, tmp_path)
+    try:
+        await runtime.orchestrator().run(configuration=config)
+        related = next(f for f in await runtime.reconciliation.findings() if f.action == "alias")
+        manual = Finding(
+            id=uuid4(),
+            check_id="manual",
+            check_version="1",
+            input_revision="test",
+            action="relationship",
+            concept_ids=related.concept_ids,
+            relationship=RelationshipKind.REFINES,
+            confidence=1,
+            explanation="Synthetic manual relationship proposal.",
+            deterministic=True,
+        )
+        await runtime.reconciliation.propose(manual)
+
+        async def graph_edge(finding: Finding, status: str):
+            async with database() as uow:
+                graph = await uow.inspection.graph(finding.concept_ids[0])
+            assert graph is not None
+            return next(
+                (
+                    edge
+                    for edge in graph.edges
+                    if edge.href == f"/review?finding_id={finding.id}" and edge.status == status
+                ),
+                None,
+            )
+
+        assert await graph_edge(manual, "proposal")
+        rejected = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=manual.id,
+                outcome="rejected",
+                actor="reviewer",
+                rationale="The relationship is unsupported.",
+            )
+        )
+        assert await graph_edge(manual, "proposal") is None
+        assert await runtime.reconciliation.get(manual.id) == manual
+        assert await runtime.reconciliation.history(manual.id) == [rejected]
+
+        deferred = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=manual.id,
+                outcome="deferred",
+                previous_id=rejected.id,
+                actor="reviewer",
+                rationale="Reconsider after additional evidence.",
+            )
+        )
+        assert await graph_edge(manual, "proposal")
+        accepted = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=manual.id,
+                outcome="accepted",
+                previous_id=deferred.id,
+                actor="reviewer",
+                rationale="The evidence now supports the relationship.",
+            )
+        )
+        assert await graph_edge(manual, "proposal") is None
+        reversed_decision = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=manual.id,
+                outcome="reversed",
+                previous_id=accepted.id,
+                actor="reviewer",
+                rationale="Reopen for review.",
+            )
+        )
+        assert await graph_edge(manual, "proposal")
+        assert await runtime.reconciliation.history(manual.id) == [
+            rejected,
+            deferred,
+            accepted,
+            reversed_decision,
+        ]
+
+        alignment = manual.model_copy(
+            update={
+                "id": uuid4(),
+                "check_id": "company_alignment",
+                "relationship": RelationshipKind.MAPS_TO,
+            }
+        )
+        await runtime.reconciliation.propose(alignment)
+        async with database() as uow:
+            await uow.workflow.save_execution(
+                Execution(
+                    kind="stage",
+                    processor_id="enrichment",
+                    version="test",
+                    fingerprint="test",
+                    status="done",
+                    finished_at=now(),
+                    output=ArtifactReference(
+                        contract="findings/v1",
+                        revision="test",
+                        producer_fingerprint="test",
+                        source_revision="test",
+                        record_ids=(alignment.id,),
+                    ),
+                )
+            )
+            await uow.commit()
+        assert await graph_edge(alignment, "inferred")
+        alignment_decision = await runtime.reconciliation.decide(
+            Decision(
+                finding_id=alignment.id,
+                outcome="rejected",
+                actor="reviewer",
+                rationale="The inferred mapping is incorrect.",
+            )
+        )
+        assert await graph_edge(alignment, "inferred") is None
+        assert await runtime.reconciliation.get(alignment.id) == alignment
+        assert await runtime.reconciliation.history(alignment.id) == [alignment_decision]
     finally:
         await runtime.__aexit__()
 
