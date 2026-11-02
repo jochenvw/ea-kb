@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import date
 from typing import Protocol
 from uuid import UUID
 
@@ -19,7 +18,6 @@ from ekb.domain.models import Model, ScanReport, Scope, SourceItem, Usage
 from ekb.domain.reconciliation import SemanticCacheEntry
 from ekb.domain.resolution import (
     Decision,
-    Deviation,
     Finding,
     KnowledgeSnapshot,
 )
@@ -103,7 +101,6 @@ class ResolutionRepository(Protocol):
     ) -> list[Finding]: ...
     async def decisions(self, finding_id: UUID | None = None) -> list[Decision]: ...
     async def apply_decision(self, decision: Decision) -> Decision: ...
-    async def deviations(self, as_of: date) -> tuple[Deviation, ...]: ...
 
 
 class IssueRepository(Protocol):

@@ -1,20 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
 from uuid import UUID
 
 from ekb.domain.architectures import (
-    ArchitectureAssessment,
-    ArchitectureControl,
-    ArchitectureEvidence,
     ArchitectureManifest,
     ArchitectureRequirementDetail,
-    AssessmentOutcome,
-    ControlAssessment,
     SolutionArchitecture,
     SolutionArchitectureRevision,
     TraceabilityStep,
-    coverage_outcome,
 )
 from ekb.domain.models import (
     ClassificationProperty,
@@ -195,61 +188,6 @@ class ArchitectureService:
             raise ValueError("Solution architecture revision not found")
         return revision, await self.artifacts.get(revision.artifact_key)
 
-    async def assess(
-        self,
-        architecture_id: UUID,
-        evidence: tuple[ArchitectureEvidence, ...],
-        *,
-        version: str | None = None,
-        as_of: date | None = None,
-    ) -> ArchitectureAssessment:
-        if len({item.concept_id for item in evidence}) != len(evidence):
-            raise ValueError("Assessment evidence cannot repeat a control")
-        effective = as_of or date.today()
-        async with self.uow() as uow:
-            architecture = await uow.architectures.get(architecture_id)
-            if architecture is None:
-                raise ValueError("Solution architecture not found")
-            revisions = [
-                item
-                for item in architecture.revisions
-                if version is None or item.version == version
-            ]
-            if not revisions:
-                raise ValueError("Solution architecture version not found")
-            revision = revisions[-1]
-            evidence_by_control = {item.concept_id: item for item in evidence}
-            registered = {control.concept_id for control in revision.controls}
-            assessments = []
-            for control in revision.controls:
-                declared = evidence_by_control.get(control.concept_id)
-                outcome = coverage_outcome(control, declared, effective)
-                assert control.concept_version_id
-                chain = await self._chain(uow, control.concept_id, control.concept_version_id)
-                assessments.append(
-                    ControlAssessment(
-                        concept_id=control.concept_id,
-                        outcome=outcome,
-                        evidence=declared,
-                        exception=control if outcome is AssessmentOutcome.EXCEPTED else None,
-                        chain=chain,
-                        explanation=self._explanation(outcome, declared, control, chain),
-                    )
-                )
-        return ArchitectureAssessment(
-            architecture_id=architecture_id,
-            revision_id=revision.id,
-            version=revision.version,
-            as_of=effective,
-            declared_complete=all(
-                item.outcome is not AssessmentOutcome.MISSING for item in assessments
-            ),
-            controls=tuple(assessments),
-            unregistered_evidence=tuple(
-                item for item in evidence if item.concept_id not in registered
-            ),
-        )
-
     async def chain(self, concept_id: UUID, version_id: UUID) -> tuple[TraceabilityStep, ...]:
         """Upward lineage whose first hop is bound to the pinned requirement version."""
         async with self.uow() as uow:
@@ -318,22 +256,3 @@ class ArchitectureService:
             )
             for node in ordered
         )
-
-    @staticmethod
-    def _explanation(
-        outcome: AssessmentOutcome,
-        evidence: ArchitectureEvidence | None,
-        control: ArchitectureControl,
-        chain: tuple[TraceabilityStep, ...],
-    ) -> str:
-        path = " > ".join(" ".join(step.statement.split())[:120] for step in chain)
-        if outcome is AssessmentOutcome.DECLARED:
-            basis = evidence.summary if evidence else "Declared evidence supplied"
-            return f"Declared (not verified): {basis}. Chain: {path}"
-        if outcome is AssessmentOutcome.EXCEPTED:
-            expiry = f" through {control.expires_on.isoformat()}" if control.expires_on else ""
-            return (
-                f"Excepted, approved by {control.approved_by}{expiry}: "
-                f"{control.rationale}. Chain: {path}"
-            )
-        return f"Missing: no declared evidence or active exception. Chain: {path}"

@@ -6,11 +6,7 @@ from uuid import UUID
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from ekb.domain.architectures import (
-    ArchitectureAssessment,
-    ArchitectureEvidence,
-    SolutionArchitecture,
-)
+from ekb.domain.architectures import SolutionArchitecture
 from ekb.domain.assessment import SolutionAssessment, SolutionAssessmentInput
 from ekb.domain.issues import Issue, IssueStatus
 from ekb.domain.models import ConceptDetail, Provenance, Scope
@@ -153,22 +149,6 @@ def create_server(
     ) -> SolutionArchitecture | None:
         """Get one architecture with canonical pointers, controls and exceptions."""
         return await architectures(ctx).get(architecture_id)
-
-    @server.tool()
-    async def assess_solution_architecture(
-        architecture_id: UUID,
-        ctx: Context,
-        evidence: tuple[ArchitectureEvidence, ...] = (),
-        version: str | None = None,
-        as_of: date | None = None,
-    ) -> ArchitectureAssessment:
-        """Report declared, unverified evidence and exceptions; prefer assess_solution."""
-        return await architectures(ctx).assess(
-            architecture_id,
-            evidence,
-            version=version,
-            as_of=as_of,
-        )
 
     @server.tool()
     async def assess_solution(request: SolutionAssessmentInput, ctx: Context) -> SolutionAssessment:

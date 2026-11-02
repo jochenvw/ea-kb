@@ -30,7 +30,6 @@ from ekb.domain.reconciliation import (
 )
 from ekb.domain.resolution import (
     Decision,
-    Deviation,
     Finding,
     KnowledgeSnapshot,
     active_aliases,
@@ -44,7 +43,6 @@ from ekb.ports.workflow import CheckContext
 from ekb.stages.enrichment import Check, lineage
 from ekb.stages.issues import (
     conflicting_requirements,
-    deviation_issues,
     provenance_gaps,
 )
 from ekb.stages.semantic import _embeddings, _verification, _verification_key, semantic_check
@@ -97,29 +95,6 @@ async def test_conflict_requires_overlapping_scope_and_explicit_opposition():
     assert not overlaps(
         Scope(effective_to=date(2020, 1, 1)), Scope(effective_from=date(2021, 1, 1))
     )
-
-
-def test_excessive_deviations_count_distinct_solutions_not_renewals():
-    ctx = context()
-    cid = ctx.snapshot.concepts[0].id
-    occurrence = ctx.snapshot.concepts[0].occurrences[0].id
-    records = tuple(
-        Deviation(
-            id=uuid4(),
-            concept_id=cid,
-            solution=f"solution-{i}",
-            scope=Scope(),
-            approved=True,
-            effective_from=date(2020, 1, 1),
-            evidence_occurrence_id=occurrence,
-        )
-        for i in range(11)
-    )
-    assert len(deviation_issues(ctx, records).issues) == 1
-    renewal = records[0].model_copy(update={"id": uuid4()})
-    assert not deviation_issues(ctx, records[:10] + (renewal,)).issues
-    expired = records[-1].model_copy(update={"effective_until": date(2020, 2, 1)})
-    assert not deviation_issues(ctx, records[:10] + (expired,)).issues
 
 
 async def test_missing_source_evidence_is_an_issue_even_without_current_occurrences():

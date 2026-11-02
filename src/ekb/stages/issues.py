@@ -20,7 +20,6 @@ from ekb.domain.models import (
 )
 from ekb.domain.publication import project_authority
 from ekb.domain.resolution import (
-    Deviation,
     Finding,
     active_aliases,
     decision_heads,
@@ -385,40 +384,7 @@ async def traceability_cardinality(context: CheckContext) -> CheckResult:
     )
 
 
-def deviation_issues(context: CheckContext, deviations: tuple[Deviation, ...]) -> CheckResult:
-    grouped: dict = defaultdict(list)
-    today = now().date()
-    for deviation in deviations:
-        if (
-            deviation.approved
-            and deviation.effective_from <= today
-            and (not deviation.effective_until or deviation.effective_until >= today)
-        ):
-            grouped[deviation.concept_id].append(deviation)
-    results = []
-    for cid, records in grouped.items():
-        solutions = {r.solution for r in records}
-        if len(solutions) > context.options.threshold:
-            results.append(
-                issue(
-                    context,
-                    "excessive_deviations",
-                    "excessive_deviations",
-                    (cid,),
-                    f"{len(solutions)} distinct active approved solution deviations exceed "
-                    f"threshold {context.options.threshold}; renewals are not extra solutions.",
-                    occurrences=tuple(r.evidence_occurrence_id for r in records),
-                )
-            )
-    return CheckResult(issues=tuple(results), candidates=len(deviations))
-
-
 def issues_stage(database: UnitOfWorkFactory) -> CheckedStage:
-    async def deviations(context: CheckContext) -> CheckResult:
-        async with database() as uow:
-            records = await uow.resolution.deviations(now().date())
-        return deviation_issues(context, records)
-
     def observed(evaluate):
         async def execute(context: CheckContext) -> CheckResult:
             with tracer.start_as_current_span("issues.detect"):
@@ -439,7 +405,6 @@ def issues_stage(database: UnitOfWorkFactory) -> CheckedStage:
             ("version_ambiguity", version_ambiguity),
             ("provenance_gaps", provenance_gaps),
             ("traceability_cardinality", traceability_cardinality),
-            ("excessive_deviations", deviations),
         )
     )
     return CheckedStage(

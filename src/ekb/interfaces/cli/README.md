@@ -4,7 +4,7 @@
 `init/reset` manage EKB-owned development state; rebuilds are guarded to pre-v1.
 `scan` ingests/resumes; concepts, lineage and sources expose shared services.
 `architectures register <manifest.yaml> <artifact>` stores an immutable solution-architecture
-revision; list/show inspect it and assess checks declared evidence against controls/exceptions.
+revision; list/show inspect it. `assess` verifies a solution against the approved baseline.
 `pipeline` runs resumable workflows with progress and status snapshots; `workflow.py` registers
 orchestration and review commands. Resume accepts an explicit profile so model capabilities do not
 silently change after an interrupted run.

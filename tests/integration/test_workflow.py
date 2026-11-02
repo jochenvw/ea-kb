@@ -152,7 +152,6 @@ async def test_workflow_evaluation_uses_retained_ordinary_sources_offline(
         )
         assert report["actual_sources"] == 2 and report["model_calls"] == 0
         assert report["accepted_decisions_persisted"] == 1
-        assert report["fixture_excessive_deviation_issues"] == 0
         assert report["governance"].startswith("SIMULATED")
         assert output.is_file()
     finally:

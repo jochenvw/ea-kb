@@ -218,9 +218,7 @@ async def test_source_drilldown_is_evidence_bound_paged_and_readonly(database, t
         await runtime.__aexit__()
 
 
-async def test_solution_architecture_api_retains_artifacts_exceptions_and_assessment(
-    database, tmp_path
-):
+async def test_solution_architecture_api_retains_artifacts_and_exceptions(database, tmp_path):
     runtime = await prepared(database, tmp_path)
     concepts = await runtime.knowledge.search("", 20)
     requirement = next(
@@ -288,23 +286,6 @@ async def test_solution_architecture_api_retains_artifacts_exceptions_and_assess
                 )
                 assert artifact.content == b"synthetic architecture"
                 assert artifact.headers["content-type"] == "application/pdf"
-                assessment = await client.post(
-                    f"/api/architectures/{architecture.id}/assess",
-                    json={
-                        "evidence": [
-                            {
-                                "concept_id": str(requirement.id),
-                                "summary": "Implemented in the deployment template.",
-                                "location": "main.bicep:42",
-                            }
-                        ]
-                    },
-                )
-                assert assessment.status_code == 200
-                result = assessment.json()
-                assert result["declared_complete"] and result["verified"] is False
-                assert result["controls"][0]["outcome"] == "declared"
-                assert result["controls"][0]["explanation"].startswith("Declared (not verified):")
                 assert (await client.get(f"/solutions/{architecture.id}")).status_code == 200
                 assert (await client.get(f"/api/architectures/{uuid4()}")).status_code == 404
     finally:
@@ -447,7 +428,6 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "get_reconciliation_history",
             "list_solution_architectures",
             "get_solution_architecture",
-            "assess_solution_architecture",
             "assess_solution",
             "exception_risk",
             "change_impact",

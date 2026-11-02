@@ -9,9 +9,7 @@ from ekb.adapters.artifacts import FilesystemArtifactStore
 from ekb.adapters.persistence.postgres.models import OccurrenceRow, TaskRow, VersionRow
 from ekb.domain.architectures import (
     ArchitectureControl,
-    ArchitectureEvidence,
     ArchitectureManifest,
-    AssessmentOutcome,
 )
 from ekb.domain.grounding import GroundingError
 from ekb.domain.models import (
@@ -222,29 +220,13 @@ async def test_solution_architecture_revisions_are_immutable_and_assessable(data
     assert requirements[0].control.concept_version_id == original_platform_version.id
     assert requirements[0].concept.versions[-1].id == replacement_platform_version.id
 
-    missing = await service.assess(architecture.id, ())
-    assert not missing.declared_complete
-    assert missing.controls[0].outcome is AssessmentOutcome.MISSING
-    assert [step.level for step in missing.controls[0].chain] == [
+    chain = await service.chain(platform.id, original_platform_version.id)
+    assert [step.level for step in chain] == [
         KnowledgeLevel.COMPANY,
         KnowledgeLevel.PLATFORM_AGNOSTIC,
         KnowledgeLevel.PLATFORM_SPECIFIC,
     ]
-    assert missing.controls[0].chain[-1].statement == original_platform_version.candidate.statement
-    assert replacement_platform_version.candidate.statement not in missing.controls[0].explanation
-    conforming = await service.assess(
-        architecture.id,
-        (
-            ArchitectureEvidence(
-                concept_id=platform.id,
-                summary="The Bicep module configures the firewall.",
-                location="main.bicep:42",
-            ),
-        ),
-    )
-    assert conforming.declared_complete and not conforming.verified
-    assert conforming.controls[0].outcome is AssessmentOutcome.DECLARED
-    assert "Chain:" in conforming.controls[0].explanation
+    assert chain[-1].statement == original_platform_version.candidate.statement
 
     revised = await service.register(
         manifest.model_copy(

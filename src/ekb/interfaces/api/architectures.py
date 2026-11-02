@@ -6,8 +6,6 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from ekb.domain.architectures import (
-    ArchitectureAssessment,
-    ArchitectureAssessmentInput,
     ArchitectureRequirementDetail,
     SolutionArchitecture,
 )
@@ -92,22 +90,3 @@ def register(app: FastAPI, active: Callable[[Request], Runtime]) -> None:
             return await active(request).portfolio.change_impact(body)
         except ValueError as error:
             raise HTTPException(422, str(error)) from None
-
-    @app.post(
-        "/api/architectures/{architecture_id}/assess",
-        response_model=ArchitectureAssessment,
-    )
-    async def assess(
-        request: Request,
-        architecture_id: UUID,
-        body: ArchitectureAssessmentInput,
-    ):
-        try:
-            return await active(request).architectures.assess(
-                architecture_id,
-                body.evidence,
-                version=body.version,
-                as_of=body.as_of,
-            )
-        except ValueError as error:
-            raise HTTPException(404, str(error)) from None

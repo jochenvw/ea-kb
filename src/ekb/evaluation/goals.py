@@ -169,10 +169,6 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
-def load_goal_dataset(path: Path) -> GoalDataset:
-    return GoalDataset.model_validate_json(path.read_bytes())
-
-
 def _annotation_matches(candidate: Candidate, dataset: GoalDataset) -> tuple[str, ...]:
     excerpt = _norm(candidate.excerpt)
     if not excerpt:

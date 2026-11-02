@@ -7,7 +7,7 @@ Status: accepted (application 0.1.0)
   structured design JSON and verifies implementation through the `ImplementationAnalyzer` port.
   The first adapter evaluates compiled ARM/Bicep templates; unsupported checks stay unknown.
 - Design and implementation outcomes stay separate. Unknown authority, applicability or evidence
-  never passes. Legacy declared evidence is relabelled `declared` with `verified: false`.
+  never passes. The superseded declared-evidence assessment was removed.
 - Exception risk and change impact are on-demand projections over the latest registered revision
   per solution. Rates use the applicable population; review signals never score, renew or weaken a
   standard. Change impact matches by concept identity; proposals and publisher releases are never

@@ -188,25 +188,9 @@ the same version with identical content is idempotent; changing the artefact, co
 requires a new version. The canonical source is a pointer to the authoritative design location;
 the uploaded artefact is retained in EKB's configured content-addressed store.
 
-Assessment accepts declared implementation evidence:
-
-```json
-[
-  {
-    "concept_id": "11111111-1111-4111-8111-111111111111",
-    "summary": "Private endpoint and deny-public-network policy are declared in the deployment.",
-    "location": "infra/storage.bicep:42"
-  }
-]
-```
-
 ```powershell
-uv run ekb architectures assess ARCHITECTURE_UUID evidence.json
 uv run ekb eval architectures
 ```
-
-This legacy result reports `declared`, `excepted` or `missing` per registered control, with
-`verified: false` and `declared_complete`. It is a claim inventory, never conformance.
 
 ### Verified solution assessment
 

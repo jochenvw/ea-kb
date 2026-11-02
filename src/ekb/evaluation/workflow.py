@@ -10,7 +10,6 @@ from sqlalchemy import text
 from ekb.adapters.persistence.postgres import Postgres
 from ekb.adapters.persistence.postgres.models import Base
 from ekb.config import Settings
-from ekb.domain.execution import CheckOptions
 from ekb.domain.models import (
     Candidate,
     Extraction,
@@ -25,13 +24,12 @@ from ekb.domain.models import (
     fingerprint,
     stable_id,
 )
-from ekb.domain.resolution import Decision, Deviation, decision_heads
+from ekb.domain.resolution import Decision, decision_heads
 from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.runtime import Runtime
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
 from ekb.stages.indexing import IndexingStage
-from ekb.stages.issues import deviation_issues
 
 SCHEMA = "ekb_phase3_demo"
 ACTOR = "synthetic-demo-reviewer"
@@ -55,7 +53,7 @@ class RetainedCorpus:
         )
 
 
-async def enterprise_fixture(runtime: Runtime, path: Path) -> Deviation:
+async def enterprise_fixture(runtime: Runtime, path: Path) -> None:
     fixture = json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
     body = "# SYNTHETIC enterprise architecture fixture\n\n" + "\n\n".join(
         fact["statement"] for fact in fixture["facts"]
@@ -95,7 +93,7 @@ async def enterprise_fixture(runtime: Runtime, path: Path) -> Deviation:
         await uow.sources.save(SourceRecord(item=item, revision_id=revision.id))
         await uow.sources.save_revision(revision)
         await uow.sources.save_segments(revision.id, [segment], "synthetic-fixture-v1")
-        ids = await uow.knowledge.persist(
+        await uow.knowledge.persist(
             segment,
             InferenceResult(
                 extraction=Extraction(candidates=candidates),
@@ -104,19 +102,6 @@ async def enterprise_fixture(runtime: Runtime, path: Path) -> Deviation:
             ),
         )
         await uow.commit()
-        evidence = await uow.knowledge.get(ids[3])
-        assert evidence
-    exception = fixture["exception"]
-    return Deviation(
-        id=stable_id("phase3-approved-exception"),
-        concept_id=ids[1],
-        solution=exception["solution"],
-        scope=candidates[3].scope,
-        approved=exception["approved"],
-        effective_from=exception["effective_from"],
-        effective_until=exception["effective_until"],
-        evidence_occurrence_id=evidence.occurrences[0].id,
-    )
 
 
 async def demonstrate_workflow(
@@ -156,7 +141,7 @@ async def demonstrate_workflow(
             runtime.database = database
             runtime.knowledge = KnowledgeService(database)
             captured = RetainedCorpus(runtime, items, revisions)
-            deviation = await enterprise_fixture(runtime, fixture)
+            await enterprise_fixture(runtime, fixture)
             registry = runtime.orchestrator().registry
 
             async def index(context: CheckContext) -> CheckResult:
@@ -230,15 +215,6 @@ async def demonstrate_workflow(
                 final = await uow.resolution.snapshot()
             heads = decision_heads(final.decisions)
             assert heads[proposal.id].id == canonical_decision.id
-            exceptions = deviation_issues(
-                CheckContext(
-                    run_id=second.run.id,
-                    input_revision=final.revision,
-                    snapshot=final,
-                    options=CheckOptions(),
-                ),
-                (deviation,),
-            )
             findings_by_check = {}
             for finding in final.findings:
                 findings_by_check[finding.check_id] = findings_by_check.get(finding.check_id, 0) + 1
@@ -255,8 +231,6 @@ async def demonstrate_workflow(
                 "rerun_check_statuses": {
                     e.processor_id: e.status for e in second.executions if e.kind == "check"
                 },
-                "fixture_approved_exceptions": 1,
-                "fixture_excessive_deviation_issues": len(exceptions.issues),
                 "resolution": result.model_dump(mode="json"),
                 "model_calls": sum(e.statistics.get("model_calls", 0) for e in first.executions),
             }

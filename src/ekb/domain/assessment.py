@@ -121,9 +121,6 @@ class AssessmentException(Model):
             return "its approved scope excludes this target"
         return None
 
-    def applies(self, target: AssessmentTarget, requirement_version_id: UUID) -> bool:
-        return self.rejection(target, requirement_version_id) is None
-
 
 class RequirementAssessment(Model):
     requirement: AssessmentReference

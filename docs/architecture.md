@@ -258,17 +258,10 @@ identical content under the same version is idempotent, while conflicting conten
 
 Approved exceptions are explicit, revision-bound control dispositions with rationale, approver,
 approval time and optional expiry; historical assessments cannot apply an exception before approval.
-Legacy declared assessment classifies each referenced requirement
-as `declared`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
-platform-agnostic to control chain whose control statement and outgoing evidence retain the registered
-version pin. The current basis is deliberately `declared_evidence`: EKB does
-not claim to inspect or verify Bicep, application code or deployed resources. It also does not infer
-that every traceable implementation is required. Architecture authors currently select controls
-from exposure, risk treatment and workload scope. An unselected control is outside this declared
-assessment, not proof that the enterprise baseline makes it inapplicable. Exceptions record
-departures from selected requirements; omission alone records neither an exception nor approval.
-Verified solution assessment (`ekb assess`) independently establishes applicable coverage from the
-approved baseline and verifies implementation evidence while preserving registry history.
+Registered controls are the author's selection, not proof of applicability. Verified solution
+assessment (`ekb assess`) independently establishes applicable coverage from the approved baseline,
+verifies implementation evidence and returns a version-pinned company to platform-agnostic to
+control chain per requirement.
 
 Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
 retry classification and backoff; the pipeline handles provider-independent outcomes.

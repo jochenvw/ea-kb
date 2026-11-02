@@ -98,17 +98,6 @@ class KnowledgeSnapshot(Model):
     preview_version_ids: frozenset[UUID] = frozenset()
 
 
-class Deviation(Model):
-    id: UUID
-    concept_id: UUID
-    solution: str
-    scope: Scope
-    approved: bool
-    effective_from: date
-    effective_until: date | None = None
-    evidence_occurrence_id: UUID
-
-
 def version_evidence(concept: ConceptDetail, version_id: UUID) -> tuple[UUID, ...]:
     versions = {v.id: v for v in concept.versions}
     visited: set[UUID] = set()

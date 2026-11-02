@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import timedelta
 from uuid import UUID
 
 from pydantic import TypeAdapter, ValidationError
@@ -39,7 +39,6 @@ from ekb.domain.models import (
 from ekb.domain.reconciliation import SemanticCacheEntry
 from ekb.domain.resolution import (
     Decision,
-    Deviation,
     Finding,
     KnowledgeSnapshot,
     alias_edges,
@@ -567,6 +566,3 @@ class ResolutionStore:
                 )
                 .on_conflict_do_nothing()
             )
-
-    async def deviations(self, as_of: date) -> tuple[Deviation, ...]:
-        return ()

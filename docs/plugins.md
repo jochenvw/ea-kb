@@ -121,11 +121,7 @@ asynchronous clients and `DefaultAzureCredential`; provision the private contain
 grant the identity only needed blob permissions. No Azure resource provisioning happens on scan.
 
 Future ArchiMate exchange and Bizzdesign integrations should map original element identifiers
-to stable source references without inventing evidence. `DeviationReference` reserves a typed
-association to a specific concept revision and scope. `Deviation` and
-`ResolutionRepository.deviations(as_of)` support an independently replaceable approved-deviation
-count detector. The default repository returns no approved exceptions; approval/storage lifecycle
-management remains out of scope. The synthetic demonstration exercises the detector explicitly.
+to stable source references without inventing evidence.
 
 ## Verification
 

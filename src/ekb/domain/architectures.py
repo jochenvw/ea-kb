@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from enum import StrEnum
 from pathlib import PurePath
-from typing import Literal, Self
+from typing import Self
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -15,13 +15,6 @@ from ekb.domain.models import ConceptDetail, KnowledgeLevel, Model, Scope
 class ControlDisposition(StrEnum):
     REQUIRED = "required"
     EXCEPTION = "exception"
-
-
-class AssessmentOutcome(StrEnum):
-    # Declared evidence is a claim, never a verified conformance result.
-    DECLARED = "declared"
-    EXCEPTED = "excepted"
-    MISSING = "missing"
 
 
 class ArchitectureControl(Model):
@@ -48,14 +41,6 @@ class ArchitectureControl(Model):
             if self.expires_on is not None and self.expires_on < self.approved_at.date():
                 raise ValueError("Control exception expiry cannot precede approval")
         return self
-
-    def active_exception(self, as_of: date) -> bool:
-        return (
-            self.disposition is ControlDisposition.EXCEPTION
-            and self.approved_at is not None
-            and self.approved_at.date() <= as_of
-            and (self.expires_on is None or self.expires_on >= as_of)
-        )
 
 
 class ArchitectureManifest(Model):
@@ -136,57 +121,12 @@ class SolutionArchitecture(Model):
         return self.revisions[-1]
 
 
-class ArchitectureEvidence(Model):
-    concept_id: UUID
-    summary: str = Field(min_length=1, max_length=2000)
-    location: str | None = Field(default=None, max_length=2000)
-
-
 class ArchitectureRequirementDetail(Model):
     control: ArchitectureControl
     concept: ConceptDetail
-
-
-class ArchitectureAssessmentInput(Model):
-    evidence: tuple[ArchitectureEvidence, ...] = ()
-    version: str | None = None
-    as_of: date | None = None
 
 
 class TraceabilityStep(Model):
     concept_id: UUID
     level: KnowledgeLevel
     statement: str
-
-
-class ControlAssessment(Model):
-    concept_id: UUID
-    outcome: AssessmentOutcome
-    evidence: ArchitectureEvidence | None = None
-    exception: ArchitectureControl | None = None
-    chain: tuple[TraceabilityStep, ...]
-    explanation: str
-
-
-class ArchitectureAssessment(Model):
-    architecture_id: UUID
-    revision_id: UUID
-    version: str
-    as_of: date
-    basis: Literal["declared_evidence"] = "declared_evidence"
-    verified: Literal[False] = False
-    declared_complete: bool
-    controls: tuple[ControlAssessment, ...]
-    unregistered_evidence: tuple[ArchitectureEvidence, ...] = ()
-
-
-def coverage_outcome(
-    control: ArchitectureControl,
-    evidence: ArchitectureEvidence | None,
-    as_of: date,
-) -> AssessmentOutcome:
-    if evidence is not None:
-        return AssessmentOutcome.DECLARED
-    if control.active_exception(as_of):
-        return AssessmentOutcome.EXCEPTED
-    return AssessmentOutcome.MISSING

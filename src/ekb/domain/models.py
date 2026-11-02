@@ -742,12 +742,3 @@ class AuthorityState(Model):
     effective_from: date | None = None
     effective_until: date | None = None
     event_ids: tuple[UUID, ...] = ()
-
-
-class DeviationReference(Model):
-    """Reserved contract; no exception-management workflow is implemented."""
-
-    id: UUID
-    concept_version_id: UUID
-    scope: Scope
-    external_reference: str

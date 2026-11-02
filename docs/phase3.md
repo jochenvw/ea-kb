@@ -78,8 +78,8 @@ pipeline:
           auto_accept_exact: false
     issues:
       checks:
-        excessive_deviations:
-          threshold: 10
+        provenance_gaps:
+          enabled: true
 ```
 
 Exact recognition retains one existing identity and its separate occurrences. Semantic similarity,
@@ -155,13 +155,12 @@ uv run ekb eval workflow --output data\phase3-demonstration.json
 
 Requires at least one previously indexed ordinary source and its retained original. This offline
 command creates/uses an isolated `ekb_phase3_demo` schema, indexes retained source bytes using
-rules, adds **four clearly synthetic enterprise facts**, injects a fixture-only approved deviation,
-and runs all stages. Synthetic facts are not a case study; published source text is not proof of
+rules, adds **four clearly synthetic enterprise facts** and runs all stages. Synthetic facts are not a case study; published source text is not proof of
 any enterprise's deployment.
 
 The report simulates a named human accepting one evidence-backed, limited-scope canonical version.
-It reruns, constructs a new resolver and checks persisted provenance, the time-limited synthetic
-deviation and unscoped `not_established` resolution. Simulation writes only to the demo schema; it
+It reruns, constructs a new resolver and checks persisted provenance and unscoped
+`not_established` resolution. Simulation writes only to the demo schema; it
 is **not** a production enterprise decision. Counts and runtime depend on the source corpus and
 prior checkpoints; no historical fixed metrics or model qualification are claimed.
 
@@ -209,10 +208,8 @@ resolver search currently loads a snapshot per candidate. Historical parser inte
 visible; current-candidate projection does not distinguish every parser generation of unchanged
 bytes. Explicit canonical decisions prevent parser recency from becoming authority.
 
-The default deviation repository returns no approved exceptions. A typed detector and synthetic
-input demonstrate counting, not a production portfolio workflow. Registered solution-architecture
-exceptions are not yet projected into this detector. Counts with applicable-population denominators,
-aggregate risk/standards review and owner-directed standard-change impact remain product goals; see
+Exception-rate and change-impact portfolio views are derived on demand from registered solution
+architectures (`ekb portfolio`); see
 [the application feedback loop](architecture.md#application-goals-and-feedback-loop).
 No automatic policy compliance, autonomous governance, enterprise authorization or live Azure
 deployment is claimed.

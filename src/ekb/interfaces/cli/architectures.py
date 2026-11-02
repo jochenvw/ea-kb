@@ -11,10 +11,10 @@ from uuid import UUID
 
 import typer
 import yaml
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from ekb.adapters.implementation import compile_bicep
-from ekb.domain.architectures import ArchitectureEvidence, ArchitectureManifest
+from ekb.domain.architectures import ArchitectureManifest
 from ekb.domain.assessment import SolutionAssessment, SolutionAssessmentInput
 from ekb.domain.portfolio import ChangeImpactInput, ExceptionRiskInput
 from ekb.runtime import Runtime
@@ -76,32 +76,6 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         try:
             emit(asyncio.run(execute()))
         except ValueError as error:
-            raise typer.BadParameter(str(error)) from None
-
-    @architectures.command("assess")
-    def assess_architecture(
-        architecture_id: UUID,
-        evidence: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-        version: Annotated[str | None, typer.Option()] = None,
-        as_of: Annotated[str | None, typer.Option(help="ISO date, for example 2026-11-01.")] = None,
-    ) -> None:
-        """Assess declared implementation evidence; this does not inspect source code."""
-        try:
-            claims = TypeAdapter(tuple[ArchitectureEvidence, ...]).validate_python(
-                json.loads(evidence.read_text(encoding="utf-8"))
-            )
-
-            async def execute():
-                async with Runtime() as runtime:
-                    return await runtime.architectures.assess(
-                        architecture_id,
-                        claims,
-                        version=version,
-                        as_of=date.fromisoformat(as_of) if as_of else None,
-                    )
-
-            emit(asyncio.run(execute()))
-        except (OSError, ValueError, ValidationError, json.JSONDecodeError) as error:
             raise typer.BadParameter(str(error)) from None
 
     @app.command("assess")

@@ -7,7 +7,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
-from difflib import SequenceMatcher
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -774,30 +773,6 @@ class Knowledge:
                 )
             )
         return results
-
-    async def similar(self, concept_id: UUID, limit: int = 10) -> list[ConceptDetail]:
-        concept = await self.get(concept_id)
-        if not concept:
-            return []
-        statement = concept.versions[-1].candidate.statement.casefold()
-        words = re.findall(r"\w{4,}", statement)[:8]
-        if not words:
-            return []
-        rows = await self.session.scalars(
-            select(VersionRow)
-            .where(
-                VersionRow.concept_id != concept_id,
-                or_(*(VersionRow.statement.icontains(w, autoescape=True) for w in words)),
-            )
-            .limit(200)
-        )
-        ranked = sorted(
-            rows,
-            key=lambda row: SequenceMatcher(None, statement, row.statement.casefold()).ratio(),
-            reverse=True,
-        )
-        ids = list(dict.fromkeys(row.concept_id for row in ranked))[:limit]
-        return [detail for cid in ids if (detail := await self.get(cid))]
 
     async def record_authority(self, event: AuthorityEvent) -> None:
         await immutable(

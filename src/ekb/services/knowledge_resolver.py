@@ -256,17 +256,3 @@ class KnowledgeResolver:
                 results.append(result)
                 seen.add(key)
         return tuple(results)
-
-    async def get_current_canonical(
-        self, concept_id: UUID, scope: Scope | None = None
-    ) -> Resolution:
-        return await self.resolve_concept(concept_id, scope)
-
-    async def trace_provenance(self, concept_id: UUID):
-        return (await self.resolve_concept(concept_id, profile="all")).provenance
-
-    async def get_version_history(self, concept_id: UUID):
-        return (await self.resolve_concept(concept_id, profile="all")).versions
-
-    async def explain_resolution(self, concept_id: UUID, scope: Scope | None = None) -> Resolution:
-        return await self.resolve_concept(concept_id, scope)
