@@ -109,6 +109,7 @@ def finding(
         "relationship": values.get("relationship"),
         "scope": values.get("scope"),
         "change": values.get("proposed_change"),
+        "version": version,
     }
     return Finding(
         id=stable_id(identifier, fingerprint(**evidence)),

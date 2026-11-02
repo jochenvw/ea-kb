@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from ekb.domain.execution import CheckOptions
@@ -99,6 +99,7 @@ def context(
     prior_findings: tuple[Finding, ...] = (),
     snapshot_findings: tuple[Finding, ...] = (),
     max_candidates: int = 500,
+    parameters: dict[str, Any] | None = None,
 ) -> CheckContext:
     snapshot = KnowledgeSnapshot(
         revision="test",
@@ -112,7 +113,7 @@ def context(
         run_id=uuid4(),
         input_revision="test",
         snapshot=snapshot,
-        options=CheckOptions(max_candidates=max_candidates),
+        options=CheckOptions(max_candidates=max_candidates, parameters=parameters or {}),
         prior_findings=prior_findings,
     )
 
@@ -245,7 +246,11 @@ class Embeddings:
 class Mapper:
     fingerprint = "mapper-test"
 
+    def __init__(self):
+        self.calls = 0
+
     async def map(self, child, parents):
+        self.calls += 1
         parent = parents[0]
         return TraceabilityVerification(
             selection=TraceabilitySelection(
@@ -263,6 +268,46 @@ class Mapper:
             model_id="test-model",
             model_calls=1,
             usage=Usage(input_tokens=10, output_tokens=5, latency_ms=2, cost=0),
+        )
+
+
+class NoParentMapper:
+    fingerprint = "mapper-test-v2"
+
+    def __init__(self):
+        self.calls = 0
+
+    async def map(self, child, parents):
+        self.calls += 1
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(unresolved_reason="No supplied parent is suitable."),
+            method="test",
+            model_id="test-model-v2",
+            model_calls=1,
+        )
+
+
+class MultipleParentMapper(Mapper):
+    fingerprint = "multiple-parent-mapper"
+
+    async def map(self, child, parents):
+        self.calls += 1
+        return TraceabilityVerification(
+            selection=TraceabilitySelection(
+                links=tuple(
+                    ParentSelection(
+                        parent_concept_id=parent.concept_id,
+                        confidence=0.95 - index * 0.1,
+                        rationale="The control implements the broader requirement.",
+                        child_excerpt=child.excerpt,
+                        parent_excerpt=parent.excerpt,
+                    )
+                    for index, parent in enumerate(parents[:2])
+                )
+            ),
+            method="test",
+            model_id="test-model",
+            model_calls=1,
         )
 
 
@@ -316,6 +361,109 @@ async def test_platform_alignment_maps_controls_to_bounded_agnostic_parents():
     assert result.findings[0].relationship is RelationshipKind.REFINES
     assert result.statistics["platform_controls_parented"] == 1
     assert result.statistics["platform_controls_orphaned"] == 0
+
+
+async def test_platform_alignment_carries_only_findings_for_current_versions():
+    parent = concept(SemanticType.TECHNICAL_REQUIREMENT, "Deny network traffic by default.")
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Use a network security perimeter for resource isolation.",
+        platform="Azure",
+    )
+    replay = ReplayStore()
+    database = cast(UnitOfWorkFactory, replay)
+    original_mapper = Mapper()
+    original_check = platform_alignment_check(database, original_mapper, None, concurrency=1)
+    original = await original_check.evaluate(context([parent, control]))
+    assert len(original.findings) == 1
+    assert original_mapper.calls == 1
+    replayed = await original_check.evaluate(
+        context([parent, control], snapshot_findings=original.findings)
+    )
+    assert tuple(item.id for item in replayed.findings) == tuple(
+        item.id for item in original.findings
+    )
+    assert original_mapper.calls == 1
+
+    changed_mapper = Mapper()
+    changed_mapper.fingerprint = "mapper-test-v2"
+    changed_check = platform_alignment_check(database, changed_mapper, None, concurrency=1)
+    changed = await changed_check.evaluate(
+        context([parent, control], snapshot_findings=original.findings)
+    )
+    changed_record_ids = {item.id for item in changed.findings}
+    assert changed_mapper.calls == 1
+    assert len(changed_record_ids) == 1
+    assert original.findings[0].id not in changed_record_ids
+
+    replacement_mapper = NoParentMapper()
+    replacement_check = platform_alignment_check(database, replacement_mapper, None, concurrency=1)
+    replacement = await replacement_check.evaluate(
+        context([parent, control], snapshot_findings=original.findings)
+    )
+
+    replacement_record_ids = {item.id for item in replacement.findings}
+    assert replacement_mapper.calls == 1
+    assert original.findings[0].id not in replacement_record_ids
+    assert replacement_record_ids == set()
+    assert replacement.statistics["platform_controls_orphaned"] == 1
+
+
+async def test_platform_alignment_mapping_cache_includes_current_parent_and_child_versions():
+    parent = concept(SemanticType.TECHNICAL_REQUIREMENT, "Deny network traffic by default.")
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Use a network security perimeter for resource isolation.",
+        platform="Azure",
+    )
+    mapper = Mapper()
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()), mapper, None, concurrency=1
+    )
+
+    def revised(item: ConceptDetail) -> ConceptDetail:
+        version_id = uuid4()
+        version = item.versions[0].model_copy(update={"id": version_id})
+        occurrence = item.occurrences[0].model_copy(
+            update={"id": uuid4(), "concept_version_id": version_id, "segment_id": uuid4()}
+        )
+        return item.model_copy(update={"versions": [version], "occurrences": [occurrence]})
+
+    await check.evaluate(context([parent, control]))
+    await check.evaluate(context([revised(parent), control]))
+    await check.evaluate(context([revised(parent), revised(control)]))
+
+    assert mapper.calls == 3
+
+
+async def test_platform_alignment_reapplies_selection_policy_to_replayed_mapping():
+    first_parent = concept(SemanticType.TECHNICAL_REQUIREMENT, "Deny network traffic by default.")
+    second_parent = concept(SemanticType.CONCEPTUAL_REQUIREMENT, "Isolate network boundaries.")
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        "Use a network security perimeter for resource isolation.",
+        platform="Azure",
+    )
+    mapper = MultipleParentMapper()
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()), mapper, None, concurrency=1
+    )
+
+    default_policy = await check.evaluate(context([first_parent, second_parent, control]))
+    strict_confidence = await check.evaluate(
+        context(
+            [first_parent, second_parent, control],
+            parameters={"confidence_threshold": 0.9},
+        )
+    )
+    single_parent = await check.evaluate(
+        context([first_parent, second_parent, control], parameters={"max_parents": 1})
+    )
+
+    assert len(default_policy.findings) == 2
+    assert tuple(item.id for item in strict_confidence.findings) == (default_policy.findings[0].id,)
+    assert tuple(item.id for item in single_parent.findings) == (default_policy.findings[0].id,)
+    assert mapper.calls == 1
 
 
 class Verifier:
