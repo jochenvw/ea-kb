@@ -68,6 +68,26 @@ function lineage(graph: KnowledgeGraph) {
   };
 }
 
+const summaryLimit = 160;
+
+// Exact leading excerpt, never generated text: the first clause or sentence of the statement.
+export function leadingSentence(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const clauses = normalized.split(/;\s+(?:and\s+)?/);
+  let first = clauses[0].split(/(?<=[.!?])\s+(?=[A-Z])/)[0];
+  const sentences = normalized.split(/(?<=[.!?])\s+(?=[A-Z])/).length;
+  const remaining = Math.max(clauses.length, sentences) - 1;
+  if (first.length > summaryLimit) {
+    first =
+      first
+        .slice(0, first.lastIndexOf(" ", summaryLimit))
+        .replace(/[,;:]$/, "") + "…";
+  } else if (remaining > 0) {
+    first = first.replace(/[.;:,]?$/, "…");
+  }
+  return { text: first, truncated: first !== normalized, remaining };
+}
+
 function TraceabilityLayer({
   title,
   empty,
@@ -84,19 +104,35 @@ function TraceabilityLayer({
       <p className="eyebrow">{title}</p>
       {nodes.length ? (
         <div className="traceability-nodes">
-          {nodes.map((node) => (
-            <a
-              key={node.id}
-              href={node.href}
-              aria-current={node.id === root ? "true" : undefined}
-            >
-              <span>
-                <strong>{node.label}</strong>
-                <small>{label(node.kind)}</small>
-              </span>
-              {node.id !== root && <ArrowUpRight size={14} />}
-            </a>
-          ))}
+          {nodes.map((node) => {
+            const summary = leadingSentence(node.label);
+            return (
+              <a
+                key={node.id}
+                href={node.href}
+                title={summary.truncated ? node.label : undefined}
+                aria-current={node.id === root ? "true" : undefined}
+              >
+                <span>
+                  <strong>{summary.text}</strong>
+                  <small>
+                    {label(node.kind)}
+                    {summary.truncated && (
+                      <>
+                        {" · "}
+                        <span className="traceability-more">
+                          {summary.remaining > 0
+                            ? `+${summary.remaining} more · full statement`
+                            : "full statement"}
+                        </span>
+                      </>
+                    )}
+                  </small>
+                </span>
+                {node.id !== root && <ArrowUpRight size={14} />}
+              </a>
+            );
+          })}
         </div>
       ) : (
         <p className="traceability-gap">{empty}</p>

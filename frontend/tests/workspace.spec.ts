@@ -1765,7 +1765,8 @@ test("configured principles show the complete evidence-backed architecture chain
           },
           {
             id: relatedId,
-            label: "Control communications at external managed interfaces.",
+            label:
+              "Control communications at external managed interfaces; Establish a traffic flow policy for each managed interface; and Protect confidentiality across each interface.",
             kind: "TechnicalRequirement",
             level: "platform_agnostic",
             href: `/concepts/${relatedId}`,
@@ -1875,7 +1876,19 @@ test("configured principles show the complete evidence-backed architecture chain
   );
   await expect(traceability).toContainText("Network security");
   await expect(traceability).toContainText(
-    "Control communications at external managed interfaces.",
+    "Control communications at external managed interfaces…",
+  );
+  await expect(traceability).not.toContainText(
+    "Establish a traffic flow policy",
+  );
+  const summarized = traceability.getByRole("link", {
+    name: /Control communications at external managed interfaces…/,
+  });
+  await expect(summarized).toContainText("+2 more · full statement");
+  await expect(summarized).toHaveAttribute("href", `/concepts/${relatedId}`);
+  await expect(summarized).toHaveAttribute(
+    "title",
+    /Protect confidentiality across each interface\.$/,
   );
   await expect(traceability).toContainText(
     "Azure · NS-2: Use virtual network peering.",
@@ -1893,7 +1906,7 @@ test("configured principles show the complete evidence-backed architecture chain
   for (const text of [
     "Use NIST SP 800-53 Revision 5 as the cybersecurity control baseline.",
     "Network security",
-    "Control communications at external managed interfaces.",
+    "Control communications at external managed interfaces…",
     "Azure · NS-2: Use virtual network peering.",
   ]) {
     await expect(traceability).toContainText(text);

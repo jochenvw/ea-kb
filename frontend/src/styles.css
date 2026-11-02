@@ -950,6 +950,11 @@ td > strong {
   font-size: 10px;
   line-height: 1.45;
 }
+.traceability-nodes .traceability-more {
+  display: inline;
+  color: var(--cp-accent);
+  text-decoration: underline;
+}
 .traceability-gap {
   margin: 0;
   border-style: dashed;
