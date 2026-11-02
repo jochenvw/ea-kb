@@ -75,6 +75,14 @@ an explicit caller/operator action, not autonomous outreach.
 
 ### Current status and lean delivery
 
+`domain/assessment.py` supplies the deterministic verified-assessment contract. It keeps design
+and implementation outcomes separate, binds observations to the assessed artifact and target mode,
+and requires a nonempty complete baseline before reporting overall conformity. Exceptions are
+bound to solution, architecture revision, requirement version, scope and effective dates. This
+internal contract does not itself establish authority or inspect implementation inputs; callers
+must obtain those facts through the application boundaries. The existing declared-evidence
+transport remains explicitly non-verifying until integrated with those boundaries.
+
 These feedback-loop capabilities are intended outcomes tracked in
 [the assessment backlog](https://github.com/jochenvw/ea-kb/issues/25). Existing foundations include
 exact evidence, immutable interpretations and architecture revisions, scoped authority, explicit
