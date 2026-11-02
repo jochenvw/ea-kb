@@ -12,6 +12,7 @@ from ekb.domain.baselines import (
     BaselineRequirement,
     DesignDecision,
     DesignDocument,
+    SolutionIdentity,
     VerificationOption,
     WorkloadContext,
 )
@@ -38,7 +39,11 @@ pytestmark = pytest.mark.integration
 
 
 async def seed_requirement(
-    database, statement, raw=None, semantic_type=SemanticType.TECHNICAL_REQUIREMENT
+    database,
+    statement,
+    raw=None,
+    semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
+    effective_at=None,
 ):
     raw = raw or statement
     source_id, revision_id = uuid4(), uuid4()
@@ -92,6 +97,7 @@ async def seed_requirement(
             outcome="accepted",
             actor="fixture-board",
             rationale="Approve this synthetic requirement and its exact evidence.",
+            **({"effective_at": effective_at} if effective_at else {}),
         )
     )
     return concept
@@ -123,7 +129,8 @@ async def assessment_setup(database, tmp_path):
     )
     approval = BaselineApproval(concept_id=root.id, version_id=root.versions[0].id)
     design = DesignDocument(
-        context=WorkloadContext(exposure="private"), repository="example/app", decisions=()
+        solution=SolutionIdentity(owner="Records", team="Records", repository="example/app"),
+        context=WorkloadContext(exposure="private"),
     )
     architectures = ArchitectureService(database, FilesystemArtifactStore(tmp_path))
     architecture = await architectures.register(
@@ -184,6 +191,7 @@ async def test_basis_distinguishes_permitted_alternative_and_unauthorized_intent
             version_id=rule.version_id,
             option=option,
             rationale="Intentional design choice.",
+            evidence_location="design.md#records",
         )
         updated = design.model_copy(update={"decisions": (decision,)})
         basis = await service.prepare(policy, digest, approval, architecture, updated, target)

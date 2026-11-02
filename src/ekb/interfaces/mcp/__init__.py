@@ -11,20 +11,30 @@ from ekb.domain.architectures import (
     ArchitectureEvidence,
     SolutionArchitecture,
 )
+from ekb.domain.assessment import SolutionAssessment, SolutionAssessmentInput
 from ekb.domain.issues import Issue, IssueStatus
 from ekb.domain.models import ConceptDetail, Provenance, Scope
+from ekb.domain.portfolio import (
+    ChangeImpactInput,
+    ChangeImpactReport,
+    ExceptionRiskInput,
+    ExceptionRiskReport,
+)
 from ekb.domain.resolution import Decision, Resolution, ResolutionProfile
 from ekb.runtime import Runtime
 from ekb.services.architectures import ArchitectureService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
+from ekb.services.portfolio import PortfolioService
 from ekb.services.reconciliation_service import ReconciliationService
+from ekb.services.solution_assessment import SolutionAssessmentService
 
 
 def create_server(
     service: KnowledgeService | None = None,
     architecture_service: ArchitectureService | None = None,
+    assessment_service: SolutionAssessmentService | None = None,
 ) -> FastMCP:
     @asynccontextmanager
     async def lifespan(server: FastMCP):
@@ -35,6 +45,7 @@ def create_server(
                 "issues": IssueService(service.uow),
                 "reconciliation": ReconciliationService(service.uow),
                 "architectures": architecture_service or ArchitectureService(service.uow),
+                "assessments": assessment_service,
             }
         else:
             async with Runtime() as runtime:
@@ -44,6 +55,7 @@ def create_server(
                     "issues": runtime.issues,
                     "reconciliation": runtime.reconciliation,
                     "architectures": runtime.architectures,
+                    "assessments": runtime.assessments,
                 }
 
     server = FastMCP(
@@ -150,12 +162,50 @@ def create_server(
         version: str | None = None,
         as_of: date | None = None,
     ) -> ArchitectureAssessment:
-        """Check declared evidence and active exceptions; raw code is not inspected."""
+        """Report declared, unverified evidence and exceptions; prefer assess_solution."""
         return await architectures(ctx).assess(
             architecture_id,
             evidence,
             version=version,
             as_of=as_of,
         )
+
+    @server.tool()
+    async def assess_solution(request: SolutionAssessmentInput, ctx: Context) -> SolutionAssessment:
+        """Assess design decisions and a supplied ARM template against an approved baseline.
+
+        Read-only: it never approves exceptions or deviations. Unknown and unsupported results
+        never count as passing; check `conforms`, `coverage` and each finding's disposition.
+        """
+        assessments: SolutionAssessmentService | None = ctx.request_context.lifespan_context[
+            "assessments"
+        ]
+        if assessments is None:
+            raise ValueError("Solution assessment is not configured")
+        return await assessments.assess(request)
+
+    def portfolio(ctx: Context) -> PortfolioService:
+        assessments: SolutionAssessmentService | None = ctx.request_context.lifespan_context[
+            "assessments"
+        ]
+        if assessments is None:
+            raise ValueError("Solution assessment is not configured")
+        return PortfolioService(assessments)
+
+    @server.tool()
+    async def exception_risk(request: ExceptionRiskInput, ctx: Context) -> ExceptionRiskReport:
+        """Project exceptions across applicable solutions with denominators and drill-down.
+
+        Review signals only: no risk score, renewal, approval or standard change is implied.
+        """
+        return await portfolio(ctx).exception_risk(request)
+
+    @server.tool()
+    async def change_impact(request: ChangeImpactInput, ctx: Context) -> ChangeImpactReport:
+        """Trace a baseline change to affected solutions, owners and draft work items.
+
+        Read-only: drafts are not sent and publisher releases are never treated as mandates.
+        """
+        return await portfolio(ctx).change_impact(request)
 
     return server

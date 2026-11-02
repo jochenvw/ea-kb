@@ -191,7 +191,7 @@ async def run_suite(
                     None, output / "nist", StructuredParser(), RulesInference()
                 )
             architectures = await evaluate_architectures(
-                Path("evals") / "architecture-assessment-v1.json",
+                Path("evals") / "architecture-assessment-v2.json",
                 output / "architectures.json",
             )
         except Exception as exc:

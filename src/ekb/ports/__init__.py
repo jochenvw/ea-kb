@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, AbstractContextManager
-from typing import Protocol, Self, runtime_checkable
+from typing import Literal, Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from ekb.domain.architectures import SolutionArchitecture, SolutionArchitectureRevision
+from ekb.domain.assessment import CheckRequest, ImplementationObservation
 from ekb.domain.inspection import (
     BacklogPage,
     BacklogStatus,
@@ -63,6 +64,22 @@ class SourceConnector(Protocol):
 class ArtifactStore(Protocol):
     async def put(self, content: bytes) -> str: ...
     async def get(self, key: str) -> bytes: ...
+
+
+class ImplementationAnalyzer(Protocol):
+    """Deterministically observes implementation artefacts; never runs supplied code."""
+
+    version: str
+
+    def observe(
+        self,
+        template: Mapping[str, object],
+        parameters: Mapping[str, object],
+        checks: Sequence[CheckRequest],
+        *,
+        artifact_sha256: str,
+        basis: Literal["planned", "deployed"],
+    ) -> tuple[tuple[ImplementationObservation, ...], ...]: ...
 
 
 class DocumentParser(Protocol):

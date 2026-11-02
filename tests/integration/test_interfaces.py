@@ -302,9 +302,9 @@ async def test_solution_architecture_api_retains_artifacts_exceptions_and_assess
                 )
                 assert assessment.status_code == 200
                 result = assessment.json()
-                assert result["conforms"]
-                assert result["controls"][0]["outcome"] == "conforms"
-                assert result["controls"][0]["explanation"].startswith("OK:")
+                assert result["declared_complete"] and result["verified"] is False
+                assert result["controls"][0]["outcome"] == "declared"
+                assert result["controls"][0]["explanation"].startswith("Declared (not verified):")
                 assert (await client.get(f"/solutions/{architecture.id}")).status_code == 200
                 assert (await client.get(f"/api/architectures/{uuid4()}")).status_code == 404
     finally:
@@ -448,6 +448,9 @@ async def test_readonly_mcp_protocol_returns_explicit_schemas_and_evidence(datab
             "list_solution_architectures",
             "get_solution_architecture",
             "assess_solution_architecture",
+            "assess_solution",
+            "exception_risk",
+            "change_impact",
         }
         assert all(tool.inputSchema and tool.outputSchema for tool in tools.tools)
         result = await session.call_tool("search_concepts", {"query": "logging", "limit": 10})

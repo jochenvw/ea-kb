@@ -1,0 +1,1323 @@
+{
+  "version": "2",
+  "review_status": "provisional",
+  "as_of": "2026-06-30",
+  "obligation": "Synthetic Company obligation: hosted workloads apply the selected solution baseline.",
+  "solution": {
+    "name": "Evaluation solution",
+    "owner": "Synthetic owner",
+    "team": "synthetic-team",
+    "repository": "example/evaluation",
+    "environment": "production"
+  },
+  "context": {
+    "exposure": "public",
+    "criticality": "normal",
+    "data_classification": "public",
+    "environment": "production",
+    "deployment_boundary": "internet"
+  },
+  "requirements": [
+    {
+      "key": "enc-web",
+      "family": "encryption",
+      "statement": "Synthetic: web endpoints accept only HTTPS with TLS 1.2 or later.",
+      "options": [
+        {
+          "id": "https-tls12",
+          "check_id": "encryption.in_transit",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "key": "enc-legacy",
+      "family": "encryption",
+      "statement": "Synthetic: legacy protocol endpoints use approved gateways.",
+      "excluded_reason": "No legacy protocol endpoints are in this baseline's scope.",
+      "options": [
+        {
+          "id": "https-tls12",
+          "check_id": "encryption.in_transit",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "key": "log-web",
+      "family": "logging",
+      "statement": "Synthetic: web endpoints send diagnostic logs to a central workspace.",
+      "options": [
+        {
+          "id": "diagnostic-settings",
+          "check_id": "logging.diagnostic_settings",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "key": "net-private",
+      "family": "network",
+      "statement": "Synthetic: private workloads disable public network access and use private endpoints.",
+      "when": {
+        "exposure": "private"
+      },
+      "options": [
+        {
+          "id": "private-endpoint",
+          "check_id": "network.private_access",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "key": "id-auth",
+      "family": "identity",
+      "statement": "Synthetic: private workloads admit only authenticated or privately routed requests.",
+      "when": {
+        "exposure": "private"
+      },
+      "options": [
+        {
+          "id": "platform-auth",
+          "check_id": "identity.require_authentication",
+          "resource_type": "Microsoft.Web/sites"
+        },
+        {
+          "id": "private-only",
+          "check_id": "network.private_access",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "key": "id-keys",
+      "family": "identity",
+      "statement": "Synthetic: data stores disable shared-key administrative access.",
+      "options": [
+        {
+          "id": "directory-only",
+          "check_id": "identity.shared_key_disabled",
+          "resource_type": "Microsoft.Storage/storageAccounts"
+        }
+      ]
+    },
+    {
+      "key": "ret-blob",
+      "family": "retention",
+      "statement": "Synthetic: confidential content keeps deleted blobs recoverable for at least seven days.",
+      "when": {
+        "data_classification": "confidential"
+      },
+      "options": [
+        {
+          "id": "soft-delete",
+          "check_id": "retention.blob_soft_delete",
+          "resource_type": "Microsoft.Storage/storageAccounts/blobServices"
+        }
+      ]
+    },
+    {
+      "key": "sec-rotation",
+      "family": "secrets",
+      "statement": "Synthetic: high-criticality workloads rotate vault secrets automatically.",
+      "when": {
+        "criticality": "high"
+      },
+      "options": [
+        {
+          "id": "vault-rotation",
+          "check_id": "secrets.rotation",
+          "resource_type": "Microsoft.KeyVault/vaults"
+        }
+      ]
+    }
+  ],
+  "templates": {
+    "web": {
+      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "httpsOnly": {
+          "type": "bool",
+          "defaultValue": true
+        },
+        "tls": {
+          "type": "string",
+          "defaultValue": "1.2"
+        },
+        "publicAccess": {
+          "type": "string",
+          "defaultValue": "Enabled"
+        },
+        "privateEndpoint": {
+          "type": "bool",
+          "defaultValue": false
+        },
+        "auth": {
+          "type": "bool",
+          "defaultValue": false
+        },
+        "diagnostics": {
+          "type": "bool",
+          "defaultValue": true
+        },
+        "sharedKey": {
+          "type": "bool",
+          "defaultValue": false
+        },
+        "softDays": {
+          "type": "int",
+          "defaultValue": 7
+        }
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites",
+          "apiVersion": "2023-12-01",
+          "name": "web-0",
+          "tags": {
+            "note": "Synthetic: httpsOnly true and TLS 1.2 claimed here is not evidence."
+          },
+          "properties": {
+            "httpsOnly": "[parameters('httpsOnly')]",
+            "publicNetworkAccess": "[parameters('publicAccess')]",
+            "siteConfig": {
+              "minTlsVersion": "[parameters('tls')]"
+            }
+          }
+        },
+        {
+          "type": "Microsoft.Web/sites/config",
+          "apiVersion": "2023-12-01",
+          "name": "web-0/authsettingsV2",
+          "condition": "[parameters('auth')]",
+          "properties": {
+            "platform": {
+              "enabled": true
+            },
+            "globalValidation": {
+              "requireAuthentication": true
+            }
+          }
+        },
+        {
+          "type": "Microsoft.Insights/diagnosticSettings",
+          "apiVersion": "2021-05-01-preview",
+          "name": "web-0-logs",
+          "scope": "[resourceId('Microsoft.Web/sites', 'web-0')]",
+          "condition": "[parameters('diagnostics')]",
+          "properties": {
+            "workspaceId": "synthetic-workspace",
+            "logs": [
+              {
+                "category": "AppServiceHTTPLogs",
+                "enabled": true
+              }
+            ]
+          }
+        },
+        {
+          "type": "Microsoft.Network/privateEndpoints",
+          "apiVersion": "2023-11-01",
+          "name": "web-0-pe",
+          "condition": "[parameters('privateEndpoint')]",
+          "properties": {
+            "privateLinkServiceConnections": [
+              {
+                "name": "web",
+                "properties": {
+                  "privateLinkServiceId": "[resourceId('Microsoft.Web/sites', 'web-0')]",
+                  "groupIds": [
+                    "sites"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts",
+          "apiVersion": "2023-05-01",
+          "name": "data0",
+          "properties": {
+            "allowSharedKeyAccess": "[parameters('sharedKey')]",
+            "supportsHttpsTrafficOnly": true,
+            "minimumTlsVersion": "TLS1_2"
+          }
+        },
+        {
+          "type": "Microsoft.Storage/storageAccounts/blobServices",
+          "apiVersion": "2023-05-01",
+          "name": "data0/default",
+          "properties": {
+            "deleteRetentionPolicy": {
+              "enabled": true,
+              "days": "[parameters('softDays')]"
+            }
+          }
+        }
+      ]
+    },
+    "fleet": {
+      "parameters": {
+        "tls": {
+          "type": "array",
+          "defaultValue": [
+            "1.2",
+            "1.2",
+            "1.0"
+          ]
+        }
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites",
+          "name": "[format('web-{0}', copyIndex())]",
+          "copy": {
+            "name": "sites",
+            "count": 3
+          },
+          "properties": {
+            "httpsOnly": true,
+            "siteConfig": {
+              "minTlsVersion": "[parameters('tls')[copyIndex()]]"
+            }
+          }
+        }
+      ]
+    },
+    "shared": {
+      "resources": [
+        {
+          "type": "Microsoft.Storage/storageAccounts",
+          "name": "shared-data",
+          "existing": true
+        }
+      ]
+    },
+    "linked": {
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites",
+          "name": "web-0",
+          "properties": {
+            "httpsOnly": true,
+            "siteConfig": {
+              "minTlsVersion": "1.2"
+            }
+          }
+        },
+        {
+          "type": "Microsoft.Resources/deployments",
+          "name": "edge",
+          "properties": {
+            "templateLink": {
+              "uri": "https://example.invalid/edge.json"
+            }
+          }
+        }
+      ]
+    },
+    "minimal": {
+      "resources": [
+        {
+          "type": "Microsoft.Web/sites",
+          "name": "web-0",
+          "properties": {}
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "enc-satisfied",
+      "family": "encryption",
+      "scenario": "design requires and implementation satisfies",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms",
+          "applicability": "applicable",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "enc-violated",
+      "family": "encryption",
+      "scenario": "implementation demonstrably violates the design",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "tls": "1.0"
+      },
+      "expected": {
+        "enc-web": {
+          "disposition": "violated",
+          "implementation": "failed"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "enc-absent-attribute",
+      "family": "encryption",
+      "scenario": "absent property is not a verified platform default",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "minimal",
+      "expected": {
+        "enc-web": {
+          "disposition": "unknown",
+          "implementation": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "enc-fleet",
+      "family": "encryption",
+      "scenario": "one of several resource instances violates",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "fleet",
+      "expected": {
+        "enc-web": {
+          "disposition": "violated",
+          "implementation": "failed"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "enc-linked-module",
+      "family": "encryption",
+      "scenario": "linked module cannot be resolved from supplied artefacts",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "linked",
+      "expected": {
+        "enc-web": {
+          "disposition": "unknown",
+          "implementation": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "enc-tailored",
+      "family": "encryption",
+      "scenario": "explicitly tailored requirement",
+      "baseline": [
+        "enc-legacy"
+      ],
+      "template": "web",
+      "expected": {
+        "enc-legacy": {
+          "disposition": "not_applicable",
+          "applicability": "not_applicable"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "enc-conflicting-decisions",
+      "family": "encryption",
+      "scenario": "design passages disagree",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        },
+        {
+          "requirement": "enc-web",
+          "kind": "disabled",
+          "rationale": "TLS is terminated upstream.",
+          "evidence_location": "design.md#enc-later"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "enc-web": {
+          "disposition": "decision_required"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "enc-authority-missing",
+      "family": "encryption",
+      "scenario": "source guidance disagrees or graph link is rejected; requirement authority missing",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "missing_authority": [
+        "enc-web"
+      ],
+      "expected": {
+        "enc-web": {
+          "disposition": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "baseline-adoption-missing",
+      "family": "encryption",
+      "scenario": "enterprise adoption step is missing",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "missing_authority": [
+        "root"
+      ],
+      "expected": {
+        "enc-web": {
+          "disposition": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "agent-claims-success",
+      "family": "encryption",
+      "scenario": "agent text claims success; verification still fails",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "Agent verified: TLS 1.2 is enforced and every check passes.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "tls": "1.0"
+      },
+      "expected": {
+        "enc-web": {
+          "disposition": "violated",
+          "implementation": "failed"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "agent-describes-failure",
+      "family": "encryption",
+      "scenario": "agent text describes failure; verification decides",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "Agent note: this control is failing everywhere.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "invalidated-by-implementation",
+      "family": "encryption",
+      "scenario": "implementation change invalidates the prior basis",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "tls": "1.3"
+      },
+      "invalidates": "enc-satisfied",
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "invalidated-by-design",
+      "family": "encryption",
+      "scenario": "design change invalidates the prior basis",
+      "baseline": [
+        "enc-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "Revised: HTTPS with TLS 1.2 via platform policy.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "invalidates": "enc-satisfied",
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "invalidated-by-policy",
+      "family": "encryption",
+      "scenario": "policy change invalidates the prior basis",
+      "baseline": [
+        "enc-web"
+      ],
+      "policy_version": "2",
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "invalidates": "enc-satisfied",
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "log-omitted",
+      "family": "logging",
+      "scenario": "baseline requirement absent from checklist, design and implementation",
+      "baseline": [
+        "enc-web",
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms"
+        },
+        "log-web": {
+          "disposition": "decision_required",
+          "applicability": "applicable"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "log-satisfied",
+      "family": "logging",
+      "scenario": "design requires and implementation satisfies",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#log-web",
+          "option": "diagnostic-settings"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "log-web": {
+          "disposition": "conforms",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "exc-valid",
+      "family": "logging",
+      "scenario": "valid exception",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-12-31"
+          }
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "excepted"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": true
+    },
+    {
+      "id": "exc-expired",
+      "family": "logging",
+      "scenario": "expired exception",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-03-31"
+          }
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "decision_required"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "exc-future",
+      "family": "logging",
+      "scenario": "future-dated exception",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-09-01",
+            "effective_until": "2026-12-31"
+          }
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "decision_required"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "exc-wrong-scope",
+      "family": "logging",
+      "scenario": "wrong-scope exception",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-12-31",
+            "scope": {
+              "environment": "test"
+            }
+          }
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "decision_required"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "exc-wrong-version",
+      "family": "logging",
+      "scenario": "wrong-version exception",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-12-31"
+          },
+          "version": "stale"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "decision_required"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "exc-renewed",
+      "family": "logging",
+      "scenario": "renewal replaces an expired approval",
+      "baseline": [
+        "log-web"
+      ],
+      "decisions": [
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-1",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-03-31"
+          }
+        },
+        {
+          "requirement": "log-web",
+          "kind": "exception",
+          "rationale": "Workspace migration in progress.",
+          "evidence_location": "design.md#exc-1",
+          "exception": {
+            "id": "EXC-2",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-04-01",
+            "effective_until": "2026-12-31",
+            "renews": "EXC-1"
+          }
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "diagnostics": false
+      },
+      "expected": {
+        "log-web": {
+          "disposition": "excepted"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": true
+    },
+    {
+      "id": "id-alternative",
+      "family": "identity",
+      "scenario": "policy-permitted alternative design",
+      "baseline": [
+        "id-auth"
+      ],
+      "context": {
+        "exposure": "private",
+        "deployment_boundary": "private_network"
+      },
+      "decisions": [
+        {
+          "requirement": "id-auth",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#id-auth",
+          "option": "private-only"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "publicAccess": "Disabled",
+        "privateEndpoint": true
+      },
+      "expected": {
+        "id-auth": {
+          "disposition": "conforms",
+          "applicability": "applicable",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "id-unapproved-deviation",
+      "family": "identity",
+      "scenario": "intentional deviation without valid approval",
+      "baseline": [
+        "id-auth"
+      ],
+      "context": {
+        "exposure": "private",
+        "deployment_boundary": "private_network"
+      },
+      "decisions": [
+        {
+          "requirement": "id-auth",
+          "kind": "disabled",
+          "rationale": "Intentional deviation: partners cannot authenticate.",
+          "evidence_location": "design.md#id-auth"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "id-auth": {
+          "disposition": "violated"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "id-keys-shared",
+      "family": "identity",
+      "scenario": "external or shared infrastructure",
+      "baseline": [
+        "id-keys"
+      ],
+      "decisions": [
+        {
+          "requirement": "id-keys",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#id-keys",
+          "option": "directory-only"
+        }
+      ],
+      "template": "shared",
+      "expected": {
+        "id-keys": {
+          "disposition": "unknown",
+          "implementation": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "net-design-conflict",
+      "family": "network",
+      "scenario": "design conflicts with baseline although implementation matches design",
+      "baseline": [
+        "net-private"
+      ],
+      "context": {
+        "exposure": "private",
+        "deployment_boundary": "private_network"
+      },
+      "decisions": [
+        {
+          "requirement": "net-private",
+          "kind": "implements",
+          "rationale": "A public endpoint with IP rules.",
+          "evidence_location": "design.md#net-private",
+          "option": "public-endpoint"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "net-private": {
+          "disposition": "violated"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "ret-missing-attribute",
+      "family": "retention",
+      "scenario": "applicability depends on a missing workload attribute",
+      "baseline": [
+        "ret-blob"
+      ],
+      "context": {
+        "data_classification": null
+      },
+      "template": "web",
+      "expected": {
+        "ret-blob": {
+          "disposition": "unknown",
+          "applicability": "unknown"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "ret-not-applicable",
+      "family": "retention",
+      "scenario": "condition false for public content",
+      "baseline": [
+        "ret-blob"
+      ],
+      "template": "web",
+      "parameters": {
+        "softDays": 1
+      },
+      "expected": {
+        "ret-blob": {
+          "disposition": "not_applicable",
+          "applicability": "not_applicable"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "ret-satisfied",
+      "family": "retention",
+      "scenario": "design requires and implementation satisfies",
+      "baseline": [
+        "ret-blob"
+      ],
+      "context": {
+        "data_classification": "confidential"
+      },
+      "decisions": [
+        {
+          "requirement": "ret-blob",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#ret-blob",
+          "option": "soft-delete"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "ret-blob": {
+          "disposition": "conforms",
+          "applicability": "applicable",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "ret-violated",
+      "family": "retention",
+      "scenario": "implementation demonstrably violates the design",
+      "baseline": [
+        "ret-blob"
+      ],
+      "context": {
+        "data_classification": "confidential"
+      },
+      "decisions": [
+        {
+          "requirement": "ret-blob",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#ret-blob",
+          "option": "soft-delete"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "softDays": 3
+      },
+      "expected": {
+        "ret-blob": {
+          "disposition": "violated",
+          "implementation": "failed"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "sec-unsupported",
+      "family": "secrets",
+      "scenario": "required control has no implemented verifier",
+      "baseline": [
+        "sec-rotation"
+      ],
+      "context": {
+        "criticality": "high"
+      },
+      "decisions": [
+        {
+          "requirement": "sec-rotation",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#sec-rotation",
+          "option": "vault-rotation"
+        }
+      ],
+      "template": "web",
+      "expected": {
+        "sec-rotation": {
+          "disposition": "unknown",
+          "applicability": "applicable",
+          "implementation": "unsupported"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "restricted-multi-family",
+      "family": "network",
+      "scenario": "several families satisfied together",
+      "baseline": [
+        "enc-web",
+        "log-web",
+        "net-private",
+        "id-auth",
+        "id-keys",
+        "ret-blob"
+      ],
+      "context": {
+        "exposure": "private",
+        "deployment_boundary": "private_network",
+        "data_classification": "confidential"
+      },
+      "decisions": [
+        {
+          "requirement": "enc-web",
+          "kind": "implements",
+          "rationale": "The site enforces HTTPS with TLS 1.2.",
+          "evidence_location": "design.md#enc-web",
+          "option": "https-tls12"
+        },
+        {
+          "requirement": "log-web",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#log-web",
+          "option": "diagnostic-settings"
+        },
+        {
+          "requirement": "net-private",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#net-private",
+          "option": "private-endpoint"
+        },
+        {
+          "requirement": "id-auth",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#id-auth",
+          "option": "platform-auth"
+        },
+        {
+          "requirement": "id-keys",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#id-keys",
+          "option": "directory-only"
+        },
+        {
+          "requirement": "ret-blob",
+          "kind": "implements",
+          "rationale": "Synthetic design decision.",
+          "evidence_location": "design.md#ret-blob",
+          "option": "soft-delete"
+        }
+      ],
+      "template": "web",
+      "parameters": {
+        "publicAccess": "Disabled",
+        "privateEndpoint": true,
+        "auth": true
+      },
+      "expected": {
+        "enc-web": {
+          "disposition": "conforms"
+        },
+        "log-web": {
+          "disposition": "conforms"
+        },
+        "net-private": {
+          "disposition": "conforms"
+        },
+        "id-auth": {
+          "disposition": "conforms"
+        },
+        "id-keys": {
+          "disposition": "conforms"
+        },
+        "ret-blob": {
+          "disposition": "conforms"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    }
+  ]
+}

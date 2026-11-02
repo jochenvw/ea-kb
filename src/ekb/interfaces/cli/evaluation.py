@@ -121,7 +121,7 @@ def register(app: typer.Typer, evaluations: typer.Typer, emit: Callable[[Any], N
     @evaluations.command("architectures")
     def architectures(
         dataset: Annotated[Path, typer.Option()] = Path("evals")
-        / "architecture-assessment-v1.json",
+        / "architecture-assessment-v2.json",
         output: Annotated[Path, typer.Option()] = Path("data") / "architecture-assessment.json",
     ):
         """Evaluate deterministic requirement, evidence and exception outcomes."""

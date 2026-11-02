@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from enum import StrEnum
 from pathlib import PurePath
-from typing import Self
+from typing import Literal, Self
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -18,7 +18,8 @@ class ControlDisposition(StrEnum):
 
 
 class AssessmentOutcome(StrEnum):
-    CONFORMS = "conforms"
+    # Declared evidence is a claim, never a verified conformance result.
+    DECLARED = "declared"
     EXCEPTED = "excepted"
     MISSING = "missing"
 
@@ -172,8 +173,9 @@ class ArchitectureAssessment(Model):
     revision_id: UUID
     version: str
     as_of: date
-    basis: str = "declared_evidence"
-    conforms: bool
+    basis: Literal["declared_evidence"] = "declared_evidence"
+    verified: Literal[False] = False
+    declared_complete: bool
     controls: tuple[ControlAssessment, ...]
     unregistered_evidence: tuple[ArchitectureEvidence, ...] = ()
 
@@ -184,7 +186,7 @@ def coverage_outcome(
     as_of: date,
 ) -> AssessmentOutcome:
     if evidence is not None:
-        return AssessmentOutcome.CONFORMS
+        return AssessmentOutcome.DECLARED
     if control.active_exception(as_of):
         return AssessmentOutcome.EXCEPTED
     return AssessmentOutcome.MISSING

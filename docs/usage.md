@@ -205,10 +205,45 @@ uv run ekb architectures assess ARCHITECTURE_UUID evidence.json
 uv run ekb eval architectures
 ```
 
-The result reports `conforms`, `excepted` or `missing` per requirement, includes the terse
-company-to-control provenance chain, and identifies evidence for unregistered controls. Its basis
-is `declared_evidence`: this command and the current MCP tool do not parse or independently verify
-Bicep, source code or deployed resources.
+This legacy result reports `declared`, `excepted` or `missing` per registered control, with
+`verified: false` and `declared_complete`. It is a claim inventory, never conformance.
+
+### Verified solution assessment
+
+`ekb assess` evaluates the complete approved baseline (a machine-readable `BaselinePolicy` stored as
+an approved strategic requirement) against the registered design JSON and an ARM template or
+`.bicep` file (compiled with `az bicep build`). Every applicable requirement is reported separately
+for design and implementation; unknown never passes:
+
+```powershell
+uv run ekb assess ARCHITECTURE_UUID infra\main.json --baseline-concept UUID --baseline-version UUID `
+  --parameters infra\prod.parameters.json --commit $env:GITHUB_SHA --require conforms
+```
+
+`--require` is `conforms` (default), `acceptable` (approved exceptions allowed) or `report`; the
+command exits 1 when the required result is not established. The same service backs
+`POST /api/assessments` and the MCP `assess_solution` tool. A worked synthetic example lives in
+`tests\fixtures\reference-app`.
+
+### Portfolio exception risk and change impact
+
+Both views are read-only projections over the latest registered revision of every solution:
+
+```powershell
+uv run ekb portfolio exceptions --baseline-concept UUID --baseline-version UUID `
+  --as-of 2026-11-01 --previous-as-of 2026-05-01 --review-rate 0.25
+uv run ekb portfolio impact --old-concept UUID --old-version UUID `
+  --new-concept UUID --new-version UUID --stage approved --effective-from 2027-01-01
+```
+
+Exception risk counts distinct decisions and solutions against the applicable population, shows
+inactive (expired, future, out-of-scope, wrong-version, revoked) exceptions separately and raises
+review signals (concentration, recurring reason, high impact, expiring, shared owner); it scores
+nothing and changes no standard. Change impact matches requirements by concept ID, classifies each
+affected solution as confirmed, potential or unresolved (proposals and publisher releases are never
+confirmed), and groups draft work items by repository, team or owner. Drafts are not sent. API:
+`POST /api/portfolio/exception-risk`, `POST /api/portfolio/change-impact`; MCP: `exception_risk`,
+`change_impact`.
 
 Application **0.1.0** is pre-release development: before major version 1, backwards compatibility and
 data-preserving migrations are not required. After schema changes, run `uv run ekb init --recreate`

@@ -1,0 +1,11 @@
+{
+  "solution": {"name": "Reference app (restricted)", "owner": "Synthetic restricted web owner", "team": "restricted-web", "repository": "example/reference-app", "environment": "production"},
+  "context": {"exposure": "private", "criticality": "normal", "data_classification": "confidential", "environment": "production", "deployment_boundary": "private_network"},
+  "decisions": [
+    {"requirement": "transport-encryption", "option": "https-tls12", "rationale": "The site enforces HTTPS with TLS 1.2.", "evidence_location": "design/restricted.json#adr-001@v1"},
+    {"requirement": "activity-logging", "option": "diagnostic-settings", "rationale": "Site logs go to the shared workspace.", "evidence_location": "design/restricted.json#adr-002@v1"},
+    {"requirement": "private-connectivity", "option": "private-endpoint", "rationale": "Public access is disabled behind a private endpoint.", "evidence_location": "design/restricted.json#adr-003@v1"},
+    {"requirement": "authenticated-access", "option": "platform-auth", "rationale": "Platform authentication is required for every request.", "evidence_location": "design/restricted.json#adr-004@v1"},
+    {"requirement": "admin-key-access", "option": "directory-only", "rationale": "Content writes use directory identities only.", "evidence_location": "design/restricted.json#adr-005@v1"}
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "obligation": "Synthetic Company obligation: every hosted web workload applies the reference application baseline before release.",
+  "policy": {"id": "reference-app-baseline", "version": "1"},
+  "requirements": [
+    {
+      "key": "transport-encryption",
+      "statement": "Synthetic baseline: web endpoints accept only HTTPS with TLS 1.2 or later.",
+      "options": [{"id": "https-tls12", "check_id": "encryption.in_transit", "resource_type": "Microsoft.Web/sites"}]
+    },
+    {
+      "key": "activity-logging",
+      "statement": "Synthetic baseline: web endpoints send diagnostic logs to a central workspace.",
+      "options": [{"id": "diagnostic-settings", "check_id": "logging.diagnostic_settings", "resource_type": "Microsoft.Web/sites"}]
+    },
+    {
+      "key": "private-connectivity",
+      "statement": "Synthetic baseline: private workloads disable public network access and use private endpoints.",
+      "when": {"exposure": "private"},
+      "options": [{"id": "private-endpoint", "check_id": "network.private_access", "resource_type": "Microsoft.Web/sites"}]
+    },
+    {
+      "key": "authenticated-access",
+      "statement": "Synthetic baseline: private workloads admit only authenticated or privately routed requests.",
+      "when": {"exposure": "private"},
+      "options": [
+        {"id": "platform-auth", "check_id": "identity.require_authentication", "resource_type": "Microsoft.Web/sites"},
+        {"id": "private-only", "check_id": "network.private_access", "resource_type": "Microsoft.Web/sites"}
+      ]
+    },
+    {
+      "key": "admin-key-access",
+      "statement": "Synthetic baseline: content stores disable shared-key administrative access.",
+      "options": [{"id": "directory-only", "check_id": "identity.shared_key_disabled", "resource_type": "Microsoft.Storage/storageAccounts"}]
+    },
+    {
+      "key": "secret-rotation",
+      "statement": "Synthetic baseline: high-criticality workloads rotate vault secrets automatically.",
+      "when": {"criticality": "high"},
+      "options": [{"id": "vault-rotation", "check_id": "secrets.rotation", "resource_type": "Microsoft.KeyVault/vaults"}]
+    }
+  ]
+}

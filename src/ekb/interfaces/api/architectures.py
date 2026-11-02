@@ -11,6 +11,13 @@ from ekb.domain.architectures import (
     ArchitectureRequirementDetail,
     SolutionArchitecture,
 )
+from ekb.domain.assessment import SolutionAssessment, SolutionAssessmentInput
+from ekb.domain.portfolio import (
+    ChangeImpactInput,
+    ChangeImpactReport,
+    ExceptionRiskInput,
+    ExceptionRiskReport,
+)
 from ekb.runtime import Runtime
 
 
@@ -64,6 +71,27 @@ def register(app: FastAPI, active: Callable[[Request], Runtime]) -> None:
             )
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
+
+    @app.post("/api/assessments", response_model=SolutionAssessment)
+    async def assess_solution(request: Request, body: SolutionAssessmentInput):
+        try:
+            return await active(request).assessments.assess(body)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+
+    @app.post("/api/portfolio/exception-risk", response_model=ExceptionRiskReport)
+    async def exception_risk(request: Request, body: ExceptionRiskInput):
+        try:
+            return await active(request).portfolio.exception_risk(body)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+
+    @app.post("/api/portfolio/change-impact", response_model=ChangeImpactReport)
+    async def change_impact(request: Request, body: ChangeImpactInput):
+        try:
+            return await active(request).portfolio.change_impact(body)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
 
     @app.post(
         "/api/architectures/{architecture_id}/assess",

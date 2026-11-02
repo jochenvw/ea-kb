@@ -29,9 +29,10 @@ implementation evidence, then use that provenance in both directions:
 - Trace proposed or adopted standard changes to affected solutions, repositories and responsible
   teams so they can review and plan updates.
 
-These are product goals, not claims of completed verification or portfolio analytics. The current
-MVP preserves evidence and governance and assesses declared evidence for registered architecture
-controls; it does not independently verify code or detect every omitted applicable requirement.
+`ekb assess` verifies a design and ARM/Bicep template against an explicitly approved baseline,
+reporting omissions, alternatives, exceptions and unknowns; `ekb portfolio` derives exception risk
+and change impact. Verification covers supported template checks only; runtime state and checks
+without a verifier stay unknown.
 See [goal boundaries and current status](docs/architecture.md#application-goals-and-feedback-loop)
 and the [implementation backlog](https://github.com/jochenvw/ea-kb/issues/25).
 

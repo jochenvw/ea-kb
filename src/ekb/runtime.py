@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Self
 
 from ekb.adapters.artifacts import AzureBlobArtifactStore, FilesystemArtifactStore
+from ekb.adapters.implementation import ArmTemplateAnalyzer
 from ekb.adapters.inference import AgentFrameworkInference, OpenAIInference, RulesInference
 from ekb.adapters.inference.assertions import OpenAIAssertionWriter
 from ekb.adapters.inference.reconciliation import OpenAIEmbeddings, OpenAISemanticVerifier
@@ -24,6 +25,7 @@ from ekb.pipeline import IngestionPipeline
 from ekb.ports import (
     ArtifactStore,
     EmbeddingPort,
+    ImplementationAnalyzer,
     IngestionSkills,
     SemanticVerifier,
     SourceConnector,
@@ -35,7 +37,9 @@ from ekb.services.assertions import AssertionService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
+from ekb.services.portfolio import PortfolioService
 from ekb.services.reconciliation_service import ReconciliationService
+from ekb.services.solution_assessment import SolutionAssessmentService
 from ekb.stages.enrichment import enrichment_stage
 from ekb.stages.indexing import IndexingStage
 from ekb.stages.issues import issues_stage
@@ -74,6 +78,7 @@ class Runtime:
             self.artifacts,
             max_artifact_bytes=self.settings.max_document_bytes,
         )
+        self.analyzer: ImplementationAnalyzer = ArmTemplateAnalyzer()
         self.verifier: SemanticVerifier | None = (
             OpenAISemanticVerifier(self.settings) if self.settings.reconciliation_model_id else None
         )
@@ -99,6 +104,16 @@ class Runtime:
     @property
     def resolver(self) -> KnowledgeResolver:
         return KnowledgeResolver(self.database)
+
+    @property
+    def assessments(self) -> SolutionAssessmentService:
+        return SolutionAssessmentService(
+            self.architectures, self.resolver, self.artifacts, self.analyzer
+        )
+
+    @property
+    def portfolio(self) -> PortfolioService:
+        return PortfolioService(self.assessments)
 
     @property
     def reconciliation(self) -> ReconciliationService:

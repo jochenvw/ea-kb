@@ -223,7 +223,7 @@ async def test_solution_architecture_revisions_are_immutable_and_assessable(data
     assert requirements[0].concept.versions[-1].id == replacement_platform_version.id
 
     missing = await service.assess(architecture.id, ())
-    assert not missing.conforms
+    assert not missing.declared_complete
     assert missing.controls[0].outcome is AssessmentOutcome.MISSING
     assert [step.level for step in missing.controls[0].chain] == [
         KnowledgeLevel.COMPANY,
@@ -242,8 +242,8 @@ async def test_solution_architecture_revisions_are_immutable_and_assessable(data
             ),
         ),
     )
-    assert conforming.conforms
-    assert conforming.controls[0].outcome is AssessmentOutcome.CONFORMS
+    assert conforming.declared_complete and not conforming.verified
+    assert conforming.controls[0].outcome is AssessmentOutcome.DECLARED
     assert "Chain:" in conforming.controls[0].explanation
 
     revised = await service.register(

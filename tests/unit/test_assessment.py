@@ -11,6 +11,7 @@ from ekb.domain.assessment import (
     RequirementAssessment,
     assess_solution,
 )
+from ekb.domain.baselines import basis_gaps
 from ekb.domain.models import Scope
 
 
@@ -141,3 +142,17 @@ def test_unsupported_observation_and_changed_inputs_remain_explicit():
     assert assessment.coverage.unresolved == 1
     assert assessment.fingerprint != result(t, item).fingerprint
     assert assessment.findings[0].id == result(t, item).findings[0].id
+
+
+def test_design_and_implementation_are_reported_separately_with_routing_gaps():
+    t = target()
+    failed = requirement(t).observations[0].model_copy(update={"status": "failed"})
+    drift = result(t, requirement(t, observations=(failed,)))
+    assert drift.design_acceptable and not drift.implementation_conforms and not drift.conforms
+    assert drift.findings[0].remediation
+    departure = result(t, requirement(t, design="violated"))
+    assert not departure.design_acceptable and departure.implementation_conforms
+    gaps = basis_gaps(None, t)
+    assert len(gaps) == 4 and "responsible team" in gaps[2]
+    routed = t.model_copy(update={"owner": "Owner", "team": "Team", "repository": "org/app"})
+    assert basis_gaps(None, routed) == (gaps[0],)

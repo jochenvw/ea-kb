@@ -569,3 +569,10 @@ selected, stable embedding pool. Defaults are 128 assertions and five neighbors,
 This discovers paraphrases with no lexical overlap, while durable provider/input-keyed PostgreSQL
 vectors and grounded judgments avoid repeated paid work. Pool coverage is bounded and not exhaustive;
 it is not a whole-corpus ANN index. Matches remain reversible review proposals, never automatic merges.
+
+## Solution assessment
+
+`uv run ekb eval architectures` replays `evals\architecture-assessment-v2.json` offline through the
+deterministic planner and ARM analyzer: forgotten requirements, permitted alternatives, exception
+validity, unknown applicability/authority and design-implementation drift. Gates require zero false
+passes and zero false violations. No model is called, so no cost or qualification gate applies.

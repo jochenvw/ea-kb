@@ -80,8 +80,11 @@ and implementation outcomes separate, binds observations to the assessed artifac
 and requires a nonempty complete baseline before reporting overall conformity. Exceptions are
 bound to solution, architecture revision, requirement version, scope and effective dates. This
 internal contract does not itself establish authority or inspect implementation inputs; callers
-must obtain those facts through the application boundaries. The existing declared-evidence
-transport remains explicitly non-verifying until integrated with those boundaries.
+must obtain those facts through the application boundaries. `SolutionAssessmentService` does so:
+it resolves the approved baseline, plans every requirement against the design, and verifies the
+implementation through the `ImplementationAnalyzer` port (the ARM adapter evaluates compiled
+Bicep/ARM templates without deployment). The legacy declared-evidence transport reports `declared`
+claims with `verified: false`.
 
 `AssessmentBasisService` establishes an explicit selected baseline independently of registered
 controls. Approval must resolve canonically to the pinned version with candidate evidence in the
@@ -97,9 +100,11 @@ These feedback-loop capabilities are intended outcomes tracked in
 exact evidence, immutable interpretations and architecture revisions, scoped authority, explicit
 architecture exceptions and bounded lineage inspection. Current assessment checks declared
 evidence only for registered controls; it does not establish complete applicability or verify code.
-The `excessive_deviations` detector counts supplied active approved deviations, but its default
-repository returns none and is not connected to registered architecture exceptions. Portfolio
-rates, risk/standards review and owner-directed standard-change impact are not implemented.
+`PortfolioService` derives exception-risk and change-impact views on demand from the same plans:
+rates use applicable solutions as denominator, review signals never score or weaken a standard,
+and change impact separates confirmed, potential and unresolved items with owner-routed drafts that
+are exported, not sent. Nothing is persisted; see
+[ADR 0014](decisions/0014-verified-assessment-and-portfolio-views.md).
 
 Retain the stable solution, owner/repository, requirement-version and decision/evidence bindings
 needed for both assessment and feedback. Derive bounded views from existing authoritative records;
@@ -253,8 +258,8 @@ identical content under the same version is idempotent, while conflicting conten
 
 Approved exceptions are explicit, revision-bound control dispositions with rationale, approver,
 approval time and optional expiry; historical assessments cannot apply an exception before approval.
-Deterministic assessment classifies each referenced requirement
-as `conforms`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
+Legacy declared assessment classifies each referenced requirement
+as `declared`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
 platform-agnostic to control chain whose control statement and outgoing evidence retain the registered
 version pin. The current basis is deliberately `declared_evidence`: EKB does
 not claim to inspect or verify Bicep, application code or deployed resources. It also does not infer
@@ -262,8 +267,8 @@ that every traceable implementation is required. Architecture authors currently 
 from exposure, risk treatment and workload scope. An unselected control is outside this declared
 assessment, not proof that the enterprise baseline makes it inapplicable. Exceptions record
 departures from selected requirements; omission alone records neither an exception nor approval.
-The planned general assessment must independently establish applicable coverage and verify
-implementation evidence while preserving registry history and provenance.
+Verified solution assessment (`ekb assess`) independently establishes applicable coverage from the
+approved baseline and verifies implementation evidence while preserving registry history.
 
 Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
 retry classification and backoff; the pipeline handles provider-independent outcomes.

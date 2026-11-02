@@ -1,0 +1,40 @@
+{
+  "site": "Microsoft.Web/sites/refapp-web",
+  "store": "Microsoft.Storage/storageAccounts/refappcontent",
+  "cases": {
+    "public-correct": {"conforms": true, "acceptable": true, "findings": {
+      "transport-encryption": {"disposition": "conforms", "resource": "site"},
+      "activity-logging": {"disposition": "conforms", "resource": "site"},
+      "private-connectivity": {"disposition": "not_applicable", "explains": "exposure=private does not match public"},
+      "authenticated-access": {"disposition": "not_applicable"},
+      "admin-key-access": {"disposition": "conforms", "resource": "store"},
+      "secret-rotation": {"disposition": "not_applicable"}}},
+    "restricted-correct": {"conforms": true, "acceptable": true, "findings": {
+      "transport-encryption": {"disposition": "conforms", "resource": "site"},
+      "activity-logging": {"disposition": "conforms", "resource": "site"},
+      "private-connectivity": {"disposition": "conforms", "resource": "site"},
+      "authenticated-access": {"disposition": "conforms", "resource": "site"},
+      "admin-key-access": {"disposition": "conforms", "resource": "store"},
+      "secret-rotation": {"disposition": "not_applicable"}}},
+    "omitted-control": {"conforms": false, "acceptable": false, "findings": {
+      "activity-logging": {"disposition": "decision_required", "explains": "decision is missing"}}},
+    "implementation-drift": {"conforms": false, "acceptable": false, "findings": {
+      "private-connectivity": {"disposition": "violated", "resource": "site", "explains": "publicNetworkAccess is explicitly set to Enabled"}}},
+    "permitted-alternative": {"conforms": true, "acceptable": true, "findings": {
+      "authenticated-access": {"disposition": "conforms", "resource": "site"}}},
+    "unauthorized-departure": {"conforms": false, "acceptable": false, "findings": {
+      "authenticated-access": {"disposition": "violated", "explains": "without an approved exception"}}},
+    "exception-valid": {"conforms": false, "acceptable": true, "findings": {
+      "activity-logging": {"disposition": "excepted", "explains": "Workspace migration in progress"}}},
+    "exception-expired": {"conforms": false, "acceptable": false, "findings": {
+      "activity-logging": {"disposition": "decision_required", "explains": "expired on 2026-03-31"}}},
+    "exception-wrong-scope": {"conforms": false, "acceptable": false, "findings": {
+      "activity-logging": {"disposition": "decision_required", "explains": "approved scope excludes this target"}}},
+    "exception-wrong-version": {"conforms": false, "acceptable": false, "findings": {
+      "activity-logging": {"disposition": "decision_required", "explains": "bound to another requirement version"}}},
+    "external-evidence-missing": {"conforms": false, "acceptable": false, "findings": {
+      "private-connectivity": {"disposition": "unknown", "resource": "site", "explains": "external evidence is required"}}},
+    "unsupported-check": {"conforms": false, "acceptable": false, "findings": {
+      "secret-rotation": {"disposition": "unknown", "implementation": "unsupported", "explains": "No verifier supports secrets.rotation"}}}
+  }
+}

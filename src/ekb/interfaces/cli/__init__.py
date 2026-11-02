@@ -17,6 +17,7 @@ from ekb import __version__
 from ekb.config import Settings
 from ekb.domain.models import KnowledgeLevel
 from ekb.interfaces.cli.architectures import register as register_architectures
+from ekb.interfaces.cli.architectures import register_portfolio
 from ekb.interfaces.cli.evaluation import register as register_evaluation
 from ekb.interfaces.cli.workflow import register as register_workflow
 from ekb.maintenance import reset_workspace
@@ -56,6 +57,7 @@ def emit(value: Any) -> None:
 register_workflow(app, emit)
 register_evaluation(app, eval_app, emit)
 register_architectures(app, emit)
+register_portfolio(app, emit)
 
 
 @app.command()

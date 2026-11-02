@@ -1,0 +1,28 @@
+{
+  "as_of": "2026-06-30",
+  "cases": [
+    {"id": "public-correct", "design": "public", "profile": "public"},
+    {"id": "restricted-correct", "design": "restricted", "profile": "restricted"},
+    {"id": "omitted-control", "design": "restricted", "profile": "restricted", "parameters": {"enableDiagnostics": false}, "decisions": {"activity-logging": null}},
+    {"id": "implementation-drift", "design": "restricted", "profile": "restricted", "parameters": {"publicNetworkAccess": "Enabled"}},
+    {"id": "permitted-alternative", "design": "restricted", "profile": "restricted", "parameters": {"requireAuthentication": false},
+     "decisions": {"authenticated-access": {"option": "private-only", "rationale": "Only private-network callers can reach the site.", "evidence_location": "design/restricted.json#adr-004@v2"}}},
+    {"id": "unauthorized-departure", "design": "restricted", "profile": "restricted", "parameters": {"requireAuthentication": false},
+     "decisions": {"authenticated-access": {"kind": "disabled", "rationale": "Authentication is turned off to simplify testing.", "evidence_location": "design/restricted.json#adr-004@v3"}}},
+    {"id": "exception-valid", "design": "restricted", "profile": "restricted", "parameters": {"enableDiagnostics": false},
+     "decisions": {"activity-logging": {"kind": "exception", "rationale": "Workspace migration in progress.", "evidence_location": "design/restricted.json#exc-001@v1",
+       "exception": {"id": "EXC-001", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01", "effective_until": "2026-12-31"}}}},
+    {"id": "exception-expired", "design": "restricted", "profile": "restricted", "parameters": {"enableDiagnostics": false},
+     "decisions": {"activity-logging": {"kind": "exception", "rationale": "Workspace migration in progress.", "evidence_location": "design/restricted.json#exc-001@v1",
+       "exception": {"id": "EXC-001", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01", "effective_until": "2026-03-31"}}}},
+    {"id": "exception-wrong-scope", "design": "restricted", "profile": "restricted", "parameters": {"enableDiagnostics": false},
+     "decisions": {"activity-logging": {"kind": "exception", "rationale": "Workspace migration in progress.", "evidence_location": "design/restricted.json#exc-001@v1",
+       "exception": {"id": "EXC-001", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01", "scope": {"environment": "test"}}}}},
+    {"id": "exception-wrong-version", "design": "restricted", "profile": "restricted", "parameters": {"enableDiagnostics": false},
+     "decisions": {"activity-logging": {"kind": "exception", "version": "stale", "rationale": "Workspace migration in progress.", "evidence_location": "design/restricted.json#exc-001@v1",
+       "exception": {"id": "EXC-001", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01"}}}},
+    {"id": "external-evidence-missing", "design": "restricted", "profile": "restricted", "parameters": {"deployPrivateEndpoint": false}},
+    {"id": "unsupported-check", "design": "restricted", "profile": "restricted", "context": {"criticality": "high"},
+     "decisions": {"secret-rotation": {"option": "vault-rotation", "rationale": "Vault rotation policy is configured.", "evidence_location": "design/restricted.json#adr-006@v1"}}}
+  ]
+}

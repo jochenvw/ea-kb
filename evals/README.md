@@ -19,9 +19,12 @@ legacy split whose results are not comparable to the isolated v2 qualification.
 `provenance-complete-v1.json` covers all 385 controls from the reviewed corpus, including reviewed
 no-parent outcomes and independently generated retrieval candidates. Like v1, its legacy splits
 are component diagnostics, not document-family-isolated qualification.
-`architecture-assessment-v1.json` qualifies required, missing, excepted and expired solution-control
-outcomes with Pydantic Evals; it is deterministic and does not claim to inspect implementation code.
-The v2 cases also cover production retrieval, strict no-parent, negation, conditional scope,
+`architecture-assessment-v2.json` qualifies verified solution assessment (policy -> design -> ARM
+template) across encryption, logging, network, identity, retention and secrets families: omissions,
+alternatives, exceptions (valid/expired/future/scope/version/renewed), unsupported and external
+evidence, multi-instance resources, missing authority and basis invalidation. It is synthetic,
+deterministic and offline; it does not verify deployed state. Reports gate on zero false passes.
+The provenance v2 cases also cover production retrieval, strict no-parent, negation, conditional scope,
 misleading shared mechanisms and carry-forward; component and production reports remain separate.
 Original PDF hashes/pages can be audited with `uv run ekb eval documents --verify-sources`.
 `nist-csf` imports the supplied Core hierarchy, 25 provisional mappings and 14 negative challenges,

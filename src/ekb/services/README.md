@@ -10,8 +10,11 @@
 - `reconciliation_service.py` and `issue_service.py` share audited decisions and issue lifecycle.
 - `retrieval.py` supplies validated cosine-neighbor retrieval shared by enrichment and evals;
   scaling avoids overflow and underflow for finite nonzero embedding vectors.
-- `architectures.py` registers immutable solution artefacts and assesses declared implementation
-  evidence against pinned requirement versions and effective approved exceptions with terse chains.
+- `architectures.py` registers immutable solution artefacts and reports legacy declared claims
+  (`verified: false`) against pinned requirement versions and effective approved exceptions.
+- `solution_assessment.py` plans an approved baseline against design JSON and verifies ARM/Bicep
+  through the `ImplementationAnalyzer` port; shared by CLI `assess`, API and MCP.
+- `portfolio.py` derives read-only exception-risk and change-impact views from those plans.
 - `assessment_basis.py` resolves a selected baseline independently of the design checklist;
   canonical evidence must bind its approval to the exact policy artifact and requirement versions.
 

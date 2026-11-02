@@ -224,7 +224,8 @@ class ArchitectureService:
             for control in revision.controls:
                 declared = evidence_by_control.get(control.concept_id)
                 outcome = coverage_outcome(control, declared, effective)
-                chain = await self._chain(uow, control)
+                assert control.concept_version_id
+                chain = await self._chain(uow, control.concept_id, control.concept_version_id)
                 assessments.append(
                     ControlAssessment(
                         concept_id=control.concept_id,
@@ -240,28 +241,32 @@ class ArchitectureService:
             revision_id=revision.id,
             version=revision.version,
             as_of=effective,
-            conforms=all(item.outcome is not AssessmentOutcome.MISSING for item in assessments),
+            declared_complete=all(
+                item.outcome is not AssessmentOutcome.MISSING for item in assessments
+            ),
             controls=tuple(assessments),
             unregistered_evidence=tuple(
                 item for item in evidence if item.concept_id not in registered
             ),
         )
 
+    async def chain(self, concept_id: UUID, version_id: UUID) -> tuple[TraceabilityStep, ...]:
+        """Upward lineage whose first hop is bound to the pinned requirement version."""
+        async with self.uow() as uow:
+            return await self._chain(uow, concept_id, version_id)
+
     async def _chain(
-        self, uow: UnitOfWork, control: ArchitectureControl
+        self, uow: UnitOfWork, concept_id: UUID, version_id: UUID
     ) -> tuple[TraceabilityStep, ...]:
-        concept = await uow.knowledge.get(control.concept_id)
+        concept = await uow.knowledge.get(concept_id)
         pinned = (
-            next(
-                (item for item in concept.versions if item.id == control.concept_version_id),
-                None,
-            )
+            next((item for item in concept.versions if item.id == version_id), None)
             if concept
             else None
         )
         if pinned is None:
-            raise ValueError("Architecture control version no longer exists")
-        graph = await uow.inspection.graph(control.concept_id)
+            raise ValueError("Requirement version no longer exists")
+        graph = await uow.inspection.graph(concept_id)
         if graph is None:
             return ()
         edges = [
@@ -271,7 +276,7 @@ class ArchitectureService:
         ]
         bound_edges = []
         for edge in edges:
-            if edge.source == control.concept_id:
+            if edge.source == concept_id:
                 if edge.evidence and edge.evidence.concept_version_id != pinned.id:
                     continue
                 if not edge.evidence and edge.href.startswith("/review?finding_id="):
@@ -307,11 +312,9 @@ class ArchitectureService:
             TraceabilityStep(
                 concept_id=node.id,
                 level=knowledge_level(pinned.candidate)
-                if node.id == control.concept_id
+                if node.id == concept_id
                 else KnowledgeLevel(node.level or KnowledgeLevel.UNCLASSIFIED),
-                statement=pinned.candidate.statement
-                if node.id == control.concept_id
-                else node.label,
+                statement=pinned.candidate.statement if node.id == concept_id else node.label,
             )
             for node in ordered
         )
@@ -324,13 +327,13 @@ class ArchitectureService:
         chain: tuple[TraceabilityStep, ...],
     ) -> str:
         path = " > ".join(" ".join(step.statement.split())[:120] for step in chain)
-        if outcome is AssessmentOutcome.CONFORMS:
+        if outcome is AssessmentOutcome.DECLARED:
             basis = evidence.summary if evidence else "Declared evidence supplied"
-            return f"OK: {basis}. Chain: {path}"
+            return f"Declared (not verified): {basis}. Chain: {path}"
         if outcome is AssessmentOutcome.EXCEPTED:
             expiry = f" through {control.expires_on.isoformat()}" if control.expires_on else ""
             return (
-                f"OK by exception approved by {control.approved_by}{expiry}: "
+                f"Excepted, approved by {control.approved_by}{expiry}: "
                 f"{control.rationale}. Chain: {path}"
             )
         return f"Missing: no declared evidence or active exception. Chain: {path}"
