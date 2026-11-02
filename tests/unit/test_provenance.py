@@ -1014,8 +1014,58 @@ async def test_platform_alignment_maps_controls_to_bounded_agnostic_parents():
     )
     assert result.findings[0].concept_ids == (control.id, parent.id)
     assert result.findings[0].relationship is RelationshipKind.REFINES
+    assert result.findings[0].occurrence_ids == (
+        control.occurrences[0].id,
+        parent.occurrences[0].id,
+    )
     assert result.statistics["platform_controls_parented"] == 1
     assert result.statistics["platform_controls_orphaned"] == 0
+
+
+@pytest.mark.parametrize(
+    ("control_statement", "parent_statement"),
+    [
+        (
+            "Do not encrypt stored records in Example.",
+            "Encrypt stored records to protect confidentiality.",
+        ),
+        (
+            "Encryption of stored records is prohibited in Example.",
+            "Encrypt stored records to protect confidentiality.",
+        ),
+        (
+            "Encrypt stored records in Example only if an exception is approved.",
+            "Encrypt stored records to protect confidentiality.",
+        ),
+        (
+            "Private endpoints are prohibited in Example.",
+            "Use private endpoints to protect network boundaries.",
+        ),
+        (
+            "Use private endpoints in Example only when explicitly permitted.",
+            "Use private endpoints to protect network boundaries.",
+        ),
+    ],
+)
+async def test_platform_alignment_does_not_deterministically_refine_contradictory_controls(
+    control_statement: str,
+    parent_statement: str,
+):
+    parent = concept(SemanticType.TECHNICAL_REQUIREMENT, parent_statement)
+    control = concept(
+        SemanticType.PLATFORM_REQUIREMENT,
+        control_statement,
+        platform="Example",
+    )
+    check = platform_alignment_check(
+        cast(UnitOfWorkFactory, ReplayStore()), None, None, concurrency=1
+    )
+
+    result = await check.evaluate(context([control, parent]))
+
+    assert not result.findings
+    assert result.model_calls == 0
+    assert result.statistics["platform_controls_orphaned"] == 1
 
 
 class Verifier:
