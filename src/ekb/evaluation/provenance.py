@@ -22,15 +22,16 @@ from ekb.domain.models import (
     total_usage,
 )
 from ekb.domain.traceability import TraceabilityAssertion, TraceabilitySelection
-from ekb.evaluation.dataset import Split
 from ekb.ports import TraceabilityMapper
 
-type ProvenanceSplit = Split | Literal["all"]
+type DatasetSplit = Literal["validation", "test"]
+type ProvenanceSplit = DatasetSplit | Literal["all"]
 
 
 class ProvenanceSource(Model):
     name: str = Field(min_length=1)
     location: str = Field(min_length=1)
+    document_family: str = Field(min_length=1)
 
 
 class ProvenanceAssertion(Model):
@@ -43,7 +44,7 @@ class ProvenanceAssertion(Model):
 class ProvenanceCase(Model):
     id: str = Field(min_length=1)
     family: str = Field(min_length=1)
-    split: Split
+    split: DatasetSplit
     child_key: str = Field(min_length=1)
     parent_keys: tuple[str, ...] = Field(min_length=2, max_length=10)
     expected_parent_keys: tuple[str, ...] = Field(max_length=3)
@@ -57,10 +58,13 @@ class ProvenanceDataset(Model):
 
     @model_validator(mode="after")
     def isolated_splits(self) -> Self:
-        if {case.split for case in self.cases} != {"train", "validation", "test"}:
-            raise ValueError("Provenance evaluation requires train, validation, and test splits")
-        families: dict[str, Split] = {}
-        texts: dict[str, Split] = {}
+        if {case.split for case in self.cases} != {"validation", "test"}:
+            raise ValueError("Provenance evaluation requires validation and test splits")
+        families: dict[str, DatasetSplit] = {}
+        source_locations: dict[str, DatasetSplit] = {}
+        location_families: dict[str, str] = {}
+        document_families: dict[str, DatasetSplit] = {}
+        texts: dict[str, DatasetSplit] = {}
         for case in self.cases:
             if (
                 case.child_key not in self.assertions
@@ -71,6 +75,19 @@ class ProvenanceDataset(Model):
                 raise ValueError("Parent keys must be unique within a provenance case")
             if not set(case.expected_parent_keys) <= set(case.parent_keys):
                 raise ValueError("Expected provenance parents must be supplied candidates")
+            child_source = self.assertions[case.child_key].source
+            previous_family = location_families.get(child_source.location)
+            if previous_family is not None and previous_family != child_source.document_family:
+                raise ValueError("A child source location must have one document family")
+            location_families[child_source.location] = child_source.document_family
+            previous_split = source_locations.get(child_source.location)
+            if previous_split is not None and previous_split != case.split:
+                raise ValueError("Child source locations cannot cross dataset splits")
+            source_locations[child_source.location] = case.split
+            previous_split = document_families.get(child_source.document_family)
+            if previous_split is not None and previous_split != case.split:
+                raise ValueError("Child document families cannot cross dataset splits")
+            document_families[child_source.document_family] = case.split
             if case.family in families and families[case.family] != case.split:
                 raise ValueError("Provenance families cannot cross dataset splits")
             families[case.family] = case.split

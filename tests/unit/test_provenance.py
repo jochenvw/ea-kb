@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import cast
 from uuid import UUID, uuid4
+
+import pytest
+from pydantic import ValidationError
 
 from ekb.domain.execution import CheckOptions
 from ekb.domain.models import (
@@ -31,7 +35,11 @@ from ekb.domain.traceability import (
     TraceabilitySelection,
     TraceabilityVerification,
 )
-from ekb.evaluation.provenance import evaluate_provenance, load_provenance_dataset
+from ekb.evaluation.provenance import (
+    ProvenanceDataset,
+    evaluate_provenance,
+    load_provenance_dataset,
+)
 from ekb.ports import UnitOfWorkFactory
 from ekb.ports.workflow import CheckContext, CheckResult
 from ekb.stages import _check_cache_key
@@ -393,7 +401,7 @@ async def test_traceability_cardinality_enforces_only_required_parent_directions
 
 
 async def test_provenance_dataset_runs_through_pydantic_evals(tmp_path):
-    dataset_path = Path("evals") / "provenance-v1.json"
+    dataset_path = Path("evals") / "provenance-v2.json"
     raw, dataset = load_provenance_dataset(dataset_path)
     assert raw
     assert len(dataset.cases) == 12
@@ -412,9 +420,65 @@ async def test_provenance_dataset_runs_through_pydantic_evals(tmp_path):
     assert report["exact_cases"] == 12
 
 
+def test_provenance_dataset_isolated_by_child_document_family():
+    dataset_path = Path("evals") / "provenance-v2.json"
+    _, dataset = load_provenance_dataset(dataset_path)
+
+    families_by_split = {
+        split: {
+            dataset.assertions[case.child_key].source.document_family
+            for case in dataset.cases
+            if case.split == split
+        }
+        for split in ("validation", "test")
+    }
+
+    assert families_by_split == {
+        "validation": {"azure-security-benchmark-overview-v2"},
+        "test": {"cloud-security-benchmark-network-security"},
+    }
+    assert {
+        split: {
+            dataset.assertions[parent_key].source.document_family
+            for case in dataset.cases
+            if case.split == split
+            for parent_key in case.parent_keys
+        }
+        for split in ("validation", "test")
+    } == {
+        "validation": {"nist-sp-800-53-revision-5"},
+        "test": {"nist-sp-800-53-revision-5"},
+    }
+    assert sum(case.split == "validation" for case in dataset.cases) == 6
+    assert sum(case.split == "test" for case in dataset.cases) == 6
+
+
+def test_provenance_dataset_rejects_same_source_with_different_family_labels():
+    raw = json.loads(Path("evals/provenance-v2.json").read_bytes())
+    validation_case = next(case for case in raw["cases"] if case["split"] == "validation")
+    test_case = next(case for case in raw["cases"] if case["split"] == "test")
+    validation_source = raw["assertions"][validation_case["child_key"]]["source"]
+    test_source = raw["assertions"][test_case["child_key"]]["source"]
+    test_source["location"] = validation_source["location"]
+    test_source["document_family"] = "different-source-family"
+    test_case["family"] = "different-case-family"
+
+    with pytest.raises(ValidationError, match="one document family"):
+        ProvenanceDataset.model_validate(raw)
+
+
+def test_provenance_dataset_rejects_related_editions_crossing_splits():
+    raw = json.loads(Path("evals/provenance-v2.json").read_bytes())
+    network_case = next(case for case in raw["cases"] if case["id"] == "network-segmentation")
+    network_case["split"] = "validation"
+
+    with pytest.raises(ValidationError, match="document families cannot cross"):
+        ProvenanceDataset.model_validate(raw)
+
+
 async def test_provenance_evaluation_fails_when_negative_case_execution_fails(tmp_path):
     report = await evaluate_provenance(
-        Path("evals") / "provenance-v1.json",
+        Path("evals") / "provenance-v2.json",
         tmp_path / "report.json",
         FailingNegativeMapper(),
         split="test",

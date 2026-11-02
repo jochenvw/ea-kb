@@ -143,9 +143,17 @@ uv run ekb eval provenance --live --split validation
 uv run ekb eval provenance --live --split test
 ```
 
-`evals\provenance-v1.json` contains 12 provisional, source-attributed control-parent cases across
-train, validation and held-out test splits. It includes the Network Security Perimeter to NIST
-deny-by-default relationship, unrelated-parent negatives and ten organization principles.
+`evals\provenance-v2.json` contains 12 provisional, source-attributed control-parent cases: validation
+has six cases from one Azure Security Benchmark v2 overview source family/document; test has six
+cases from one network-security family spanning two related Azure Security Benchmark and Microsoft
+Cloud Security Benchmark documents. The shared NIST parent catalog is reference data, not a held-out
+child family.
+Use validation for selection and reserve test for final qualification. The v2 dataset SHA-256 is
+`5a3c0c86e9d53dc60d6bb9aa5174cc1c9650a45ca0f557b0ed64f4aae6b205f4`.
+The prior `provenance-v1.json` is retained unchanged (SHA-256
+`57cee20d361b5ad45ed15c6619e0efdca1f98edcb64600b8092c217792455bea`), but its shared child sources
+crossed all three splits; its scores are invalid as document-family-generalization evidence and are
+not comparable to v2.
 The mapper receives only the child and bounded candidate parents; expected IDs remain evaluator
 metadata. Pydantic Evals reports exact cases plus parent-selection precision and recall, while EKB
 retains immutable reports under `data\evaluation-history`. A pass qualifies this provisional

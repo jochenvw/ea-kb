@@ -177,7 +177,8 @@ It uses Microsoft Agent Framework for the two bounded ingestion skills. Optional
 cheaper labeling deployment with `EKB_LABELING_MODEL_ID`; blank uses `EKB_MODEL_ID` for both.
 This override shares the endpoint/capability limits but needs its own labeling token prices.
 Use `ekb eval skills --skill labeling` / `--skill extraction` to evaluate each independently.
-Use `ekb eval provenance --live --split test` to qualify grounded control-parent selection.
+Use `ekb eval provenance --live --split validation` for selection and
+`ekb eval provenance --live --split test` for final qualification.
 Environment/`.env` overrides still apply; check the printed provider/model IDs before starting.
 Keep account-specific profiles under ignored `data`, never commit tokens or keys. An existing
 deployment and a successful smoke test prove access, not quality: run the held-out qualification
