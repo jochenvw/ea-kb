@@ -366,6 +366,11 @@ def test_platform_alignment_recognizes_bounded_standardized_mechanisms():
             "Protect against or limit the effects of denial-of-service attacks.",
         ),
         (
+            "Enable DDoS standard protection on Azure virtual networks.",
+            "Manage capacity, bandwidth, or other redundancy to limit the effects of "
+            "information flooding denial-of-service attacks.",
+        ),
+        (
             "Collect diagnostic logs in a central workspace.",
             "Generate and centrally review audit log records.",
         ),
@@ -389,6 +394,14 @@ def test_platform_alignment_recognizes_bounded_standardized_mechanisms():
     )
     assert not standardized_mechanism_supports(
         "Manage DDoS Protection through the portal.",
+        "Manage capacity and bandwidth to limit denial-of-service attacks.",
+    )
+    assert not standardized_mechanism_supports(
+        "Enable DDoS protection on a web application firewall for Layer 7 attacks.",
+        "Manage capacity and bandwidth to limit denial-of-service attacks.",
+    )
+    assert not standardized_mechanism_supports(
+        "Standard network DDoS protection is always enabled.",
         "Manage capacity and bandwidth to limit denial-of-service attacks.",
     )
 

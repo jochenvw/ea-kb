@@ -297,6 +297,29 @@ def standardized_mechanism_supports(child_statement: str, parent_statement: str)
         child,
         ("ddos", "denial-of-service", "denial of service", "amplification attack", "flood attack"),
     )
+    network_ddos_mitigation = (
+        denial_of_service
+        and "protection" in child
+        and _contains_any(child, ("enable", "deploy", "configure"))
+        and _contains_any(
+            child,
+            ("network", "vnet", "virtual network", "volumetric", "layer 3", "layer 4"),
+        )
+        and not _contains_any(
+            child,
+            (
+                "application layer",
+                "layer 7",
+                "web application firewall",
+                "automatically enabled",
+                "always enabled",
+            ),
+        )
+    )
+    if network_ddos_mitigation and _contains_any(
+        parent, ("manage capacity", "bandwidth", "redundancy")
+    ):
+        return True
     if (
         denial_of_service
         and _contains_any(parent, ("denial-of-service", "denial of service"))

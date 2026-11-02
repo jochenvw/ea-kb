@@ -164,7 +164,7 @@ The independently adjudicated held-out split currently qualifies the v6 mapper: 
 61 exact cases, 0.904 parent-selection precision, 0.959 control-level recall and 0.959 retrieval
 recall (47 true-positive selections, five false positives and two false negatives). The immutable
 dataset hash is
-`429090edf0c07d750334a9b65552969e4011208e2939d7465ce4d39f7fb9b683`.
+`7e551784ce694212eb17639759b49eac930d70b82e91617574292957fcbe92c7`.
 The mapper explicitly assesses every candidate in batches, globally arbitrates the accepted set,
 then adversarially critiques selected links. The qualified run made 311 model calls for 67 cases;
 this higher call and token cost is intentional and must be considered when changing concurrency or

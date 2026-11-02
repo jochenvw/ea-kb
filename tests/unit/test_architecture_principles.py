@@ -155,3 +155,15 @@ def test_public_manifest_defines_ten_complete_cross_layer_principles():
         assert by_id[principle.strategic_requirement_source_id].enterprise_requirement
         assert by_id[principle.agnostic.source_id].platform_scope is None
         assert all(by_id[selector.source_id].platform_scope for selector in principle.controls)
+
+    ddos_capacity = next(
+        principle
+        for principle in principles
+        if principle.id == "denial-of-service-capacity-protection"
+    )
+    assert ddos_capacity.domain == "Network security"
+    assert ddos_capacity.agnostic.heading == "sc-5.2"
+    assert ddos_capacity.agnostic.excerpt_contains == (
+        "Manage capacity, bandwidth, or other redundancy"
+    )
+    assert ddos_capacity.controls[0].excerpt_contains == "enabling DDoS standard protection"

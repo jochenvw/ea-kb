@@ -215,6 +215,20 @@ sources:
             semantic_type: PlatformRequirement
             excerpt_contains: enabling DDoS standard protection
         rationale: Azure DDoS protection refines NIST denial-of-service protection within the Network security domain in support of the NIST SP 800-53 control baseline.
+      - id: denial-of-service-capacity-protection
+        domain: Network security
+        strategic_requirement_source_id: nist-sp800-53-rev5
+        agnostic:
+          source_id: nist-sp800-53-rev5
+          heading: sc-5.2
+          semantic_type: TechnicalRequirement
+          excerpt_contains: Manage capacity, bandwidth, or other redundancy
+        controls:
+          - source_id: asb-v2-network
+            heading: "NS-4: Protect applications and services from external network attacks"
+            semantic_type: PlatformRequirement
+            excerpt_contains: enabling DDoS standard protection
+        rationale: Enabling Azure DDoS protection for exposed virtual networks supplies managed network capacity and bandwidth mitigation for information-flooding attacks within the Network security domain in support of the NIST SP 800-53 control baseline.
       - id: backup-and-recovery
         domain: Backup and recovery
         strategic_requirement_source_id: nist-sp800-53-rev5

@@ -171,8 +171,12 @@ Approved exceptions are explicit, revision-bound control dispositions with ratio
 approval time and optional expiry. Deterministic assessment classifies each referenced requirement
 as `conforms`, `excepted` or `missing` from caller-supplied evidence and returns a compact company to
 platform-agnostic to control chain. The current basis is deliberately `declared_evidence`: EKB does
-not claim to inspect or verify Bicep, application code or deployed resources. A future analyzer may
-implement that replaceable boundary without changing registry, provenance or assessment contracts.
+not claim to inspect or verify Bicep, application code or deployed resources. It also does not infer
+that every traceable implementation is required. Architecture authors select applicable controls
+from exposure, risk treatment and workload scope; an unselected control is out of scope, not an
+exception. An exception applies only after an architecture selected the control as required. A
+future analyzer may implement that replaceable boundary without changing registry, provenance or
+assessment contracts.
 
 Source absence uses the shared `SourceMissingError` port contract. HTTP adapters own transient
 retry classification and backoff; the pipeline handles provider-independent outcomes.

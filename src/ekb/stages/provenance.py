@@ -580,7 +580,7 @@ def platform_alignment_check(
     concurrency: int,
 ) -> Check:
     version = fingerprint(
-        implementation="platform-alignment-v13",
+        implementation="platform-alignment-v14",
         mapper=mapper.fingerprint if mapper else None,
         embeddings=embedding_provider.fingerprint if embedding_provider else None,
     )
