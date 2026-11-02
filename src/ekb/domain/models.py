@@ -304,6 +304,9 @@ def parsing_fingerprint(parser_version: str, item: SourceItem) -> str:
         format=item.format,
         controls=item.metadata.get("control_ids", []),
         pages=item.metadata.get("pages", []),
+        framework_namespace=(
+            item.metadata.get("framework_namespace") if item.format == "pdf" else None
+        ),
     )
 
 

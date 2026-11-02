@@ -37,18 +37,28 @@ def has_organization_configuration(items: Iterable[SourceItem]) -> bool:
 
 def apply_source_policy(item: SourceItem, extraction: Extraction) -> Extraction:
     platform_scope = str(item.metadata.get("platform_scope") or "").strip()
-    if not platform_scope:
-        return extraction
+    adopted = bool(str(item.metadata.get("enterprise_requirement") or "").strip())
+    platform_independent_types = {
+        SemanticType.CONCEPTUAL_REQUIREMENT,
+        SemanticType.TECHNICAL_REQUIREMENT,
+    }
+    requirement_types = {
+        SemanticType.CONCEPTUAL_REQUIREMENT,
+        SemanticType.TECHNICAL_REQUIREMENT,
+        SemanticType.PLATFORM_REQUIREMENT,
+    }
     retained: list[Candidate] = []
     index_map: dict[int, int] = {}
     for index, candidate in enumerate(extraction.candidates):
-        if candidate.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
+        if platform_scope and candidate.semantic_type == SemanticType.ARCHITECTURE_DOMAIN:
             continue
-        if candidate.semantic_type in {
-            SemanticType.CONCEPTUAL_REQUIREMENT,
-            SemanticType.TECHNICAL_REQUIREMENT,
-            SemanticType.PLATFORM_REQUIREMENT,
-        }:
+        if (
+            candidate.semantic_type in platform_independent_types
+            and not platform_scope
+            and not adopted
+        ):
+            continue
+        if candidate.semantic_type in requirement_types and platform_scope:
             candidate = candidate.model_copy(
                 update={
                     "semantic_type": SemanticType.PLATFORM_REQUIREMENT,

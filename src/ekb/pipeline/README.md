@@ -15,6 +15,8 @@
   goals from corroborating publications; changing the flag invalidates processing checkpoints.
 - Explicit `platform_scope` policy removes platform-source domains and projects every lower-layer
   requirement into `PlatformRequirement`, preserving a more specific evidenced platform when present.
+- `enterprise_requirement` retains platform-independent source requirements; removing adoption does
+  not delete already persisted candidate or evidence history.
 - `organization.py` persists manifest-curated strategic requirements/domains and configured,
   evidence-backed cross-source principle links after every successful corpus scan.
 - Publication assessments cite persisted metadata/text and have their own replay fingerprint.

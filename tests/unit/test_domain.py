@@ -16,8 +16,10 @@ from ekb.domain.models import (
     Segment,
     SemanticType,
     SemanticVersion,
+    SourceItem,
     content_hash,
     fingerprint,
+    parsing_fingerprint,
     stable_id,
 )
 
@@ -74,6 +76,31 @@ def test_hash_and_identity_are_deterministic(content):
 def test_processing_fingerprint_tracks_configuration_not_source_identity():
     assert fingerprint(content="x", parser="1") != fingerprint(content="x", parser="2")
     assert fingerprint(a=1, b=2) == fingerprint(b=2, a=1)
+
+
+def test_parsing_fingerprint_tracks_effective_framework_routing_only():
+    item = SourceItem(
+        id=uuid4(),
+        connector="test",
+        location="urn:document",
+        name="Document",
+        format="pdf",
+    )
+    base = parsing_fingerprint("parser-v1", item)
+    assert base == parsing_fingerprint(
+        "parser-v1", item.model_copy(update={"metadata": {"enterprise_requirement": "Adopted."}})
+    )
+    assert base == parsing_fingerprint(
+        "parser-v1", item.model_copy(update={"metadata": {"publisher": "Example"}})
+    )
+    assert base != parsing_fingerprint(
+        "parser-v1", item.model_copy(update={"metadata": {"framework_namespace": "nist-csf"}})
+    )
+    text_item = item.model_copy(update={"format": "txt"})
+    assert parsing_fingerprint("parser-v1", text_item) == parsing_fingerprint(
+        "parser-v1",
+        text_item.model_copy(update={"metadata": {"framework_namespace": "nist-csf"}}),
+    )
 
 
 def test_scope_and_modality_validation():
