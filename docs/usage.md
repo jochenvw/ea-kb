@@ -491,9 +491,12 @@ The web application does not start, monitor or own ingestion runs. Non-health we
 non-loopback clients and forwarded-proxy headers. Enterprise authentication and network hardening
 are not implemented; do not expose this service through a proxy.
 
-The MCP server uses stdio and exposes exactly eight read-only tools: `search_concepts`, `get_concept`,
-`trace_provenance`, `find_related_requirements`, `resolve_knowledge`, `resolve_requirement`,
-`list_knowledge_issues` and `get_reconciliation_history`, each with an explicit schema. Example
+The MCP server uses stdio and exposes thirteen read-only tools, each with an explicit schema:
+knowledge (`search_concepts`, `get_concept`, `trace_provenance`, `find_related_requirements`,
+`resolve_knowledge`, `resolve_requirement`), governance (`list_knowledge_issues`,
+`get_reconciliation_history`), solutions (`list_solution_architectures`,
+`get_solution_architecture`, `assess_solution`) and portfolio (`exception_risk`, `change_impact`).
+Inspect it interactively with `npx @modelcontextprotocol/inspector uv run ekb mcp`. Example
 client process configuration:
 
 ```json

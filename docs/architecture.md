@@ -14,7 +14,7 @@ Development initialization uses current ORM metadata, not migration history; see
 ## Scope and design drivers
 
 Except for the explicitly planned application goals below, this describes implemented ingestion,
-governed reconciliation and declared-evidence assessment. The system extracts strategic-goal and
+governed reconciliation, verified solution assessment and portfolio views. The system extracts strategic-goal and
 ontology requirement candidates while retaining the evidence needed to inspect each interpretation.
 Documents, interpretations and enterprise approval are separate concerns.
 
