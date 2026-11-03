@@ -10,8 +10,8 @@ preserving original documents, exact source evidence and revision history. Incre
 interrupted work and skip unchanged inputs. Built with async Python 3.13, PostgreSQL and replaceable
 adapters.
 
-Inspect results through the command line, terminal UI, shadcn/ui browser workspace or read-only
-Model Context Protocol (MCP) server.
+Inspect results through the command line, terminal UI, shadcn/ui browser workspace or
+Model Context Protocol (MCP) server (read-only apart from retaining assessment reports).
 Durable indexing, enrichment and issue stages support audited reconciliation and strict scoped
 canonical resolution without automatically approving candidates.
 
@@ -33,8 +33,20 @@ implementation evidence, then use that provenance in both directions:
 reporting omissions, alternatives, exceptions and unknowns; `ekb portfolio` derives exception risk
 and change impact. Verification covers supported template checks only; runtime state and checks
 without a verifier stay unknown.
-See [goal boundaries and current status](docs/architecture.md#application-goals-and-feedback-loop)
-and the [implementation backlog](https://github.com/jochenvw/ea-kb/issues/25).
+See [goal boundaries and current status](docs/architecture.md#application-goals-and-feedback-loop).
+
+## End-to-end flow
+
+1. **Ingest** the configured public corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.
+2. **Consolidate** interpretations in the browser: sources, visual validation, reconciliation backlog.
+3. **Register** a machine-readable baseline and solution design: `ekb baselines register`,
+   `ekb architectures register` ([reference app](examples/reference-app/README.md)).
+4. **Approve** (human only): accept baseline authority in `/review` or `ekb reconcile decide`.
+   Until then every finding stays `unknown`, and unknown never passes.
+5. **Assess** the template from the CLI, an MCP agent or CI: `ekb assess ... --require conforms`.
+6. **Review** results: the solution page, **Portfolio risk** and the printable **Rules export**.
+
+Step-by-step commands and expected outcomes: [agent and CI walkthrough](docs/agent-walkthrough.md).
 
 ## Quick start
 
@@ -50,9 +62,11 @@ uv run ekb pipeline status
 uv run ekb web
 ```
 
-Open <http://127.0.0.1:8000>. The fixture documents are synthetic.
-Browse Reference (sources, evidence and relationships), Work (reconciliation backlog), and
-Operations (read-only tables and logs). No Node runtime is needed.
+Open <http://127.0.0.1:8000>. The fixture documents are synthetic; use the full corpus below for
+real results. Navigation groups: Workspace (consolidation, shared language), Consolidate (sources,
+visual validation, reconciliation backlog), Knowledge (company intent, platform-agnostic, platforms
+& controls, solution registry, portfolio risk), Reference (reconciliation log, rules export) and
+Operations (data inspector, logs). No Node runtime is needed.
 Use `uv run ekb --help` for other commands.
 
 For the full configured corpus: `uv run ekb pipeline run --manifest sources\public.yaml`.
@@ -64,8 +78,10 @@ inspection and governance. See [operations](docs/usage.md).
 ## Documentation
 
 - [Application ontology](ontology/README.md): v0.1.0-draft.3 OWL/RDF vocabulary, SHACL shapes and example.
-- Read-only ontology viewer: **Reference > Ontology** (`/ontology`); canonical definitions also at `/api/ontology`.
+- Read-only ontology viewer: **Workspace > Shared language** (`/ontology`); canonical definitions also at `/api/ontology`.
 - [Usage and operations](docs/usage.md): configuration, corpus downloads, models, tests and deployment.
+- [Agent and CI walkthrough](docs/agent-walkthrough.md): assessment via CLI, MCP, GitHub Actions and browser;
+  client configs in `.vscode/mcp.json` / `.mcp.json`, CI example in [examples/ci](examples/ci/README.md).
 - [Architecture](docs/architecture.md) and [plugin contracts](docs/plugins.md).
 - [Reconciliation, pipeline commands and actual-corpus demonstration](docs/phase3.md).
 - [Latest ingestion verification and results browser](docs/ingestion-verification.md).

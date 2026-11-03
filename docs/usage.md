@@ -5,7 +5,7 @@ Run commands from the repository root. See the [project overview](../README.md) 
 An executable Python 3.13 modular monolith for incremental, evidence-grounded strategic goals and
 requirements. PostgreSQL retains immutable revisions, exact source evidence and proposed
 relationships. Filesystem or Azure Blob artifacts preserve originals. CLI, Textual, web and
-read-only Model Context Protocol (MCP) interfaces share the same application services.
+Model Context Protocol (MCP) interfaces share the same application services.
 Ingestion runs and monitoring are CLI-only, including the CLI-launched periodic worker; HTTP APIs
 and the TUI do not start or monitor ingestion. Governance review is separate.
 
@@ -374,16 +374,17 @@ are recorded in `index.json` under `failures` and cause a nonzero exit; valid ex
 
 ## Inspection interfaces
 
-The browser separates looking things up from doing governed work:
+The browser navigation follows the architect's work sequence:
 
-| Area | Pages |
+| Group | Pages |
 |---|---|
-| Reference | `/sources` and `/sources/{id}`: source inventory, extracted versions and exact evidence |
-| Reference | `/knowledge`, `/concepts/{id}`, `/explore`: interpretations, provenance and visual navigation |
-| Reference | `/reconciliation`: proposal ledger and decision history |
-| Reference | `/ontology`: read-only OWL concepts, relations and exact definitions |
-| Work | `/review`: active reconciliation backlog and issue triage |
+| Workspace | `/`: consolidation workspace; `/ontology`: shared language (read-only OWL concepts, relations, definitions) |
+| Consolidate | `/sources`, `/sources/{id}`: source inventory and exact evidence; `/explore`: visual validation; `/review`: reconciliation backlog and issue triage |
+| Knowledge | `/company`, `/architecture`, `/platforms`: the three knowledge layers; `/solutions`: solution registry with latest verified assessment; `/portfolio`: exception risk and change impact |
+| Reference | `/reconciliation`: proposal ledger and decision history; `/export/rules`: printable rules export |
 | Operations | `/data`: read-only EKB tables and foreign-key drill-down; `/logs`: recent application events |
+
+`/knowledge` and `/concepts/{id}` remain available as the diagnostic interpretation list and detail.
 
 Source detail links preserve the evidenced version via `?version_id=...`. Graphs navigate
 concept-level source history and stored/proposed links across versions, not automatic equivalence
@@ -419,8 +420,9 @@ It does not execute or monitor ingestion. The React/shadcn browser workspace tar
 desktop/PC use, not mobile. It provides
 a consolidation workspace (`/`), shared language (`/ontology`), cursor-paged interpretations
 (`/knowledge`), company intent (`/company`), platform-agnostic architecture (`/architecture`),
-platform controls (`/platforms`), source curation (`/sources`), visual validation (`/explore`),
-issue/proposal review (`/review`) and read-only data/log inspection (`/data`, `/logs`).
+platform controls (`/platforms`), solutions (`/solutions`), portfolio risk (`/portfolio`), source
+curation (`/sources`), visual validation (`/explore`), issue/proposal review (`/review`), rules
+export (`/export/rules`) and read-only data/log inspection (`/data`, `/logs`).
 Start with the shared definitions, then inspect source context, interpretations, relationships and
 scoped decisions. The four-step path is navigation guidance, not saved progress or approval.
 Source selection stays in operator configuration; source curation checks do not change source status.
@@ -525,7 +527,8 @@ The web application does not start, monitor or own ingestion runs. Non-health we
 non-loopback clients and forwarded-proxy headers. Enterprise authentication and network hardening
 are not implemented; do not expose this service through a proxy.
 
-The MCP server uses stdio and exposes thirteen read-only tools, each with an explicit schema:
+The MCP server uses stdio and exposes thirteen tools, each with an explicit schema; all are
+read-only except that `assess_solution` retains its report:
 knowledge (`search_concepts`, `get_concept`, `trace_provenance`, `find_related_requirements`,
 `resolve_knowledge`, `resolve_requirement`), governance (`list_knowledge_issues`,
 `get_reconciliation_history`), solutions (`list_solution_architectures`,
@@ -545,6 +548,8 @@ client process configuration:
 ```
 
 Use your checkout path. Stdout is reserved for the MCP protocol; application logs go to disk.
+The repository already ships `.vscode\mcp.json` (VS Code) and `.mcp.json` (Copilot CLI, once the
+folder is trusted); see `docs\agent-walkthrough.md`.
 
 ## Model providers
 
@@ -683,6 +688,7 @@ outcomes; generic aim and target wording is deliberately not promoted to a goal.
 reconciles enterprise-goal hypotheses into a compact source-level set while retaining business-unit
 goals and subordinate targets separately. PDF column/heading reconstruction remains heuristic;
 diagrams are retained as references, not semantically interpreted. Canonical promotion, automatic
-version classification, semantic merges, exception management, SharePoint, ArchiMate, Bizzdesign and
+version classification, semantic merges, an exception approval workflow (exceptions are declared
+in registered designs), SharePoint, ArchiMate, Bizzdesign and
 Neo4j adapters are not implemented. The MVP prioritizes correct provenance and recoverable
 incremental processing.

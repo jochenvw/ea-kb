@@ -1,4 +1,4 @@
-# Read-only Model Context Protocol server
+# Model Context Protocol server
 
 `create_server` in `__init__.py` builds the official FastMCP server with explicit tool schemas.
 

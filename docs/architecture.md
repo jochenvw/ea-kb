@@ -13,7 +13,7 @@ Development initialization uses current ORM metadata, not migration history; see
 
 ## Scope and design drivers
 
-Except for the explicitly planned application goals below, this describes implemented ingestion,
+The application goals below state intent and boundaries; the rest describes implemented ingestion,
 governed reconciliation, verified solution assessment and portfolio views. The system extracts strategic-goal and
 ontology requirement candidates while retaining the evidence needed to inspect each interpretation.
 Documents, interpretations and enterprise approval are separate concerns.
@@ -83,8 +83,7 @@ internal contract does not itself establish authority or inspect implementation 
 must obtain those facts through the application boundaries. `SolutionAssessmentService` does so:
 it resolves the approved baseline, plans every requirement against the design, and verifies the
 implementation through the `ImplementationAnalyzer` port (the ARM adapter evaluates compiled
-Bicep/ARM templates without deployment). The legacy declared-evidence transport reports `declared`
-claims with `verified: false`.
+Bicep/ARM templates without deployment).
 
 `AssessmentBasisService` establishes an explicit selected baseline independently of registered
 controls. Approval must resolve canonically to the pinned version with candidate evidence in the
@@ -95,16 +94,14 @@ workload context, repository and versioned option decisions; missing context or 
 unresolved. Only approved baseline options are permitted alternatives. The registered architecture
 retains exception approval metadata; this service grants no new approval and does not parse prose.
 
-These feedback-loop capabilities are intended outcomes tracked in
-[the assessment backlog](https://github.com/jochenvw/ea-kb/issues/25). Existing foundations include
-exact evidence, immutable interpretations and architecture revisions, scoped authority, explicit
-architecture exceptions and bounded lineage inspection. Current assessment checks declared
-evidence only for registered controls; it does not establish complete applicability or verify code.
+Existing foundations include exact evidence, immutable interpretations and architecture revisions,
+scoped authority, explicit architecture exceptions and bounded lineage inspection.
 `PortfolioService` derives exception-risk and change-impact views on demand from the same plans:
 rates use applicable solutions as denominator, review signals never score or weaken a standard,
 and change impact separates confirmed, potential and unresolved items with owner-routed drafts that
-are exported, not sent. Nothing is persisted; see
-[ADR 0014](decisions/0014-verified-assessment-and-portfolio-views.md).
+are exported, not sent. Every assessment report from CLI, MCP, API or CI is retained per
+architecture revision for the solution page; retaining a report approves nothing. Portfolio views
+are not persisted; see [ADR 0014](decisions/0014-verified-assessment-and-portfolio-views.md).
 
 Retain the stable solution, owner/repository, requirement-version and decision/evidence bindings
 needed for both assessment and feedback. Derive bounded views from existing authoritative records;
@@ -122,7 +119,7 @@ impact queries do not depend on whichever interpretation happens to be latest.
 | `pipeline` / `services` | Ingestion, transactions, knowledge queries | ORM rows |
 | `orchestration` / `stages` | Durable ordering, compatible artifacts and independent checks | Transport-specific governance |
 | `adapters` | Connectors, parsing, inference, artifacts, PostgreSQL | Transport interfaces |
-| `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, read-only MCP | Direct ORM queries (except database health checks) |
+| `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, MCP | Direct ORM queries (except database health checks) |
 | `runtime.py` | Explicit dependency injection and resource lifetimes | Nothing implicit or global for business state |
 
 `SourceConnector -> deterministic inventory/acquisition barrier -> ArtifactStore ->
@@ -598,7 +595,7 @@ Restrict the debug/data directory with operating-system ACLs, especially on Wind
 | Typer CLI | Migration, doctor, scan/resume/dry-run, inventory, concept/provenance/lineage inspection, evaluation and process launch |
 | Textual terminal UI (TUI) | Source and concept inventory, provenance, relationships and governed review |
 | FastAPI + React/shadcn | Local compiled browser assets, knowledge inspection and authenticated governance |
-| Model Context Protocol (MCP) | Eight read-only tools; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
+| Model Context Protocol (MCP) | Thirteen tools, read-only except that `assess_solution` retains its report; authoritative consumers default to `resolve_knowledge` / `resolve_requirement` |
 | CLI-launched periodic worker | Runs the same ingestion engine with configured connectors; not a separate implementation or broker consumer |
 
 Web/API and TUI neither execute ingestion nor provide dedicated processing monitors; the CLI follows

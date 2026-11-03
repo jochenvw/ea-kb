@@ -124,7 +124,8 @@ cross-origin mutations. Local CLI/TUI actors are trusted operator assertions, no
 Non-health web/API routes reject non-loopback clients and forwarded-proxy headers. No enterprise
 role-based or tenant authorization is implemented or claimed.
 
-MCP retains eight read-only tools. `resolve_knowledge` and `resolve_requirement` default to strict
+MCP exposes thirteen tools (see `docs\usage.md`); only `assess_solution` writes, retaining its
+report. `resolve_knowledge` and `resolve_requirement` default to strict
 canonical; legacy search/get tools remain explicitly candidate research. Issue/history tools expose audit.
 
 ## Resolution and audit guarantees
