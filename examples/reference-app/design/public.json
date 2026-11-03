@@ -1,0 +1,31 @@
+{
+  "solution": {
+    "name": "Reference app (public)",
+    "owner": "public-web owner",
+    "team": "public-web",
+    "repository": "jochenvw/ea-kb",
+    "environment": "production"
+  },
+  "context": {
+    "exposure": "public",
+    "criticality": "normal",
+    "environment": "production",
+    "deployment_boundary": "internet"
+  },
+  "decisions": [
+    {
+      "concept_id": "40f75fda-3f2f-5ddf-9735-b0b766d03c57",
+      "version_id": "d6182c4b-a6de-5cc9-8140-acd58481e5c0",
+      "option": "ddos-network-protection",
+      "rationale": "The application network uses DDoS Network Protection with a protection plan.",
+      "evidence_location": "design/public.json#adr-001"
+    },
+    {
+      "concept_id": "59e06c5a-f96b-548b-94be-56d283906079",
+      "version_id": "b7530d9c-1ca2-5469-a871-306a25959627",
+      "option": "diagnostic-settings",
+      "rationale": "Web audit logs are sent to the workload Log Analytics workspace.",
+      "evidence_location": "design/public.json#adr-002"
+    }
+  ]
+}

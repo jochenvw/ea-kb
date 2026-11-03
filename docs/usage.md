@@ -194,20 +194,37 @@ uv run ekb eval architectures
 
 ### Verified solution assessment
 
+Register a machine-readable baseline whose requirements are ingested concept versions. The command
+retains the exact bytes, versions the baseline by its `version` field and only *proposes* canonical
+adoption; assessments stay non-authoritative until a person accepts every pending proposal:
+
+```powershell
+uv run ekb baselines register examples\reference-app\baseline.json   # prints pending_approvals
+uv run ekb reconcile decide FINDING_UUID accepted --actor "you@example.com" --rationale "..."
+uv run ekb architectures register examples\reference-app\design\restricted.yaml `
+  examples\reference-app\design\restricted.json
+```
+
+Re-registering identical bytes is idempotent; a new `version` creates a new baseline version.
+`examples\reference-app` binds real ingested Azure security benchmark concepts; IDs are derived from
+the corpus, so use `ekb concepts search` to rebind them in a different workspace.
+
 `ekb assess` evaluates the complete approved baseline (a machine-readable `BaselinePolicy` stored as
 an approved strategic requirement) against the registered design JSON and an ARM template or
 `.bicep` file (compiled with `az bicep build`). Every applicable requirement is reported separately
 for design and implementation; unknown never passes:
 
 ```powershell
-uv run ekb assess ARCHITECTURE_UUID infra\main.json --baseline-concept UUID --baseline-version UUID `
-  --parameters infra\prod.parameters.json --commit $env:GITHUB_SHA --require conforms
+uv run ekb assess ARCHITECTURE_UUID examples\reference-app\main.json `
+  --baseline-concept UUID --baseline-version UUID `
+  --parameters examples\reference-app\parameters\restricted.parameters.json `
+  --commit $env:GITHUB_SHA --require conforms
 ```
 
 `--require` is `conforms` (default), `acceptable` (approved exceptions allowed) or `report`; the
 command exits 1 when the required result is not established. The same service backs
-`POST /api/assessments` and the MCP `assess_solution` tool. A worked synthetic example lives in
-`tests\fixtures\reference-app`; its virtual network shows how `network.ddos_protection` reports
+`POST /api/assessments` and the MCP `assess_solution` tool. Synthetic test variations live in
+`tests\fixtures\reference-app`; the shared template's virtual network shows how `network.ddos_protection` reports
 explicitly disabled DDoS protection as a violation naming the template resource (absent or
 unresolved settings stay unknown).
 

@@ -78,6 +78,29 @@ def register(app: typer.Typer, emit: Callable[[Any], None]) -> None:
         except ValueError as error:
             raise typer.BadParameter(str(error)) from None
 
+    baselines = typer.Typer(help="Register machine-readable baselines for human approval.")
+    app.add_typer(baselines, name="baselines")
+
+    @baselines.command("register")
+    def register_baseline(
+        policy: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    ) -> None:
+        """Retain an exact baseline policy and propose its canonical adoption.
+
+        Nothing is approved here: decide each pending proposal with `ekb reconcile decide`
+        or the review page before assessments treat the baseline as authoritative.
+        """
+        try:
+            content = policy.read_bytes()
+
+            async def execute():
+                async with Runtime() as runtime:
+                    return await runtime.baselines.register(content, policy.resolve().as_uri())
+
+            emit(asyncio.run(execute()))
+        except (OSError, ValueError) as error:
+            raise typer.BadParameter(str(error)) from None
+
     @app.command("assess")
     def assess_solution(
         architecture_id: UUID,

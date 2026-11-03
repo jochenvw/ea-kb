@@ -44,6 +44,7 @@ async def seed_requirement(
     raw=None,
     semantic_type=SemanticType.TECHNICAL_REQUIREMENT,
     effective_at=None,
+    approve=True,
 ):
     raw = raw or statement
     source_id, revision_id = uuid4(), uuid4()
@@ -89,6 +90,8 @@ async def seed_requirement(
         await uow.commit()
         concept = await uow.knowledge.get(ids[0])
     assert concept
+    if not approve:
+        return concept
     review = ReconciliationService(database)
     proposal = await review.propose_canonical(concept.id, concept.versions[0].id, Scope())
     await review.decide(

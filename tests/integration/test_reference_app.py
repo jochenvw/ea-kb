@@ -25,6 +25,8 @@ from ekb.services.architectures import ArchitectureService
 pytestmark = pytest.mark.integration
 
 FIXTURE = Path("tests") / "fixtures" / "reference-app"
+EXAMPLE = Path("examples") / "reference-app"
+TEMPLATE = EXAMPLE / "main.json"
 
 
 def load(name: str) -> Any:
@@ -101,15 +103,17 @@ async def assess_case(runtime: Runtime, approval, versions, case: dict[str, Any]
     )
     parameters = {
         key: value["value"]
-        for key, value in load(f"parameters/{case['profile']}.parameters.json")[
-            "parameters"
-        ].items()
+        for key, value in json.loads(
+            (EXAMPLE / "parameters" / f"{case['profile']}.parameters.json").read_text(
+                encoding="utf-8"
+            )
+        )["parameters"].items()
     } | case.get("parameters", {})
     request = SolutionAssessmentInput(
         architecture_id=architecture.id,
         baseline_concept_id=approval.concept_id,
         baseline_version_id=approval.version_id,
-        template=load("infra/main.json"),
+        template=json.loads(TEMPLATE.read_text(encoding="utf-8")),
         parameters=parameters,
         commit="0123456789abcdef",
         as_of=as_of,

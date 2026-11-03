@@ -1,0 +1,43 @@
+{
+  "id": "reference-app-baseline",
+  "version": "1",
+  "statement": "Hosted web workloads deploy network-layer DDoS protection, send Azure service audit logs to a central workspace and, when private, disable public network access behind private endpoints.",
+  "requirements": [
+    {
+      "concept_id": "40f75fda-3f2f-5ddf-9735-b0b766d03c57",
+      "version_id": "d6182c4b-a6de-5cc9-8140-acd58481e5c0",
+      "options": [
+        {
+          "id": "ddos-network-protection",
+          "check_id": "network.ddos_protection",
+          "resource_type": "Microsoft.Network/virtualNetworks"
+        }
+      ]
+    },
+    {
+      "concept_id": "59e06c5a-f96b-548b-94be-56d283906079",
+      "version_id": "b7530d9c-1ca2-5469-a871-306a25959627",
+      "options": [
+        {
+          "id": "diagnostic-settings",
+          "check_id": "logging.diagnostic_settings",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    },
+    {
+      "concept_id": "6ff5d278-fce4-55d6-bed4-14c9f4e4ce45",
+      "version_id": "64a07395-6e95-57a5-9414-ce611ef02c2a",
+      "when": {
+        "exposure": "private"
+      },
+      "options": [
+        {
+          "id": "private-endpoint",
+          "check_id": "network.private_access",
+          "resource_type": "Microsoft.Web/sites"
+        }
+      ]
+    }
+  ]
+}

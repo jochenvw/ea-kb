@@ -34,6 +34,7 @@ from ekb.ports import (
 from ekb.ports.workflow import CheckContext, CheckResult, PipelineProgress
 from ekb.services.architectures import ArchitectureService
 from ekb.services.assertions import AssertionService
+from ekb.services.baselines import BaselineService
 from ekb.services.issue_service import IssueService
 from ekb.services.knowledge import KnowledgeService
 from ekb.services.knowledge_resolver import KnowledgeResolver
@@ -110,6 +111,10 @@ class Runtime:
         return SolutionAssessmentService(
             self.architectures, self.resolver, self.artifacts, self.analyzer
         )
+
+    @property
+    def baselines(self) -> BaselineService:
+        return BaselineService(self.database, self.artifacts, self.resolver, self.reconciliation)
 
     @property
     def portfolio(self) -> PortfolioService:

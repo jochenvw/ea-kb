@@ -4,7 +4,7 @@ from pathlib import Path
 from ekb.adapters.implementation.arm import ArmTemplateAnalyzer, parameter_values
 from ekb.domain.assessment import CheckRequest
 
-REFERENCE = Path(__file__).parents[1] / "fixtures" / "reference-app" / "infra" / "main.json"
+REFERENCE = Path(__file__).parents[2] / "examples" / "reference-app" / "main.json"
 
 
 def observe(template, checks, parameters=None):

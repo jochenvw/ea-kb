@@ -87,6 +87,18 @@ class BaselineApproval(Model):
     version_id: UUID
 
 
+class BaselineRegistration(Model):
+    """A retained baseline and the canonical adoptions still awaiting a human decision."""
+
+    concept_id: UUID
+    version_id: UUID
+    policy_id: str
+    policy_version: str
+    policy_sha256: str
+    requirements: int
+    pending_approvals: tuple[UUID, ...] = ()
+
+
 class ExceptionApproval(Model):
     id: str = Field(min_length=1, max_length=100)
     approved_by: str = Field(min_length=1, max_length=200)

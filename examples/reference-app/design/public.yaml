@@ -1,0 +1,10 @@
+name: Reference app (public)
+description: Web app reference solution, public exposure, assessed against reference-app-baseline v1.
+owner: public-web owner
+canonical_source: https://github.com/jochenvw/ea-kb/blob/main/examples/reference-app/design/public.json
+version: "1"
+controls:
+  - concept_id: 40f75fda-3f2f-5ddf-9735-b0b766d03c57
+    concept_version_id: d6182c4b-a6de-5cc9-8140-acd58481e5c0
+  - concept_id: 59e06c5a-f96b-548b-94be-56d283906079
+    concept_version_id: b7530d9c-1ca2-5469-a871-306a25959627
