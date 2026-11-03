@@ -9,6 +9,7 @@ param deployPrivateEndpoint bool = profile == 'restricted'
 param enableDiagnostics bool = true
 param enableSoftDelete bool = true
 param minTlsVersion string = '1.2'
+param enableDdosProtection bool = true
 param subnetId string = ''
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -110,6 +111,25 @@ resource blob 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
     deleteRetentionPolicy: {
       enabled: enableSoftDelete
       days: 7
+    }
+  }
+}
+
+resource ddosPlan 'Microsoft.Network/ddosProtectionPlans@2023-11-01' = {
+  name: '${name}-ddos'
+  location: location
+}
+
+resource network 'Microsoft.Network/virtualNetworks@2023-11-01' = {
+  name: '${name}-vnet'
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: ['10.20.0.0/16']
+    }
+    enableDdosProtection: enableDdosProtection
+    ddosProtectionPlan: {
+      id: ddosPlan.id
     }
   }
 }

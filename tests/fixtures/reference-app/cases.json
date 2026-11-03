@@ -22,6 +22,11 @@
      "decisions": {"activity-logging": {"kind": "exception", "version": "stale", "rationale": "Workspace migration in progress.", "evidence_location": "design/restricted.json#exc-001@v1",
        "exception": {"id": "EXC-001", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01"}}}},
     {"id": "external-evidence-missing", "design": "restricted", "profile": "restricted", "parameters": {"deployPrivateEndpoint": false}},
+    {"id": "ddos-unprotected", "design": "public", "profile": "public", "parameters": {"enableDdosProtection": false}},
+    {"id": "ddos-exception", "design": "public", "profile": "public", "parameters": {"enableDdosProtection": false},
+     "decisions": {"ddos-protection": {"kind": "exception", "rationale": "Regional edge protection covers the launch period.", "evidence_location": "design/public.json#exc-002@v1",
+       "exception": {"id": "EXC-002", "approved_by": "Synthetic architecture board", "effective_from": "2026-01-01", "effective_until": "2026-12-31"}}}},
+    {"id": "ddos-unresolved", "design": "public", "profile": "public", "parameters": {"enableDdosProtection": {"reference": {"keyVault": {"id": "synthetic-vault"}, "secretName": "ddos"}}}},
     {"id": "unsupported-check", "design": "restricted", "profile": "restricted", "context": {"criticality": "high"},
      "decisions": {"secret-rotation": {"option": "vault-rotation", "rationale": "Vault rotation policy is configured.", "evidence_location": "design/restricted.json#adr-006@v1"}}}
   ]

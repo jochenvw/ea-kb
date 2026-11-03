@@ -207,7 +207,13 @@ uv run ekb assess ARCHITECTURE_UUID infra\main.json --baseline-concept UUID --ba
 `--require` is `conforms` (default), `acceptable` (approved exceptions allowed) or `report`; the
 command exits 1 when the required result is not established. The same service backs
 `POST /api/assessments` and the MCP `assess_solution` tool. A worked synthetic example lives in
-`tests\fixtures\reference-app`.
+`tests\fixtures\reference-app`; its virtual network shows how `network.ddos_protection` reports
+explicitly disabled DDoS protection as a violation naming the template resource (absent or
+unresolved settings stay unknown).
+
+The ARM analyzer's explicit checks are `encryption.in_transit`, `logging.diagnostic_settings`,
+`network.private_access`, `network.ddos_protection`, `identity.require_authentication`,
+`identity.shared_key_disabled` and `retention.blob_soft_delete`; any other check is `unsupported`.
 
 ### Portfolio exception risk and change impact
 

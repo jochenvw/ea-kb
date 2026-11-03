@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.47.16.16243",
-      "templateHash": "2304582690265927152"
+      "templateHash": "15930524114155630585"
     }
   },
   "parameters": {
@@ -47,6 +47,10 @@
     "minTlsVersion": {
       "type": "string",
       "defaultValue": "1.2"
+    },
+    "enableDdosProtection": {
+      "type": "bool",
+      "defaultValue": true
     },
     "subnetId": {
       "type": "string",
@@ -182,6 +186,32 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts', format('{0}content', parameters('name')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/ddosProtectionPlans",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}-ddos', parameters('name'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-11-01",
+      "name": "[format('{0}-vnet', parameters('name'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.20.0.0/16"
+          ]
+        },
+        "enableDdosProtection": "[parameters('enableDdosProtection')]",
+        "ddosProtectionPlan": {
+          "id": "[resourceId('Microsoft.Network/ddosProtectionPlans', format('{0}-ddos', parameters('name')))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/ddosProtectionPlans', format('{0}-ddos', parameters('name')))]"
       ]
     }
   ]

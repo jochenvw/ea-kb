@@ -71,6 +71,18 @@
       ]
     },
     {
+      "key": "net-ddos",
+      "family": "network",
+      "statement": "Synthetic: virtual networks enable DDoS Network Protection with an associated protection plan.",
+      "options": [
+        {
+          "id": "ddos-network-protection",
+          "check_id": "network.ddos_protection",
+          "resource_type": "Microsoft.Network/virtualNetworks"
+        }
+      ]
+    },
+    {
       "key": "id-auth",
       "family": "identity",
       "statement": "Synthetic: private workloads admit only authenticated or privately routed requests.",
@@ -325,6 +337,33 @@
           "type": "Microsoft.Web/sites",
           "name": "web-0",
           "properties": {}
+        }
+      ]
+    },
+    "network": {
+      "parameters": {
+        "ddos": {
+          "type": "bool",
+          "defaultValue": true
+        }
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Network/ddosProtectionPlans",
+          "name": "net-ddos"
+        },
+        {
+          "type": "Microsoft.Network/virtualNetworks",
+          "name": "net-0",
+          "tags": {
+            "note": "Synthetic: DDoS protection claimed here is not evidence."
+          },
+          "properties": {
+            "enableDdosProtection": "[parameters('ddos')]",
+            "ddosProtectionPlan": {
+              "id": "[resourceId('Microsoft.Network/ddosProtectionPlans', 'net-ddos')]"
+            }
+          }
         }
       ]
     }
@@ -1092,6 +1131,130 @@
       "expected": {
         "net-private": {
           "disposition": "violated"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "ddos-satisfied",
+      "family": "network",
+      "scenario": "virtual network has DDoS protection and a plan",
+      "baseline": [
+        "net-ddos"
+      ],
+      "decisions": [
+        {
+          "requirement": "net-ddos",
+          "kind": "implements",
+          "rationale": "The network uses DDoS Network Protection.",
+          "evidence_location": "design.md#net-ddos",
+          "option": "ddos-network-protection"
+        }
+      ],
+      "template": "network",
+      "expected": {
+        "net-ddos": {
+          "disposition": "conforms",
+          "implementation": "passed"
+        }
+      },
+      "expected_conforms": true,
+      "expected_acceptable": true
+    },
+    {
+      "id": "ddos-violated",
+      "family": "network",
+      "scenario": "virtual network explicitly disables DDoS protection",
+      "baseline": [
+        "net-ddos"
+      ],
+      "decisions": [
+        {
+          "requirement": "net-ddos",
+          "kind": "implements",
+          "rationale": "The network uses DDoS Network Protection.",
+          "evidence_location": "design.md#net-ddos",
+          "option": "ddos-network-protection"
+        }
+      ],
+      "template": "network",
+      "parameters": {
+        "ddos": false
+      },
+      "expected": {
+        "net-ddos": {
+          "disposition": "violated",
+          "implementation": "failed"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": false
+    },
+    {
+      "id": "ddos-excepted",
+      "family": "network",
+      "scenario": "approved exception covers missing DDoS protection",
+      "baseline": [
+        "net-ddos"
+      ],
+      "decisions": [
+        {
+          "requirement": "net-ddos",
+          "kind": "exception",
+          "rationale": "Regional edge protection covers the launch period.",
+          "evidence_location": "design.md#exc-ddos",
+          "exception": {
+            "id": "EXC-DDOS",
+            "approved_by": "Synthetic architecture board",
+            "effective_from": "2026-01-01",
+            "effective_until": "2026-12-31"
+          }
+        }
+      ],
+      "template": "network",
+      "parameters": {
+        "ddos": false
+      },
+      "expected": {
+        "net-ddos": {
+          "disposition": "excepted"
+        }
+      },
+      "expected_conforms": false,
+      "expected_acceptable": true
+    },
+    {
+      "id": "ddos-unresolved",
+      "family": "network",
+      "scenario": "DDoS flag comes from an unresolved Key Vault reference",
+      "baseline": [
+        "net-ddos"
+      ],
+      "decisions": [
+        {
+          "requirement": "net-ddos",
+          "kind": "implements",
+          "rationale": "The network uses DDoS Network Protection.",
+          "evidence_location": "design.md#net-ddos",
+          "option": "ddos-network-protection"
+        }
+      ],
+      "template": "network",
+      "parameters": {
+        "ddos": {
+          "reference": {
+            "keyVault": {
+              "id": "synthetic-vault"
+            },
+            "secretName": "ddos"
+          }
+        }
+      },
+      "expected": {
+        "net-ddos": {
+          "disposition": "unknown",
+          "implementation": "unknown"
         }
       },
       "expected_conforms": false,

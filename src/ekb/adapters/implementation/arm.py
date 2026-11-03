@@ -604,6 +604,22 @@ def _soft_delete(resource: Resource, _: Sequence[Resource]) -> _Result:
     )
 
 
+def _ddos(resource: Resource, _: Sequence[Resource]) -> _Result:
+    enabled = _value(
+        "enableDdosProtection",
+        resource.get("properties.enableDdosProtection"),
+        lambda value: value is True,
+    )
+    if enabled.status != "passed":
+        return enabled
+    plan = _value(
+        "ddosProtectionPlan.id",
+        resource.get("properties.ddosProtectionPlan.id"),
+        lambda value: isinstance(value, str) and bool(value),
+    )
+    return _combine([enabled, plan])
+
+
 @dataclass(frozen=True)
 class Check:
     expected: str
@@ -627,6 +643,11 @@ CHECKS: dict[str, Check] = {
         "public network access disabled and a private endpoint connected",
         frozenset({"microsoft.web/sites", "microsoft.storage/storageaccounts"}),
         _private_access,
+    ),
+    "network.ddos_protection": Check(
+        "DDoS Network Protection enabled with an associated protection plan",
+        frozenset({"microsoft.network/virtualnetworks"}),
+        _ddos,
     ),
     "identity.require_authentication": Check(
         "platform authentication enabled and required for every request",

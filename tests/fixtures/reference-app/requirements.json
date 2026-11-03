@@ -33,6 +33,11 @@
       "options": [{"id": "directory-only", "check_id": "identity.shared_key_disabled", "resource_type": "Microsoft.Storage/storageAccounts"}]
     },
     {
+      "key": "ddos-protection",
+      "statement": "Synthetic baseline: virtual networks enable DDoS Network Protection with an associated protection plan, refining NIST SP 800-53 SC-5 denial-of-service protection.",
+      "options": [{"id": "ddos-network-protection", "check_id": "network.ddos_protection", "resource_type": "Microsoft.Network/virtualNetworks"}]
+    },
+    {
       "key": "secret-rotation",
       "statement": "Synthetic baseline: high-criticality workloads rotate vault secrets automatically.",
       "when": {"criticality": "high"},

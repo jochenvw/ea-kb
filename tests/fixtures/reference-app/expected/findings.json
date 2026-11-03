@@ -1,8 +1,10 @@
 {
   "site": "Microsoft.Web/sites/refapp-web",
   "store": "Microsoft.Storage/storageAccounts/refappcontent",
+  "network": "Microsoft.Network/virtualNetworks/refapp-vnet",
   "cases": {
     "public-correct": {"conforms": true, "acceptable": true, "findings": {
+      "ddos-protection": {"disposition": "conforms", "resource": "network"},
       "transport-encryption": {"disposition": "conforms", "resource": "site"},
       "activity-logging": {"disposition": "conforms", "resource": "site"},
       "private-connectivity": {"disposition": "not_applicable", "explains": "exposure=private does not match public"},
@@ -10,6 +12,7 @@
       "admin-key-access": {"disposition": "conforms", "resource": "store"},
       "secret-rotation": {"disposition": "not_applicable"}}},
     "restricted-correct": {"conforms": true, "acceptable": true, "findings": {
+      "ddos-protection": {"disposition": "conforms", "resource": "network"},
       "transport-encryption": {"disposition": "conforms", "resource": "site"},
       "activity-logging": {"disposition": "conforms", "resource": "site"},
       "private-connectivity": {"disposition": "conforms", "resource": "site"},
@@ -34,6 +37,12 @@
       "activity-logging": {"disposition": "decision_required", "explains": "bound to another requirement version"}}},
     "external-evidence-missing": {"conforms": false, "acceptable": false, "findings": {
       "private-connectivity": {"disposition": "unknown", "resource": "site", "explains": "external evidence is required"}}},
+    "ddos-unprotected": {"conforms": false, "acceptable": false, "findings": {
+      "ddos-protection": {"disposition": "violated", "resource": "network", "explains": "enableDdosProtection is explicitly set to False"}}},
+    "ddos-exception": {"conforms": false, "acceptable": true, "findings": {
+      "ddos-protection": {"disposition": "excepted", "explains": "Regional edge protection"}}},
+    "ddos-unresolved": {"conforms": false, "acceptable": false, "findings": {
+      "ddos-protection": {"disposition": "unknown", "resource": "network", "explains": "cannot be resolved"}}},
     "unsupported-check": {"conforms": false, "acceptable": false, "findings": {
       "secret-rotation": {"disposition": "unknown", "implementation": "unsupported", "explains": "No verifier supports secrets.rotation"}}}
   }

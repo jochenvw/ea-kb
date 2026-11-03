@@ -4,6 +4,7 @@
   "decisions": [
     {"requirement": "transport-encryption", "option": "https-tls12", "rationale": "The site enforces HTTPS with TLS 1.2.", "evidence_location": "design/public.json#adr-001@v1"},
     {"requirement": "activity-logging", "option": "diagnostic-settings", "rationale": "Site logs go to the shared workspace.", "evidence_location": "design/public.json#adr-002@v1"},
-    {"requirement": "admin-key-access", "option": "directory-only", "rationale": "Content writes use directory identities only.", "evidence_location": "design/public.json#adr-003@v1"}
+    {"requirement": "admin-key-access", "option": "directory-only", "rationale": "Content writes use directory identities only.", "evidence_location": "design/public.json#adr-003@v1"},
+    {"requirement": "ddos-protection", "option": "ddos-network-protection", "rationale": "The application network uses DDoS Network Protection.", "evidence_location": "design/public.json#adr-004@v1"}
   ]
 }

@@ -46,8 +46,8 @@ async def test_exception_risk_counts_against_applicable_population(reference_fix
     assert logging.active_exceptions == 1
     assert logging.rate == pytest.approx(1 / len(cases), abs=1e-4)
     statuses = sorted(item.status for item in report.exceptions)
-    assert statuses == ["active", "expired", "out_of_scope", "wrong_version"]
-    assert report.distinct_exception_decisions == 1
+    assert statuses == ["active", "active", "expired", "out_of_scope", "wrong_version"]
+    assert report.distinct_exception_decisions == 2
     assert report.previous_as_of == request.previous_as_of
     assert any(item.population_changed for item in report.trend)
 
@@ -60,7 +60,7 @@ async def test_exception_risk_counts_against_applicable_population(reference_fix
                 "/api/portfolio/exception-risk", json=request.model_dump(mode="json")
             )
             assert response.status_code == 200, response.text
-            assert response.json()["distinct_exception_decisions"] == 1
+            assert response.json()["distinct_exception_decisions"] == 2
             invalid = request.model_copy(update={"previous_as_of": today})
             response = await client.post(
                 "/api/portfolio/exception-risk", json=invalid.model_dump(mode="json")

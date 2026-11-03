@@ -172,3 +172,27 @@ def test_reference_application_profiles_and_regressions():
     assert run(profile="restricted", publicNetworkAccess="Enabled")[2] == "failed"
     assert run(profile="restricted", deployPrivateEndpoint=False)[2] == "unknown"
     assert run(profile="restricted", requireAuthentication=False)[3] == "unknown"
+
+
+def test_ddos_protection_requires_flag_and_plan():
+    def vnet(name, **properties):
+        return {"type": "Microsoft.Network/virtualNetworks", "name": name, "properties": properties}
+
+    template = {
+        "resources": [
+            vnet("protected", enableDdosProtection=True, ddosProtectionPlan={"id": "plan"}),
+            vnet("off", enableDdosProtection=False, ddosProtectionPlan={"id": "plan"}),
+            vnet("planless", enableDdosProtection=True),
+            vnet("absent"),
+        ]
+    }
+    (result,) = observe(
+        template, [("network.ddos_protection", "Microsoft.Network/virtualNetworks")]
+    )
+    assert [item.status for item in result] == ["passed", "failed", "unknown", "unknown"]
+    assert result[1].observed == "enableDdosProtection=False"
+    reference = json.loads(REFERENCE.read_text())
+    check = [("network.ddos_protection", "Microsoft.Network/virtualNetworks")]
+    assert observe(reference, check, {"profile": "public"})[0][0].status == "passed"
+    unresolved = {"parameters": {"enableDdosProtection": {"reference": {"keyVault": {}}}}}
+    assert observe(reference, check, unresolved)[0][0].status == "unknown"
