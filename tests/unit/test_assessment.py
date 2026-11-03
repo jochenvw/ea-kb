@@ -1,4 +1,6 @@
+import importlib.util
 from datetime import date
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -156,3 +158,21 @@ def test_design_and_implementation_are_reported_separately_with_routing_gaps():
     assert len(gaps) == 4 and "responsible team" in gaps[2]
     routed = t.model_copy(update={"owner": "Owner", "team": "Team", "repository": "org/app"})
     assert basis_gaps(None, routed) == (gaps[0],)
+
+
+def test_job_summary_states_the_verdict_and_escapes_markdown():
+    script = Path(__file__).parents[2] / "scripts" / "assessment_summary.py"
+    specification = importlib.util.spec_from_file_location("assessment_summary", script)
+    assert specification is not None and specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    t = target()
+    item = requirement(t, design="violated")
+    item = item.model_copy(
+        update={
+            "requirement": item.requirement.model_copy(update={"statement": "Use A | B\nonly."})
+        }
+    )
+    summary = module.render(result(t, item))
+    assert summary.startswith("## EKB assessment: Conformance not established")
+    assert "| Use A \\| B only. | violated | violated |" in summary

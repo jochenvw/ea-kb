@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "ekb": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "ekb", "mcp"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

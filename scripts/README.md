@@ -7,5 +7,7 @@
 - Each configured URL is downloaded directly; linked pages are not crawled.
 - Files and SHA-256/retrieval/failure metadata stay under ignored `data\test-corpus\public`.
 
+`assessment_summary.py REPORT.json` renders `ekb assess` JSON as Markdown, e.g. a CI job summary.
+
 Publisher refusals and invalid/empty responses are failures, not fabricated corpus documents.
 This is separate from application ingestion; regressions live in `tests\unit\test_corpus_downloader.py`.

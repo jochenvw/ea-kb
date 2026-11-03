@@ -221,6 +221,7 @@ uv run ekb assess ARCHITECTURE_UUID examples\reference-app\main.json `
   --commit $env:GITHUB_SHA --require conforms
 ```
 
+Agent, CI and browser use: `docs\agent-walkthrough.md`.
 `--require` is `conforms` (default), `acceptable` (approved exceptions allowed) or `report`; the
 command exits 1 when the required result is not established. The same service backs
 `POST /api/assessments` and the MCP `assess_solution` tool. Every report is retained immutably

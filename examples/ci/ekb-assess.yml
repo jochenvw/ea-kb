@@ -1,0 +1,37 @@
+# Copy to .github/workflows/ in a solution repository. It assesses the committed design and
+# Bicep template against an approved EKB baseline and fails the job unless the solution conforms.
+# EKB_DATABASE_URL must reach the shared EKB store (ingested corpus, registered baseline and
+# architecture). Keep that store private; the job only reads knowledge and retains the report.
+name: EKB assessment
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    env:
+      EKB_DATABASE_URL: ${{ secrets.EKB_DATABASE_URL }}
+      ARCHITECTURE_ID: ${{ vars.EKB_ARCHITECTURE_ID }}
+      BASELINE_CONCEPT: ${{ vars.EKB_BASELINE_CONCEPT }}
+      BASELINE_VERSION: ${{ vars.EKB_BASELINE_VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Assess design and template
+        run: |
+          set +e
+          uv run ekb assess "$ARCHITECTURE_ID" examples/reference-app/main.bicep \
+            --baseline-concept "$BASELINE_CONCEPT" --baseline-version "$BASELINE_VERSION" \
+            --parameters examples/reference-app/parameters/restricted.parameters.json \
+            --commit "$GITHUB_SHA" --require conforms > report.json
+          status=$?
+          set -e
+          uv run python scripts/assessment_summary.py report.json >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ekb-assessment
+          path: report.json

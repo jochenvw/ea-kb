@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "ekb": {
+      "type": "local",
+      "command": "uv",
+      "args": ["run", "ekb", "mcp"],
+      "tools": ["*"]
+    }
+  }
+}

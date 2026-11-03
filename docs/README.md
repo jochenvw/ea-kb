@@ -1,6 +1,7 @@
 # Design documentation
 
 - `usage.md`: setup, configuration, interfaces, corpus downloads, verification and deployment.
+- `agent-walkthrough.md`: assess the reference app via CLI, MCP agents, CI and the browser.
 - `architecture.md`: explicit application goals and feedback loop, then implemented components,
   flows, persistence, concurrency and deployment; planned capabilities are marked separately.
 - `plugins.md`: connector/provider contracts and rules for future adapters.
