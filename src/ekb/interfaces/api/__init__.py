@@ -149,6 +149,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/logs", response_class=HTMLResponse)
     @app.get("/ontology", response_class=HTMLResponse)
     @app.get("/solutions", response_class=HTMLResponse)
+    @app.get("/portfolio", response_class=HTMLResponse)
+    @app.get("/export/rules", response_class=HTMLResponse)
     def workspace() -> FileResponse:
         return FileResponse(shell)
 

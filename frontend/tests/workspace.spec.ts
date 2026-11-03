@@ -1793,6 +1793,159 @@ test("solution page shows retained assessment findings without hiding unknowns",
   ).toBeVisible();
 });
 
+test("rules export prints layered evidence and never truncates silently", async ({
+  page,
+}) => {
+  const ruleId = (index: number) =>
+    `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+  const rule = (
+    conceptId: string,
+    level: string,
+    statement: string,
+    canonicalStatus: string,
+    relationships: { to_concept_id: string; kind: string }[] = [],
+  ) => {
+    const versionId = `${conceptId.slice(0, -4)}ffff`;
+    return {
+      id: conceptId,
+      versions: [
+        {
+          id: versionId,
+          semantic_version: null,
+          candidate: {
+            semantic_type: "ConceptualRequirement",
+            goal_level: null,
+            statement,
+            modality: "must",
+            confidence: 0.9,
+            uncertainty: null,
+            scope: {},
+          },
+          publication: { publication_status: "published" },
+          recorded_at: timestamp,
+          assertion: null,
+        },
+      ],
+      occurrences: [
+        {
+          id: `${conceptId.slice(0, -4)}eeee`,
+          concept_version_id: versionId,
+          excerpt: `Exact excerpt: ${statement}`,
+          start: 0,
+          end: 15 + statement.length,
+        },
+      ],
+      authority_states: [
+        {
+          concept_version_id: versionId,
+          governance_status: "approved",
+          canonical_status: canonicalStatus,
+          scope: {},
+          effective_from: null,
+          effective_until: null,
+        },
+      ],
+      authority_events: [],
+      relationships: relationships.map((item) => ({
+        from_concept_id: conceptId,
+        status: "proposed",
+        ...item,
+      })),
+      levels: { [versionId]: level },
+      sources: [
+        {
+          id: sourceId,
+          name: "Security benchmark",
+          publisher: "Publisher",
+          location: "https://example.com/benchmark.pdf",
+          version_ids: [versionId],
+          evidence_counts: { [versionId]: 1 },
+        },
+      ],
+    };
+  };
+  const sourceId = ruleId(9999);
+  const company = rule(
+    ruleId(1),
+    "company",
+    "Protect customer data.",
+    "canonical",
+  );
+  const agnostic = rule(
+    ruleId(2),
+    "platform_agnostic",
+    "Encrypt data in transit.",
+    "not_canonical",
+    [{ to_concept_id: company.id, kind: "supports" }],
+  );
+  const platform = Array.from({ length: 200 }, (_, index) =>
+    rule(
+      ruleId(100 + index),
+      "platform_specific",
+      `Control ${index}.`,
+      "not_canonical",
+    ),
+  );
+  await page.route("**/api/sources", (route) =>
+    route.fulfill({
+      json: [
+        { item: { id: sourceId, name: "Security benchmark", metadata: {} } },
+      ],
+    }),
+  );
+  await page.route("**/api/concepts?**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const level = params.get("level");
+    if (level === "company") return route.fulfill({ json: [company] });
+    if (level === "platform_agnostic")
+      return route.fulfill({ json: [agnostic] });
+    return route.fulfill({
+      json: params.get("after")
+        ? [rule(ruleId(999), level ?? "", "Later.", "not_canonical")]
+        : platform,
+    });
+  });
+
+  await page.emulateMedia({ media: "print" });
+  await page.goto("/export/rules");
+  await expect(page.locator(".sidebar")).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "Layer" })).toBeHidden();
+  const meta = page.locator(".export-meta");
+  await expect(meta.getByText("Generated", { exact: true })).toBeVisible();
+  await expect(meta.getByText("All layers", { exact: true })).toBeVisible();
+  await expect(meta.getByText("Canonical and candidates")).toBeVisible();
+  const companyItem = page.locator(`#rule-${company.id}`);
+  await expect(
+    companyItem.getByText("Canonical", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    companyItem.getByText("Exact excerpt: Protect customer data."),
+  ).toBeVisible();
+  await expect(
+    companyItem.getByText(
+      /Source: Security benchmark · Publisher · https:\/\/example\.com/,
+    ),
+  ).toBeVisible();
+  const agnosticItem = page.locator(`#rule-${agnostic.id}`);
+  await expect(
+    agnosticItem.getByText("Candidate — not approved"),
+  ).toBeVisible();
+  await expect(
+    agnosticItem.getByRole("link", { name: "Protect customer data." }),
+  ).toHaveAttribute("href", `#rule-${company.id}`);
+  await expect(
+    page.getByText(/200 items · limit of 200 reached; more exist/),
+  ).toBeVisible();
+
+  await page.emulateMedia({ media: "screen" });
+  await page
+    .getByRole("combobox", { name: "Canonical status" })
+    .selectOption("canonical");
+  await expect(page).toHaveURL(/status=canonical/);
+  await expect(page.locator(`#rule-${agnostic.id}`)).toHaveCount(0);
+  await expect(companyItem).toBeVisible();
+});
+
 test("portfolio rates always show their applicable population", async ({
   page,
 }) => {

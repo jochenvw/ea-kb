@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Menu,
   Moon,
+  Printer,
   ShieldCheck,
   Sun,
   Network,
@@ -41,6 +42,7 @@ import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Ontology } from "@/ontology";
 import { SolutionPage, Solutions } from "@/solutions";
 import { Portfolio } from "@/portfolio";
+import { RulesExport } from "@/rules-export";
 import type { Issue, Source } from "@/types";
 
 const navigation = [
@@ -103,6 +105,12 @@ const navigation = [
     href: "/reconciliation",
     name: "Reconciliation log",
     icon: History,
+    group: "Reference",
+  },
+  {
+    href: "/export/rules",
+    name: "Rules export",
+    icon: Printer,
     group: "Reference",
   },
   {
@@ -275,6 +283,7 @@ export function App() {
               <Solutions />
             ))}
           {section === "/portfolio" && <Portfolio />}
+          {section === "/export/rules" && <RulesExport />}
           {section === "/knowledge" && <Knowledge view="all" />}
           {section === "/review" && <Review governance={governance} />}
           {section === "/sources" &&

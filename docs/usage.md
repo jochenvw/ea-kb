@@ -462,6 +462,12 @@ context, section/page and revision metadata. Quotes and context are rendered as 
 When a quote spans its whole segment, adjacent retained passages provide context where available;
 their section headings are shown explicitly. Missing context is disclosed, never reconstructed.
 
+**Rules export** under Reference (`/export/rules`) lists company intent, then platform-agnostic
+architecture, then platform controls in one print-optimised document. Each item shows its ontology
+type, canonical status (candidates are labelled not approved), source title and location, exact
+excerpt and links to its related concepts. Filter by layer, source and canonical status, then use
+the browser's Print to PDF. Each layer shows at most 200 items and says so when more exist.
+
 **Shared language** under Workspace (`/ontology`, read-only API `/api/ontology`) shows the canonical concepts,
 semantic relations, classification/scope properties and exact definitions from the committed OWL/RDF.
 Search names/definitions, inspect domain/range, symmetric/transitive characteristics, IRIs and version.

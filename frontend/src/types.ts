@@ -88,7 +88,13 @@ export interface Version {
 export interface Concept {
   id: string;
   versions: Version[];
-  occurrences: { id: string; excerpt: string; start: number; end: number }[];
+  occurrences: {
+    id: string;
+    concept_version_id?: string;
+    excerpt: string;
+    start: number;
+    end: number;
+  }[];
   authority_states: {
     concept_version_id: string;
     governance_status: string;

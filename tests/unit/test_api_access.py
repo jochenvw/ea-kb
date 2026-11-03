@@ -50,6 +50,9 @@ async def test_workspace_routes_serve_the_prebuilt_shell_without_templates():
             "/logs",
             "/ontology",
             "/review",
+            "/solutions",
+            "/portfolio",
+            "/export/rules",
         ):
             response = await client.get(path)
             assert response.status_code == 200

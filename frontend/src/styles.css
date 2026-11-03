@@ -1451,5 +1451,65 @@ blockquote {
 .assessment-gaps {
   margin: 0 0 1rem;
   padding-left: 1.25rem;
-  color: var(--muted-foreground);
+  color: var(--cp-text-muted);
+}
+
+.export-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.export-meta dt {
+  font-weight: 600;
+}
+
+.export-layer {
+  margin-top: 2rem;
+}
+
+.export-items {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.5rem;
+}
+
+.export-items li {
+  break-inside: avoid;
+}
+
+.export-statement {
+  margin: 0;
+  font-weight: 600;
+}
+
+.export-items blockquote {
+  margin: 0.35rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--cp-border);
+  white-space: pre-wrap;
+}
+
+@media print {
+  .sidebar,
+  .topbar,
+  .skip-link,
+  .no-print,
+  .rules-export button {
+    display: none !important;
+  }
+
+  .workspace,
+  .main-shell,
+  main {
+    display: block;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .export-layer {
+    break-before: page;
+  }
 }

@@ -12,6 +12,8 @@ Ingestion execution and monitoring are CLI-only; no browser scan control or dash
 three knowledge layers and only declared domains/ranges get arrows.
 `solutions.tsx` shows registered solutions and their retained assessment reports; `portfolio.tsx`
 shows exception risk and change impact for registered baselines, always with rate denominators.
+`rules-export.tsx` (`/export/rules`) prints layered rules with exact excerpts and canonical status;
+it states generation time, filters and any reached limit.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
 `knowledge.tsx` separates company intent, platform-agnostic architecture and platform-specific
 controls while keeping evidence first; scoped authority and history have separate detail tabs.
