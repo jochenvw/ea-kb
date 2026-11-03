@@ -118,9 +118,11 @@ impact queries do not depend on whichever interpretation happens to be latest.
 | `ports` | Small typed Protocol contracts | Concrete adapters |
 | `pipeline` / `services` | Ingestion, transactions, knowledge queries | ORM rows |
 | `orchestration` / `stages` | Durable ordering, compatible artifacts and independent checks | Transport-specific governance |
-| `adapters` | Connectors, parsing, inference, artifacts, PostgreSQL | Transport interfaces |
-| `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, MCP | Direct ORM queries (except database health checks) |
+| `adapters` | Connectors, parsing, inference, artifacts, PostgreSQL | Interfaces, services, pipeline, runtime |
+| `interfaces` / `frontend` | CLI, Textual, FastAPI with React/shadcn presentation, MCP | Adapters and ORM (except listed exceptions such as database health checks) |
 | `runtime.py` | Explicit dependency injection and resource lifetimes | Nothing implicit or global for business state |
+
+`tests\unit\test_architecture_boundaries.py` enforces these import rules.
 
 `SourceConnector -> deterministic inventory/acquisition barrier -> ArtifactStore ->
 DocumentParser -> Segment -> labeling skill -> scoped extraction skill ->

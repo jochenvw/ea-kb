@@ -2,7 +2,8 @@
 
 `test_*.py` covers domain properties, exact grounding, formats, sources, providers, configuration,
 telemetry privacy, evaluation, corpus downloads and folder-guide coverage.
-`test_domain.py` also guards domain/port/application imports against infrastructure dependencies.
+`test_architecture_boundaries.py` enforces inward dependencies, adapter isolation and thin interfaces
+(with a frozen, reasoned exception list); see AGENTS.md "Architecture conformance".
 `test_reconciliation.py` covers generic grounded judgments, unknown scope and provider contracts.
 `test_workflow_domain.py` covers plugin configuration, scope/conflict rules, bounded comparisons
 and derived alias history.

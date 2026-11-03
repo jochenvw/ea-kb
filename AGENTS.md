@@ -6,6 +6,32 @@ Knowledge Base (EKB), with exact provenance and replaceable infrastructure.
 Keep product descriptions, domain logic and synthetic examples enterprise- and industry-neutral.
 Publisher-specific names belong in actual source attribution and corpus metadata, not product branding.
 
+## Architecture conformance (mandatory)
+
+Architecture rules in this file and `docs\architecture.md` override speed, diff size and request
+wording. Apply them to every change, including small fixes, generated code and UI work. If a
+request cannot be met without breaking them, stop and state the conflict instead of working around it.
+
+Before editing, decide where the change belongs: `domain`, `ports`, `services`/`pipeline`,
+`adapters`, `runtime.py` or `interfaces`. Before finishing, confirm each item:
+
+1. **Dependencies point inward.** Domain and ports import no infrastructure; services and pipeline
+   use ports, never adapters; adapters never import services, pipeline, interfaces or runtime.
+2. **Composition happens once.** Concrete adapters are wired and owned in `runtime.py`; no globals,
+   service locators or ad-hoc construction elsewhere.
+3. **Interfaces stay thin.** CLI, TUI, web, MCP and CI call shared services; business rules,
+   persistence and provider calls live behind services and ports, not in presentation code.
+4. **Extend through existing seams.** Connectors use the `ekb.connectors` entry points; other
+   infrastructure changes extend an existing port or add one for a real interchangeable boundary,
+   with contract tests (`docs\plugins.md`). Provider specifics stay in adapters.
+5. **Shared language and evidence hold.** Ontology identifiers, exact provenance, stable IDs,
+   human-only approval and unknown-never-passes semantics are preserved.
+6. **Guides match the code.** Folder READMEs, `docs\architecture.md`, `docs\plugins.md` and an
+   ADR under `docs\decisions` for significant choices change in the same commit.
+
+`tests\unit\test_architecture_boundaries.py` enforces items 1-3. Never weaken it or extend its
+interface exception list to pass a change; move the code behind a service or port instead.
+
 ## Work minimally
 
 - Application version is registered in `pyproject.toml` (currently `0.1.0`). While its major version
