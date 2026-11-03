@@ -6,7 +6,7 @@ from typing import Literal, Protocol, Self, runtime_checkable
 from uuid import UUID
 
 from ekb.domain.architectures import SolutionArchitecture, SolutionArchitectureRevision
-from ekb.domain.assessment import CheckRequest, ImplementationObservation
+from ekb.domain.assessment import CheckRequest, ImplementationObservation, RetainedAssessment
 from ekb.domain.inspection import (
     BacklogPage,
     BacklogStatus,
@@ -251,6 +251,10 @@ class SolutionArchitectureRepository(Protocol):
     ) -> list[SolutionArchitecture]: ...
     async def get(self, architecture_id: UUID) -> SolutionArchitecture | None: ...
     async def revision(self, revision_id: UUID) -> SolutionArchitectureRevision | None: ...
+    async def save_assessment(self, assessment: RetainedAssessment) -> None: ...
+    async def assessments(
+        self, architecture_id: UUID, limit: int = 20
+    ) -> list[RetainedAssessment]: ...
 
 
 class UnitOfWork(Protocol):

@@ -1447,3 +1447,9 @@ blockquote {
     scroll-behavior: auto !important;
   }
 }
+
+.assessment-gaps {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--muted-foreground);
+}

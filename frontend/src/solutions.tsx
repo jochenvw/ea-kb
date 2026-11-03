@@ -5,6 +5,7 @@ import {
   Empty,
   Heading,
   LoadState,
+  Metric,
   Panel,
   ScopeInfo,
 } from "@/components/workspace";
@@ -16,9 +17,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { assertionText, date, externalUrl, useResource } from "@/lib/api";
+import {
+  assertionText,
+  date,
+  externalUrl,
+  label,
+  useResource,
+} from "@/lib/api";
 import type {
   ArchitectureRequirementDetail,
+  AssessmentFinding,
+  RetainedAssessment,
   SolutionArchitecture,
 } from "@/types";
 
@@ -227,6 +236,7 @@ export function SolutionPage({ id }: { id: string }) {
                 )}
               </LoadState>
             </Panel>
+            <Assessments id={id} />
             <Panel
               title="Revision history"
               description="Re-register changes as a new immutable version; prior exceptions and artefacts remain auditable."
@@ -248,5 +258,169 @@ export function SolutionPage({ id }: { id: string }) {
         )}
       </LoadState>
     </>
+  );
+}
+
+const DISPOSITION_VARIANT: Record<
+  AssessmentFinding["disposition"],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  conforms: "default",
+  excepted: "secondary",
+  violated: "destructive",
+  unknown: "outline",
+  not_applicable: "outline",
+};
+
+function Assessments({ id }: { id: string }) {
+  const resource = useResource<RetainedAssessment[]>(
+    `/api/architectures/${encodeURIComponent(id)}/assessments?limit=10`,
+  );
+  const [latest, ...earlier] = resource.data ?? [];
+  const report = latest?.report;
+  return (
+    <Panel
+      title="Latest verified assessment"
+      description="Retained exactly as produced by `ekb assess`, the MCP assess_solution tool or the API. Unknown is never a pass."
+    >
+      <LoadState resource={resource} empty={resource.data?.length === 0}>
+        {report ? (
+          <>
+            <div className="tag-row">
+              <Badge variant={report.conforms ? "default" : "destructive"}>
+                {report.conforms ? "Conforms" : "Conformance not established"}
+              </Badge>
+              {report.acceptable_with_exceptions && !report.conforms && (
+                <Badge variant="secondary">Acceptable with exceptions</Badge>
+              )}
+              {!report.baseline_complete && (
+                <Badge variant="outline">Baseline authority incomplete</Badge>
+              )}
+            </div>
+            <p className="table-note">
+              Assessed {date(latest.assessed_at)} · as of {report.target.as_of}
+              {report.target.commit
+                ? ` · commit ${report.target.commit}`
+                : ""}{" "}
+              · template SHA-256 {report.target.artifact_sha256.slice(0, 12)}… ·
+              baseline {report.baseline_revision.slice(0, 12)}…
+            </p>
+            <div className="metrics-grid">
+              <Metric
+                title="Applicable"
+                value={report.coverage.applicable}
+                detail={`of ${report.coverage.total} baseline requirements`}
+              />
+              <Metric
+                title="Violated"
+                value={report.coverage.violated}
+                detail="design or implementation evidence fails"
+              />
+              <Metric
+                title="Excepted"
+                value={report.coverage.excepted}
+                detail="active approved exceptions"
+              />
+              <Metric
+                title="Unknown"
+                value={report.coverage.unresolved}
+                detail="authority, design or evidence unresolved"
+              />
+            </div>
+            {report.gaps.length > 0 && (
+              <ul className="assessment-gaps">
+                {report.gaps.map((gap) => (
+                  <li key={gap}>{gap}</li>
+                ))}
+              </ul>
+            )}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Requirement</TableHead>
+                  <TableHead>Disposition</TableHead>
+                  <TableHead>Design</TableHead>
+                  <TableHead>Implementation</TableHead>
+                  <TableHead>Evidence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {report.findings.map((finding) => (
+                  <TableRow key={finding.id}>
+                    <TableCell>
+                      <a
+                        className="statement-link"
+                        href={`/concepts/${finding.requirement.concept_id}`}
+                      >
+                        {finding.requirement.statement}
+                      </a>
+                      <small className="cell-caption">
+                        {finding.explanation}
+                        {finding.remediation
+                          ? ` Remediation: ${finding.remediation}`
+                          : ""}
+                      </small>
+                      {finding.chain.length > 0 && (
+                        <small className="cell-caption">
+                          Traces to{" "}
+                          {finding.chain
+                            .map(
+                              (step) =>
+                                `${label(step.level)}: ${step.statement}`,
+                            )
+                            .join(" → ")}
+                        </small>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={DISPOSITION_VARIANT[finding.disposition]}>
+                        {label(finding.disposition)}
+                      </Badge>
+                      {finding.exception && (
+                        <small className="cell-caption">
+                          Approved by {finding.exception.approved_by}
+                          {finding.exception.effective_until
+                            ? ` until ${finding.exception.effective_until}`
+                            : ""}
+                        </small>
+                      )}
+                    </TableCell>
+                    <TableCell>{label(finding.design)}</TableCell>
+                    <TableCell>{label(finding.implementation)}</TableCell>
+                    <TableCell>
+                      {finding.decision_location && (
+                        <code>{finding.decision_location}</code>
+                      )}
+                      {finding.resources.map((resource) => (
+                        <small className="cell-caption" key={resource}>
+                          {resource}
+                        </small>
+                      ))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {earlier.length > 0 && (
+              <div className="record-block">
+                <p>Earlier retained reports</p>
+                {earlier.map((item) => (
+                  <p className="muted" key={item.id}>
+                    {date(item.assessed_at)} ·{" "}
+                    {item.report.conforms ? "conforms" : "not established"} ·{" "}
+                    {item.report.fingerprint.slice(0, 12)}…
+                  </p>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <Empty
+            title="No retained assessments"
+            description="Run `ekb assess <architecture> <template.json> --baseline-concept … --baseline-version …` or the MCP assess_solution tool."
+          />
+        )}
+      </LoadState>
+    </Panel>
   );
 }

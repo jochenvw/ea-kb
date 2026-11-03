@@ -12,8 +12,9 @@ Status: accepted (application 0.1.0)
   per solution. Rates use the applicable population; review signals never score, renew or weaken a
   standard. Change impact matches by concept identity; proposals and publisher releases are never
   confirmed. Drafts are exported, not sent.
-- No new tables: durable facts remain architecture revisions, approvals and canonical decisions.
-  Trends recompute earlier dates rather than storing snapshots; add storage only for a concrete need.
+- Every assessment report is retained immutably in `solution_assessments`, keyed by its
+  fingerprint, so CLI, MCP and CI runs are inspectable on the solution page. Portfolio trends still
+  recompute earlier dates rather than storing snapshots.
 
 Evidence: `tests\unit\test_assessment.py`, `tests\unit\test_portfolio.py`,
 `tests\integration\test_reference_app.py`, `tests\integration\test_portfolio_service.py`,

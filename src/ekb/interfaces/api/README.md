@@ -11,6 +11,7 @@
 - `/api/ui/config` exposes whether governance is enabled, never credentials.
 - `/api/concepts` accepts `after`, `source_id`, `level` and repeated `semantic_type` filters;
   constraints select the same version.
+- `architectures.py` serves solution revisions, retained assessments, `/api/baselines` and portfolio views.
 - `/api/sources` lists individual original documents for exact-source inspection and provenance.
 - `inspection.py` serves source drill-down, graphs, outstanding proposals and read-only table/log pages.
 - Inspection permits EKB-owned tables only, not arbitrary SQL, files, raw traces or mutations.

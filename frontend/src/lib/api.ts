@@ -38,8 +38,10 @@ export function assertionText(
   );
 }
 
-export function useResource<T>(path: string | null) {
+// A body turns the request into a POST for read-only projections that take structured input.
+export function useResource<T>(path: string | null, body?: unknown) {
   const [revision, setRevision] = useState(0);
+  const payload = body === undefined ? undefined : JSON.stringify(body);
   const [state, setState] = useState<{
     path: string | null;
     data: T | null;
@@ -51,7 +53,17 @@ export function useResource<T>(path: string | null) {
     const controller = new AbortController();
     setState({ path, data: null, error: null, loading: path !== null });
     if (path) {
-      fetch(path, { signal: controller.signal, credentials: "same-origin" })
+      fetch(path, {
+        signal: controller.signal,
+        credentials: "same-origin",
+        ...(payload === undefined
+          ? {}
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+            }),
+      })
         .then(async (response) => {
           if (!response.ok)
             throw new Error(`Request failed (${response.status}).`);
@@ -77,7 +89,7 @@ export function useResource<T>(path: string | null) {
         });
     }
     return () => controller.abort();
-  }, [path, revision]);
+  }, [path, payload, revision]);
 
   return {
     ...(state.path === path

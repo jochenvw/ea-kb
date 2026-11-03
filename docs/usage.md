@@ -223,7 +223,10 @@ uv run ekb assess ARCHITECTURE_UUID examples\reference-app\main.json `
 
 `--require` is `conforms` (default), `acceptable` (approved exceptions allowed) or `report`; the
 command exits 1 when the required result is not established. The same service backs
-`POST /api/assessments` and the MCP `assess_solution` tool. Synthetic test variations live in
+`POST /api/assessments` and the MCP `assess_solution` tool. Every report is retained immutably
+(identical inputs give one record): `GET /api/architectures/{id}/assessments` and the solution
+page's **Latest verified assessment** panel show its dispositions, gaps, traceability and evidence.
+`GET /api/baselines` lists registered baselines and whether each is approved. Synthetic test variations live in
 `tests\fixtures\reference-app`; the shared template's virtual network shows how `network.ddos_protection` reports
 explicitly disabled DDoS protection as a violation naming the template resource (absent or
 unresolved settings stay unknown).
@@ -250,7 +253,8 @@ nothing and changes no standard. Change impact matches requirements by concept I
 affected solution as confirmed, potential or unresolved (proposals and publisher releases are never
 confirmed), and groups draft work items by repository, team or owner. Drafts are not sent. API:
 `POST /api/portfolio/exception-risk`, `POST /api/portfolio/change-impact`; MCP: `exception_risk`,
-`change_impact`.
+`change_impact`. The **Portfolio risk** page (`/portfolio`) shows both for a registered baseline;
+every rate states its applicable population.
 
 Application **0.1.0** is pre-release development: before major version 1, backwards compatibility and
 data-preserving migrations are not required. After schema changes, run `uv run ekb init --recreate`

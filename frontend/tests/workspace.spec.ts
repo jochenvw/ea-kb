@@ -1658,6 +1658,227 @@ test("solution registry keeps canonical artefacts, requirements, and exceptions 
   ).toHaveAttribute("href", `/concepts/${id}?view=architecture`);
 });
 
+test("solution page shows retained assessment findings without hiding unknowns", async ({
+  page,
+}) => {
+  const revision = {
+    id: findingId,
+    architecture_id: architectureId,
+    name: "Reference app",
+    description: "Web app reference solution.",
+    owner: "Web team",
+    canonical_source: "https://example.com/architectures/reference-app",
+    version: "1",
+    scope,
+    artifact_key: "artifact-key",
+    artifact_name: "restricted.json",
+    media_type: "application/json",
+    content_hash: "a".repeat(64),
+    controls: [],
+    recorded_at: timestamp,
+  };
+  const finding = (
+    disposition: string,
+    statement: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    id: `${disposition}-finding`,
+    requirement: {
+      concept_id: id,
+      version_id: id,
+      statement,
+      evidence_location: `version:${id}`,
+    },
+    disposition,
+    authoritative: disposition !== "unknown",
+    applicability: "applicable",
+    design: disposition === "unknown" ? "unresolved" : "accepted",
+    implementation: disposition === "violated" ? "failed" : "passed",
+    explanation: `Explains ${disposition}.`,
+    remediation: disposition === "violated" ? "Enable the plan." : null,
+    decision_location: "design/restricted.json#adr-001",
+    resources: ["Microsoft.Network/virtualNetworks/refapp-vnet"],
+    exception: null,
+    chain: [],
+    ...extra,
+  });
+  const report = {
+    target: {
+      as_of: "2026-06-30",
+      commit: "0123456789abcdef",
+      artifact_sha256: "b".repeat(64),
+      architecture_revision_id: findingId,
+    },
+    baseline_revision: "c".repeat(64),
+    baseline_complete: true,
+    findings: [
+      finding("conforms", "Send audit logs to a workspace.", {
+        chain: [
+          {
+            concept_id: relatedId,
+            level: "platform_agnostic",
+            statement: "Protect against denial of service.",
+          },
+        ],
+      }),
+      finding("violated", "Deploy DDoS protection."),
+      finding("excepted", "Disable public network access.", {
+        exception: {
+          approved_by: "Architecture board",
+          effective_until: "2027-01-01",
+        },
+      }),
+      finding("unknown", "Rotate secrets automatically."),
+    ],
+    coverage: {
+      total: 4,
+      applicable: 4,
+      unresolved: 1,
+      violated: 1,
+      excepted: 1,
+      not_applicable: 0,
+    },
+    conforms: false,
+    acceptable_with_exceptions: false,
+    gaps: ["One requirement has no approved authority."],
+    fingerprint: "d".repeat(64),
+  };
+  await page.route(`**/api/architectures/${architectureId}`, (route) =>
+    route.fulfill({ json: { id: architectureId, revisions: [revision] } }),
+  );
+  await page.route(
+    `**/api/architectures/${architectureId}/requirements`,
+    (route) => route.fulfill({ json: [] }),
+  );
+  await page.route(
+    `**/api/architectures/${architectureId}/assessments?**`,
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: findingId,
+            assessed_at: timestamp,
+            baseline_concept_id: id,
+            baseline_version_id: id,
+            report,
+          },
+        ],
+      }),
+  );
+
+  await page.goto(`/solutions/${architectureId}`);
+  const panel = page.getByRole("main");
+  await expect(panel.getByText("Conformance not established")).toBeVisible();
+  await expect(panel.getByText("commit 0123456789abcdef")).toBeVisible();
+  await expect(
+    panel.getByText("One requirement has no approved authority."),
+  ).toBeVisible();
+  for (const [disposition, text] of [
+    ["Conforms", "Send audit logs to a workspace."],
+    ["Violated", "Deploy DDoS protection."],
+    ["Excepted", "Disable public network access."],
+    ["Unknown", "Rotate secrets automatically."],
+  ]) {
+    const row = panel.getByRole("row", { name: new RegExp(text) });
+    await expect(row.getByText(disposition, { exact: true })).toBeVisible();
+  }
+  await expect(panel.getByText("Remediation: Enable the plan.")).toBeVisible();
+  await expect(
+    panel.getByText("Approved by Architecture board until 2027-01-01"),
+  ).toBeVisible();
+  await expect(
+    panel.getByText(
+      "Traces to Platform Agnostic: Protect against denial of service.",
+    ),
+  ).toBeVisible();
+});
+
+test("portfolio rates always show their applicable population", async ({
+  page,
+}) => {
+  const bodies: unknown[] = [];
+  await page.route("**/api/baselines", (route) =>
+    route.fulfill({
+      json: [
+        {
+          concept_id: id,
+          version_id: id,
+          source: "Baseline reference-app-baseline",
+          policy_version: "1",
+          statement: "Hosted web workloads apply the baseline.",
+          approved: false,
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/portfolio/exception-risk", (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({
+      json: {
+        policy_id: "reference-app-baseline",
+        policy_version: "1",
+        as_of: "2026-06-30",
+        population: "Latest revision of every registered solution.",
+        solutions: 5,
+        solutions_without_design: 1,
+        distinct_exception_decisions: 2,
+        solutions_with_exceptions: 2,
+        requirements: [
+          {
+            requirement: {
+              concept_id: id,
+              version_id: id,
+              statement: "Deploy DDoS protection.",
+              evidence_location: `version:${id}`,
+            },
+            authoritative_solutions: 4,
+            applicable: 4,
+            applicability_unknown: 1,
+            active_exceptions: 1,
+            rate: 0.25,
+            violated: 1,
+            decision_required: 0,
+          },
+          {
+            requirement: {
+              concept_id: relatedId,
+              version_id: relatedId,
+              statement: "Disable public network access.",
+              evidence_location: `version:${relatedId}`,
+            },
+            authoritative_solutions: 0,
+            applicable: 0,
+            applicability_unknown: 0,
+            active_exceptions: 0,
+            rate: null,
+            violated: 0,
+            decision_required: 0,
+          },
+        ],
+        signals: [],
+        gaps: [],
+        limitations: ["Counts are not compliance rates."],
+      },
+    });
+  });
+
+  await page.goto("/portfolio");
+  await expect(page.getByText("Awaiting human approval")).toBeVisible();
+  await expect(page.getByText("25% (1 of 4)")).toBeVisible();
+  await expect(page.getByText("No applicable population")).toBeVisible();
+  await expect(
+    page.getByText("Counts are not compliance rates."),
+  ).toBeVisible();
+  // React StrictMode may repeat the effect in development; every request is scoped.
+  expect(bodies.length).toBeGreaterThan(0);
+  for (const body of bodies) {
+    expect(body).toEqual({ baseline_concept_id: id, baseline_version_id: id });
+  }
+  await expect(
+    page.getByText("Register a second baseline version to compare."),
+  ).toBeVisible();
+});
+
 test("relationship maps retain generic occurrence evidence without inventing alignments", async ({
   page,
 }) => {

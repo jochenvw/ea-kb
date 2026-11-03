@@ -99,6 +99,17 @@ class BaselineRegistration(Model):
     pending_approvals: tuple[UUID, ...] = ()
 
 
+class BaselineSummary(Model):
+    """One registered baseline version and whether a person has adopted it canonically."""
+
+    concept_id: UUID
+    version_id: UUID
+    source: str
+    policy_version: str | None
+    statement: str
+    approved: bool
+
+
 class ExceptionApproval(Model):
     id: str = Field(min_length=1, max_length=100)
     approved_by: str = Field(min_length=1, max_length=200)

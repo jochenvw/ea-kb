@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -318,4 +319,18 @@ class SolutionArchitectureControlRow(Base):
     )
     concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"), index=True)
     disposition: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class SolutionAssessmentRow(Base):
+    __tablename__ = "solution_assessments"
+    __table_args__ = (Index("ix_solution_assessments_latest", "architecture_id", "assessed_at"),)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    architecture_id: Mapped[UUID] = mapped_column(ForeignKey("solution_architectures.id"))
+    revision_id: Mapped[UUID] = mapped_column(ForeignKey("solution_architecture_revisions.id"))
+    baseline_concept_id: Mapped[UUID] = mapped_column(ForeignKey("concepts.id"))
+    baseline_version_id: Mapped[UUID]
+    conforms: Mapped[bool] = mapped_column(Boolean)
+    acceptable: Mapped[bool] = mapped_column(Boolean)
+    assessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB)

@@ -300,3 +300,125 @@ export interface LogPage {
   files_read: number;
   truncated: boolean;
 }
+
+export interface AssessmentReference {
+  concept_id: string;
+  version_id: string;
+  statement: string;
+  evidence_location: string;
+}
+
+export interface TraceabilityStep {
+  concept_id: string;
+  level: string;
+  statement: string;
+}
+
+export interface AssessmentFinding {
+  id: string;
+  requirement: AssessmentReference;
+  disposition:
+    "conforms" | "violated" | "excepted" | "not_applicable" | "unknown";
+  authoritative: boolean;
+  applicability: string;
+  design: string;
+  implementation: string;
+  explanation: string;
+  remediation: string | null;
+  decision_location: string | null;
+  resources: string[];
+  exception: { approved_by: string; effective_until: string | null } | null;
+  chain: TraceabilityStep[];
+}
+
+export interface SolutionAssessment {
+  target: {
+    as_of: string;
+    commit: string | null;
+    artifact_sha256: string;
+    architecture_revision_id: string;
+  };
+  baseline_revision: string;
+  baseline_complete: boolean;
+  findings: AssessmentFinding[];
+  coverage: {
+    total: number;
+    applicable: number;
+    unresolved: number;
+    violated: number;
+    excepted: number;
+    not_applicable: number;
+  };
+  conforms: boolean;
+  acceptable_with_exceptions: boolean;
+  gaps: string[];
+  fingerprint: string;
+}
+
+export interface RetainedAssessment {
+  id: string;
+  assessed_at: string;
+  baseline_concept_id: string;
+  baseline_version_id: string;
+  report: SolutionAssessment;
+}
+
+export interface BaselineSummary {
+  concept_id: string;
+  version_id: string;
+  source: string;
+  policy_version: string | null;
+  statement: string;
+  approved: boolean;
+}
+
+export interface RequirementExposure {
+  requirement: AssessmentReference;
+  authoritative_solutions: number;
+  applicable: number;
+  applicability_unknown: number;
+  active_exceptions: number;
+  rate: number | null;
+  violated: number;
+  decision_required: number;
+}
+
+export interface ExceptionRiskReport {
+  policy_id: string;
+  policy_version: string;
+  as_of: string;
+  population: string;
+  solutions: number;
+  solutions_without_design: number;
+  distinct_exception_decisions: number;
+  solutions_with_exceptions: number;
+  requirements: RequirementExposure[];
+  signals: { kind: string; reason: string }[];
+  gaps: string[];
+  limitations: string[];
+}
+
+export interface ChangeImpactReport {
+  stage: string;
+  old_policy: string;
+  new_policy: string;
+  as_of: string;
+  changes: {
+    concept_id: string;
+    kind: string;
+    aspects: string[];
+    statement: string;
+  }[];
+  items: {
+    id: string;
+    solution: string;
+    version: string;
+    owner: string | null;
+    certainty: string;
+    reason: string;
+    action: string;
+    change: { statement: string; kind: string };
+  }[];
+  drafts: { route: string; title: string; body: string; items: string[] }[];
+  gaps: string[];
+}

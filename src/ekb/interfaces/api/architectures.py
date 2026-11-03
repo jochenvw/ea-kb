@@ -9,7 +9,12 @@ from ekb.domain.architectures import (
     ArchitectureRequirementDetail,
     SolutionArchitecture,
 )
-from ekb.domain.assessment import SolutionAssessment, SolutionAssessmentInput
+from ekb.domain.assessment import (
+    RetainedAssessment,
+    SolutionAssessment,
+    SolutionAssessmentInput,
+)
+from ekb.domain.baselines import BaselineSummary
 from ekb.domain.portfolio import (
     ChangeImpactInput,
     ChangeImpactReport,
@@ -69,6 +74,21 @@ def register(app: FastAPI, active: Callable[[Request], Runtime]) -> None:
             )
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
+
+    @app.get(
+        "/api/architectures/{architecture_id}/assessments",
+        response_model=list[RetainedAssessment],
+    )
+    async def architecture_assessments(
+        request: Request,
+        architecture_id: UUID,
+        limit: Annotated[int, Query(ge=1, le=50)] = 10,
+    ):
+        return await active(request).architectures.assessments(architecture_id, limit)
+
+    @app.get("/api/baselines", response_model=list[BaselineSummary])
+    async def baselines(request: Request, limit: Annotated[int, Query(ge=1, le=200)] = 50):
+        return await active(request).baselines.list(limit)
 
     @app.post("/api/assessments", response_model=SolutionAssessment)
     async def assess_solution(request: Request, body: SolutionAssessmentInput):

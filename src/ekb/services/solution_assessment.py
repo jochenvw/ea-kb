@@ -32,7 +32,7 @@ def canonical_json(value: object) -> bytes:
 
 
 class SolutionAssessmentService:
-    """One read-only assessment path shared by MCP, HTTP, CLI and continuous integration."""
+    """One assessment path shared by MCP, HTTP, CLI and CI; every report is retained as produced."""
 
     def __init__(
         self,
@@ -214,4 +214,6 @@ class SolutionAssessmentService:
                 else ()
             )
             findings.append(finding.model_copy(update={"chain": chain}))
-        return result.model_copy(update={"findings": tuple(findings)})
+        report = result.model_copy(update={"findings": tuple(findings)})
+        await self.architectures.retain(report, approval.concept_id, approval.version_id)
+        return report

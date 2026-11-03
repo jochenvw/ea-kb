@@ -10,6 +10,7 @@ selection and review tabs. The supported target is PC browsers; do not add mobil
 Curation guidance never represents saved approval.
 Reference/work regressions cover source-bound versions, graph recentering/proposal styles,
 backlog versus ledger, foreign-key navigation, terminal pages and searchable log tails.
+Assessment regressions show every disposition with traceability; portfolio rates show denominators.
 Ontology regressions cover exact definitions, linked scopes, search, escaping, deep links and themes.
 Mermaid checks cover declared constraints, unbound relations, safe labels and retryable render failures.
 Python integration tests cover the actual FastAPI routes, authentication and persisted services.

@@ -11,12 +11,14 @@ from ekb.adapters.persistence.postgres.models import (
     SolutionArchitectureControlRow,
     SolutionArchitectureRevisionRow,
     SolutionArchitectureRow,
+    SolutionAssessmentRow,
 )
 from ekb.domain.architectures import (
     ArchitectureControl,
     SolutionArchitecture,
     SolutionArchitectureRevision,
 )
+from ekb.domain.assessment import RetainedAssessment
 from ekb.domain.models import stable_id
 
 
@@ -130,6 +132,33 @@ class Architectures:
                 ],
             }
         )
+
+    async def save_assessment(self, assessment: RetainedAssessment) -> None:
+        report = assessment.report
+        await self.session.execute(
+            insert(SolutionAssessmentRow)
+            .values(
+                id=assessment.id,
+                architecture_id=report.target.solution_id,
+                revision_id=report.target.architecture_revision_id,
+                baseline_concept_id=assessment.baseline_concept_id,
+                baseline_version_id=assessment.baseline_version_id,
+                conforms=report.conforms,
+                acceptable=report.acceptable_with_exceptions,
+                assessed_at=assessment.assessed_at,
+                payload=assessment.model_dump(mode="json"),
+            )
+            .on_conflict_do_nothing()
+        )
+
+    async def assessments(self, architecture_id: UUID, limit: int = 20) -> list[RetainedAssessment]:
+        rows = await self.session.scalars(
+            select(SolutionAssessmentRow.payload)
+            .where(SolutionAssessmentRow.architecture_id == architecture_id)
+            .order_by(SolutionAssessmentRow.assessed_at.desc(), SolutionAssessmentRow.id)
+            .limit(limit)
+        )
+        return [RetainedAssessment.model_validate(payload) for payload in rows]
 
     async def _controls(
         self, revision_ids: list[UUID]

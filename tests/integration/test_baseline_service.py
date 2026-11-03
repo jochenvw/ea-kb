@@ -52,6 +52,12 @@ async def test_registration_retains_policy_and_only_proposes_adoption(runtime, d
     # The baseline and the unadopted requirement await a human decision; nothing is approved.
     assert len(first.pending_approvals) == 2
     assert await runtime.baselines.register(content, "file:///baseline.json") == first
+    (listed,) = await runtime.baselines.list()
+    assert (listed.version_id, listed.policy_version, listed.approved) == (
+        first.version_id,
+        "1",
+        False,
+    )
     approval = BaselineApproval(concept_id=first.concept_id, version_id=first.version_id)
     loaded, digest = await runtime.assessments.policy(approval, date.today())
     assert digest == first.policy_sha256 and len(loaded.requirements) == 2
@@ -67,6 +73,7 @@ async def test_registration_retains_policy_and_only_proposes_adoption(runtime, d
         )
     again = await runtime.baselines.register(content, "file:///baseline.json")
     assert again.pending_approvals == ()
+    assert [item.approved for item in await runtime.baselines.list()] == [True]
 
     revised = await runtime.baselines.register(policy(*pins, version="2"), "file:///b.json")
     assert revised.concept_id == first.concept_id and revised.version_id != first.version_id

@@ -4,6 +4,7 @@ import {
   BookOpen,
   Blocks,
   Building2,
+  ChartColumn,
   CheckCheck,
   ChevronRight,
   CircleHelp,
@@ -39,6 +40,7 @@ import { Explorer } from "@/network";
 import { DataExplorer, Logs, ReconciliationLog } from "@/reference";
 import { Ontology } from "@/ontology";
 import { SolutionPage, Solutions } from "@/solutions";
+import { Portfolio } from "@/portfolio";
 import type { Issue, Source } from "@/types";
 
 const navigation = [
@@ -77,6 +79,12 @@ const navigation = [
     href: "/solutions",
     name: "Solution registry",
     icon: BookOpen,
+    group: "Knowledge",
+  },
+  {
+    href: "/portfolio",
+    name: "Portfolio risk",
+    icon: ChartColumn,
     group: "Knowledge",
   },
   {
@@ -266,6 +274,7 @@ export function App() {
             ) : (
               <Solutions />
             ))}
+          {section === "/portfolio" && <Portfolio />}
           {section === "/knowledge" && <Knowledge view="all" />}
           {section === "/review" && <Review governance={governance} />}
           {section === "/sources" &&

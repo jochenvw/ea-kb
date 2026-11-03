@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal, Self
 from uuid import UUID
 
@@ -192,6 +192,16 @@ class SolutionAssessment(Model):
     acceptable_with_exceptions: bool
     gaps: tuple[str, ...] = ()
     fingerprint: str
+
+
+class RetainedAssessment(Model):
+    """An immutable assessment report as produced, keyed by its input fingerprint."""
+
+    id: UUID
+    assessed_at: datetime
+    baseline_concept_id: UUID
+    baseline_version_id: UUID
+    report: SolutionAssessment
 
 
 def _implementation(target: AssessmentTarget, item: RequirementAssessment) -> VerificationStatus:

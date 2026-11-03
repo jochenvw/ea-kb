@@ -4,8 +4,8 @@
 - `concept_versions.semantic_type` and relationship kinds are SQL-constrained to OWL identifiers;
   type projections must match payloads. Unknown stays null; succession is lifecycle metadata.
 - `__init__.py` implements source, knowledge, lineage and processing repositories.
-- `architectures.py` stores immutable solution-architecture revisions and requirement dispositions;
-  artefact bytes remain in the configured content-addressed artifact store.
+- `architectures.py` stores immutable solution-architecture revisions, requirement dispositions and
+  fingerprint-keyed assessment reports; artefact bytes remain in the content-addressed artifact store.
 - Knowledge search uses exclusive UUID cursors and at most 200 concepts per query.
 - Source filters, citations and extraction inspection use candidate evidence (including legacy
   purpose-less occurrences), not relationship rationale.

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
-from ekb.domain.baselines import BaselinePolicy, BaselineRegistration
+from ekb.domain.baselines import BaselinePolicy, BaselineRegistration, BaselineSummary
 from ekb.domain.models import (
     Candidate,
     Extraction,
@@ -150,3 +150,39 @@ class BaselineService:
             requirements=len(policy.requirements),
             pending_approvals=tuple(proposals),
         )
+
+    async def list(self, limit: int = 50) -> list[BaselineSummary]:
+        """Registered baseline versions, newest policy label last per source."""
+        async with self.uow() as uow:
+            sources = [
+                item for item in await uow.sources.list() if item.item.connector == CONNECTOR
+            ]
+            found = [
+                (
+                    source.item.name,
+                    await uow.knowledge.search(
+                        limit=limit,
+                        source_id=source.item.id,
+                        semantic_types=(SemanticType.STRATEGIC_REQUIREMENT,),
+                    ),
+                )
+                for source in sources[:limit]
+            ]
+        summaries: list[BaselineSummary] = []
+        for name, concepts in found:
+            for concept in concepts:
+                for version in concept.versions:
+                    resolution = await self.resolver.resolve_concept(
+                        concept.id, version.candidate.scope
+                    )
+                    summaries.append(
+                        BaselineSummary(
+                            concept_id=concept.id,
+                            version_id=version.id,
+                            source=name,
+                            policy_version=version.publication.publisher_version,
+                            statement=version.candidate.statement,
+                            approved=canonical_reference(resolution, version.id) is not None,
+                        )
+                    )
+        return summaries[:limit]

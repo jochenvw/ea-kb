@@ -10,6 +10,8 @@ Ingestion execution and monitoring are CLI-only; no browser scan control or dash
 `ontology.tsx` reads canonical definitions/IRIs from `/api/ontology`; badges and inline definitions reuse it.
 `ontology-diagram.tsx` lazily renders Mermaid from that catalog; OWL classes are grouped by the
 three knowledge layers and only declared domains/ranges get arrows.
+`solutions.tsx` shows registered solutions and their retained assessment reports; `portfolio.tsx`
+shows exception risk and change impact for registered baselines, always with rate denominators.
 `main.tsx` mounts the app; `styles.css` defines responsive layout.
 `knowledge.tsx` separates company intent, platform-agnostic architecture and platform-specific
 controls while keeping evidence first; scoped authority and history have separate detail tabs.

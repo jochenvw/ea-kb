@@ -9,6 +9,7 @@ from ekb.domain.architectures import (
     SolutionArchitectureRevision,
     TraceabilityStep,
 )
+from ekb.domain.assessment import RetainedAssessment, SolutionAssessment
 from ekb.domain.models import (
     ClassificationProperty,
     KnowledgeLevel,
@@ -187,6 +188,26 @@ class ArchitectureService:
         if revision is None or revision.architecture_id != architecture_id:
             raise ValueError("Solution architecture revision not found")
         return revision, await self.artifacts.get(revision.artifact_key)
+
+    async def retain(
+        self, report: SolutionAssessment, baseline_concept_id: UUID, baseline_version_id: UUID
+    ) -> RetainedAssessment:
+        """Keep the report as produced; an identical re-run keeps the first record."""
+        retained = RetainedAssessment(
+            id=stable_id("assessment", report.fingerprint),
+            assessed_at=now(),
+            baseline_concept_id=baseline_concept_id,
+            baseline_version_id=baseline_version_id,
+            report=report,
+        )
+        async with self.uow() as uow:
+            await uow.architectures.save_assessment(retained)
+            await uow.commit()
+        return retained
+
+    async def assessments(self, architecture_id: UUID, limit: int = 20) -> list[RetainedAssessment]:
+        async with self.uow() as uow:
+            return await uow.architectures.assessments(architecture_id, limit)
 
     async def chain(self, concept_id: UUID, version_id: UUID) -> tuple[TraceabilityStep, ...]:
         """Upward lineage whose first hop is bound to the pinned requirement version."""

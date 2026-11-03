@@ -196,6 +196,11 @@ async def test_reference_app_mcp_round_trip_uses_shared_service(reference):
             response = await client.post("/api/assessments", json=request.model_dump(mode="json"))
             assert response.status_code == 200, response.text
             assert response.json()["fingerprint"] == direct.fingerprint
+            # Direct, MCP and HTTP runs share inputs, so one immutable report is retained.
+            response = await client.get(f"/api/architectures/{request.architecture_id}/assessments")
+            assert response.status_code == 200, response.text
+            retained = [item["report"]["fingerprint"] for item in response.json()]
+            assert retained == [direct.fingerprint]
             missing = request.model_copy(update={"baseline_version_id": request.architecture_id})
             response = await client.post("/api/assessments", json=missing.model_dump(mode="json"))
             assert response.status_code == 422
