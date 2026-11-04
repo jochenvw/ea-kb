@@ -11,6 +11,13 @@ EKB-owned tables without re-indexing. It preserves originals, unrelated tables a
 refuses active work and is disabled from v1 onward. Ordinary startup is not destructive.
 Development initialization uses current ORM metadata, not migration history; see decision `0009`.
 
+The reviewed offline demo is an explicit deployment/bootstrap path, not an ingestion stage.
+`scripts\demo.py` restores a pinned PostgreSQL dump and matching originals into an isolated
+Compose project and `data\demo`, then invokes the existing web CLI with paid providers disabled.
+It does not construct adapters, change runtime composition or reset an existing workspace.
+Only allowlisted redistributable evidence is bundled; operational history and governance are
+excluded. See [demo instructions](demo.md) and decision `0015`.
+
 ## Scope and design drivers
 
 The application goals below state intent and boundaries; the rest describes implemented ingestion,

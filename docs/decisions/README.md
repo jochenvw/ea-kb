@@ -12,6 +12,7 @@
 - `0012-shared-source-ingestion.md`: ordinary source ingestion and guarded legacy-table cleanup.
 - `0013-layered-provenance-findings.md`: ordered inferred links, asymmetric cardinality and coverage.
 - `0014-verified-assessment-and-portfolio-views.md`: verified assessment and derived portfolio views.
+- `0015-reviewed-offline-demo.md`: redistributable precomputed snapshot and isolated zero-inference startup.
 
 Read these before changing persistence invariants, execution boundaries or major dependencies.
 Record a new significant decision briefly; keep detailed implementation description in

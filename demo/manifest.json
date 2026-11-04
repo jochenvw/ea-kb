@@ -1,0 +1,47 @@
+{
+  "application_version": "0.1.0",
+  "source_commit": "e0d2c5a4ad03154733558712e4c42d838be4ce53",
+  "created_at": "2026-11-04T09:34:11.835830+00:00",
+  "schema_sha256": "7256abb31abc46950273b4eb511608f1ed48b42a96b3601d43d86b35c0228845",
+  "archive_sha256": "c66ad6aabdb6db317cd7bf6ca33fc688086cf6a4b2521e0b59e828325014b52d",
+  "sources": [
+    {
+      "id": "8779dbe9-0b83-52a3-9799-929cf1406f10",
+      "name": "NIST Cybersecurity Framework 2.0",
+      "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/CSF/v2.0/json/NIST_CSF_v2.0_catalog.json",
+      "artifact_key": "0ac12904a4bcd877ec91be8e7ddc27278c88b0088c7db77d60ee24918e2563e2"
+    },
+    {
+      "id": "b333cf4b-bdb9-5c03-9805-6f825f474816",
+      "name": "NIST SP 800-53 revision 5",
+      "location": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
+      "artifact_key": "64ca6b4161de51ab6af098a7d101d326f14c95e1abf721396cd8a049e8115eeb"
+    }
+  ],
+  "counts": {
+    "authority_events": 0,
+    "concept_versions": 1223,
+    "concepts": 1223,
+    "enrichment_findings": 0,
+    "issue_events": 0,
+    "knowledge_issues": 0,
+    "occurrences": 1223,
+    "parse_checkpoints": 0,
+    "pipeline_executions": 0,
+    "pipeline_leases": 0,
+    "processing_runs": 0,
+    "processing_tasks": 0,
+    "publication_assessments": 2,
+    "reconciliation_decisions": 0,
+    "relationships": 0,
+    "segment_results": 0,
+    "segments": 1225,
+    "semantic_replay_cache": 0,
+    "solution_architecture_controls": 0,
+    "solution_architecture_revisions": 0,
+    "solution_architectures": 0,
+    "solution_assessments": 0,
+    "source_revisions": 2,
+    "sources": 2
+  }
+}

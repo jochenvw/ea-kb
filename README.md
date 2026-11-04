@@ -50,6 +50,20 @@ Step-by-step commands and expected outcomes: [agent and CI walkthrough](docs/age
 
 ## Quick start
 
+**Explore populated knowledge without Foundry or model calls:**
+
+```powershell
+uv run python scripts\demo.py
+```
+
+Requires uv, Python 3.13 and Docker with its Linux engine running. Open
+<http://127.0.0.1:8000>. The checked-in snapshot includes precomputed NIST catalog interpretations
+and exact originals, with a separate database on port 5433; existing workspace data is untouched.
+No Azure login, ingestion or inference is needed. See [offline demo and LLM instructions](docs/demo.md)
+for scope, attribution, restart and maintenance. Corporate annual reports are not redistributed.
+
+**Start an empty workspace for your own ingestion:**
+
 Requires Python 3.13, [uv](https://docs.astral.sh/uv/), Git and Docker with a running Linux engine.
 From a checkout, in PowerShell:
 

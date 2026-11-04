@@ -1,5 +1,9 @@
 # Adapter and plugin contracts
 
+The [offline demo](demo.md) restores a reviewed snapshot and matching filesystem artifacts before
+calling the existing web CLI. It introduces no adapter, connector, provider or port contract.
+Restore preserves source identities and evidence; it does not imply ingestion or governance replay.
+
 ## Connectors
 
 Package entry points in group `ekb.connectors` map provider names to connector factories.

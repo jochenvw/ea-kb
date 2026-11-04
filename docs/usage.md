@@ -19,6 +19,11 @@ train-only exports, live quality/cost gates and [minimal Foundry infrastructure]
 
 ## Quick start (PowerShell)
 
+To browse existing knowledge without Foundry, parsing or model calls, use the
+[precomputed offline demo](demo.md): `uv run python scripts\demo.py`.
+It restores a reviewed bundled snapshot into separate local storage, not the normal workspace.
+The commands below instead initialize an empty workspace for ingestion.
+
 Prerequisites: Python 3.13, [uv](https://docs.astral.sh/uv/), Docker with a running Linux engine.
 
 ```powershell

@@ -17,6 +17,7 @@ atomic history and incomparable run conditions using offline transports.
 `test_ontology.py` checks exact OWL definitions, domain/SQL/browser parity and read-only access.
 `test_frugal_evaluation.py` covers split leakage, train-only exports, quality/cost gates and suite failure.
 `test_infra.py` compiles/lints Bicep and checks ARM safeguards offline when Azure tooling is available.
+`test_demo.py` checks the bundled originals, safe restore/reuse and paid-provider configuration overrides.
 
 Use `uv run pytest -q tests\unit`; HTTP/model/Azure behavior is mocked or injected.
 `test_folder_readmes.py` uses Git's tracked/new non-ignored inventory to catch missing guides,

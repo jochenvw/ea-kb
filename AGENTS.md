@@ -154,6 +154,22 @@ interface exception list to pass a change; move the code behind a service or por
   storage settings does not migrate historical originals.
 - Never commit credentials, downloaded corpus files or runtime data. Keep telemetry free of source
   text, authorization headers and sensitive exception details; payload capture remains opt-in.
+  The sole exception is the reviewed, redistributable offline demo under `demo`: follow
+  `docs\demo.md`, retain source attribution and exact originals, and exclude private/local-only
+  publications, credentials, operational history and governance decisions. Never commit a raw
+  workspace dump or expand the reviewed source allowlist without checking redistribution rights.
+
+## Starting a populated workspace (humans and LLMs)
+
+- For exploration without Foundry or token spend, run `uv run python scripts\demo.py`.
+  This restores bundled, precomputed NIST knowledge into an isolated demo database and serves
+  the browser. Prerequisites and recovery instructions are in `docs\demo.md`.
+- Do not run ingestion, workers, downloads, skill evaluations or model-backed rephrasing merely
+  to start the demo. Do not initialize/recreate its schema after restoration.
+- The launcher overrides model and telemetry configuration, uses `data\demo`, and never resets
+  an existing database. Keep those guarantees when updating onboarding.
+- Demo interpretations are not approved enterprise policy. Do not invent missing corporate
+  strategy, excluded sources, reconciliation results, or approval decisions.
 
 ## Verify and commit coherent changes
 
